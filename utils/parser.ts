@@ -24,6 +24,9 @@ const CAR_TYPES = {
   BUS: "باص"
 };
 
+// Helper ID generator
+const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+
 const getCarType = (count: string): string => {
   const num = parseInt(count, 10);
   if (isNaN(num)) return "";
@@ -174,10 +177,12 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   // 3. Construct Final Rows
   if (arrivalSegment) {
     rows.push({
+      id: uid(),
       ...groupInfo,
       ...(arrivalSegment as LogisticsRow),
       carType,
-      tafweej: "لا"
+      tafweej: "لا",
+      status: 'Planned'
     });
   }
 
@@ -192,6 +197,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       }
 
       rows.push({
+        id: uid(),
         ...groupInfo,
         Column1: "بين المدن",
         date: interCityDate, 
@@ -200,7 +206,8 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
         from: "المدينة المنورة",
         to: "مكة المكرمة",
         carType,
-        tafweej: "لا"
+        tafweej: "لا",
+        status: 'Planned'
       });
 
       // Update departure segment to reflect it comes from Makkah
@@ -210,16 +217,19 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
 
   if (departureSegment) {
     rows.push({
+      id: uid(),
       ...groupInfo,
       ...(departureSegment as LogisticsRow),
       carType,
-      tafweej: "لا"
+      tafweej: "لا",
+      status: 'Planned'
     });
   }
 
   // Fallback
   if (rows.length === 0 && text.trim().length > 10) {
       rows.push({
+          id: uid(),
           ...groupInfo,
           Column1: "غير محدد",
           date: "",
@@ -228,7 +238,8 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
           from: "?",
           to: "?",
           carType,
-          tafweej: "لا"
+          tafweej: "لا",
+          status: 'Planned'
       });
   }
 

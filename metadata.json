@@ -1,5 +1,5 @@
 {
   "name": "Umrah Logistics Pro",
-  "description": "A specialized tool for Umrah travel agents to parse itinerary texts into structured logistics tables, enabling easy management of arrivals, departures, and inter-city transfers with Excel export capabilities.",
+  "description": "A specialized tool for Umrah travel agents with AI bot assistant and 2-hour proximity alerts for scheduled movements.",
   "requestFramePermissions": []
 }

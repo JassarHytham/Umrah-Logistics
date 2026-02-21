@@ -1,3 +1,4 @@
+
 import { GroupInfo, LogisticsRow } from '../types';
 
 const AIRPORT_MAP: Record<string, string> = {
@@ -24,7 +25,6 @@ const CAR_TYPES = {
   BUS: "باص"
 };
 
-// Helper ID generator
 const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 
 const getCarType = (count: string): string => {
@@ -37,14 +37,17 @@ const getCarType = (count: string): string => {
 
 const formatDate = (dateStr: string | null | undefined): string => {
   if (!dateStr) return "";
-  // Matches 19/12/2025, 2025-12-19, 12-19-2025
-  const match = dateStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})|(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  const match = dateStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})|(\d{1,2})[-/](\d{1,2})[-/](\d{4})|(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
   
   if (match) {
     if (match[1]) { // YYYY-MM-DD
-      return `${match[1]}-${match[2].padStart(2,'0')}-${match[3].padStart(2,'0')}`;
-    } else if (match[4]) { // DD-MM-YYYY usually
-      return `${match[6]}-${match[5].padStart(2,'0')}-${match[4].padStart(2,'0')}`;
+      return `${match[3].padStart(2,'0')}/${match[2].padStart(2,'0')}/${match[1]}`;
+    } else if (match[4]) { // DD-MM-YYYY or MM-DD-YYYY
+      const n1 = parseInt(match[4]);
+      const n2 = parseInt(match[5]);
+      if (n1 > 12) return `${match[4].padStart(2,'0')}/${match[5].padStart(2,'0')}/${match[6]}`;
+      if (n2 > 12) return `${match[5].padStart(2,'0')}/${match[4].padStart(2,'0')}/${match[6]}`;
+      return `${match[4].padStart(2,'0')}/${match[5].padStart(2,'0')}/${match[6]}`;
     }
   }
   return dateStr;
@@ -52,194 +55,168 @@ const formatDate = (dateStr: string | null | undefined): string => {
 
 const normalizeCity = (text: string | null | undefined): string => {
   if (!text) return "";
+  const t = text.trim();
   for (const [key, value] of Object.entries(AIRPORT_MAP)) {
-    if (text.includes(key)) return value;
+    if (t.includes(key)) return value;
   }
-  return text.trim();
+  return t;
+};
+
+export const parseDateTime = (dateStr: string, timeStr: string) => {
+  if (!dateStr) return null;
+  const cleanDate = dateStr.trim();
+  const cleanTime = (timeStr || "00:00").trim();
+  
+  try {
+    let d: number, m: number, y: number;
+    let parts: string[] = [];
+    
+    if (cleanDate.includes('/')) parts = cleanDate.split('/');
+    else if (cleanDate.includes('-')) parts = cleanDate.split('-');
+    else return null;
+
+    if (parts.length !== 3) return null;
+
+    const p0 = parseInt(parts[0]);
+    const p1 = parseInt(parts[1]);
+    const p2 = parseInt(parts[2]);
+
+    if (p0 > 1000) { // YYYY/MM/DD or YYYY-MM-DD
+      y = p0; m = p1; d = p2;
+    } else if (p2 > 1000) { // DD/MM/YYYY or MM/DD/YYYY
+      y = p2;
+      // We assume DD/MM/YYYY as per app standard, but if p0 > 12 it must be DD
+      d = p0; m = p1;
+    } else {
+      return null;
+    }
+    
+    let h = 0, min = 0;
+    if (cleanTime.includes(':')) {
+      const tParts = cleanTime.split(':').map(Number);
+      h = tParts[0] || 0;
+      min = tParts[1] || 0;
+    }
+    
+    if (isNaN(y) || isNaN(m) || isNaN(d) || isNaN(h) || isNaN(min)) return null;
+    return new Date(y, m - 1, d, h, min);
+  } catch { return null; }
 };
 
 export const parseItineraryText = (text: string, groupInfo: GroupInfo): LogisticsRow[] => {
   const rows: LogisticsRow[] = [];
   const carType = getCarType(groupInfo.count);
   
-  const dateRegex = /(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})/;
-  
-  // Temporary storage
-  let arrivalSegment: Partial<LogisticsRow> | null = null;
-  let departureSegment: Partial<LogisticsRow> | null = null;
+  // Extract Destination Blocks
+  const destBlocks: { city: string; startDate: string; index: number }[] = [];
+  const destRegex = /الوجهة\s*\(([^)]+)\)/g;
+  let match;
+  while ((match = destRegex.exec(text)) !== null) {
+      const city = match[1].trim();
+      const searchStart = match.index;
+      const searchEnd = text.indexOf("الوجهة", searchStart + 1);
+      const blockText = text.substring(searchStart, searchEnd === -1 ? text.length : searchEnd);
+      const dateMatch = blockText.match(/(\d{1,2}\/\d{1,2}\/\d{4})|(\d{4}-\d{1,2}-\d{1,2})/);
+      const startDate = dateMatch ? formatDate(dateMatch[0]) : "";
+      destBlocks.push({ city, startDate, index: match.index });
+  }
 
-  const normalizedText = text;
+  const findFlight = (block: string) => {
+    // Priority 1: Labeled flight number
+    const labeledMatch = block.match(/رقم الرحلة\s*[\r\n:]*\s*([A-Z0-9]{2,}\s?\d{3,})/i);
+    if (labeledMatch) return labeledMatch[1].trim();
+    // Priority 2: Standard airline codes (SV, TK, MS, EK, etc.) followed by numbers
+    const patternMatch = block.match(/\b(SV|TK|MS|EK|QR|AI|KU|WY|RJ|ME|PA|EY|FZ|XY|G9)\s?\d{3,}\b/i);
+    return patternMatch ? patternMatch[0].trim() : "-";
+  };
 
-  // 1. Detect Arrival Block
-  const arrivalStartIndex = normalizedText.indexOf("رحلة الوصول");
-  
-  if (arrivalStartIndex !== -1) {
-      const nextSectionIndex = normalizedText.indexOf("رحلة المغادرة", arrivalStartIndex);
-      const arrivalContextLimit = nextSectionIndex !== -1 ? nextSectionIndex : normalizedText.length;
-      const arrivalBlock = normalizedText.substring(arrivalStartIndex, arrivalContextLimit);
+  // Parse Arrival
+  let arrivalData: Partial<LogisticsRow> | null = null;
+  const arrivalIndex = text.indexOf("رحلة الوصول");
+  if (arrivalIndex !== -1) {
+      const block = text.substring(arrivalIndex, text.indexOf("رحلة المغادرة", arrivalIndex) === -1 ? text.length : text.indexOf("رحلة المغادرة", arrivalIndex));
+      const dateMatch = block.match(/تاريخ الوصول\s*[\r\n]*\s*([\d-/]{8,10})/) || block.match(/(\d{4}-\d{1,2}-\d{1,2})|(\d{1,2}\/\d{1,2}\/\d{4})/);
+      const timeMatch = block.match(/وقت الوصول\s*[\r\n]*\s*(\d{1,2}:\d{2})/);
+      const airportMatch = block.match(/المطار\s*[\r\n]*\s*([^\r\n]+)/);
 
-      let arrivalDate = "";
-      const dateMatch = arrivalBlock.match(/تاريخ الوصول\s*[\r\n]*\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})/);
-      if (dateMatch) {
-          arrivalDate = formatDate(dateMatch[1]);
-      } else {
-          const anyDate = arrivalBlock.match(dateRegex);
-          if (anyDate) arrivalDate = formatDate(anyDate[0]);
-      }
-
-      let flight = "";
-      const flightMatch = arrivalBlock.match(/رقم الرحلة\s*[\r\n]*\s*([A-Z0-9\-]+)/i);
-      if (flightMatch) flight = flightMatch[1];
-
-      let time = "";
-      const timeMatch = arrivalBlock.match(/وقت الوصول\s*[\r\n]*\s*(\d{1,2}:\d{2})/);
-      if (timeMatch) time = timeMatch[1];
-
-      let from = "";
-      const airportMatch = arrivalBlock.match(/المطار\s*[\r\n]*\s*([^\r\n]+)/);
-      if (airportMatch) {
-          from = normalizeCity(airportMatch[1].trim());
-      } else {
-          const comingFrom = arrivalBlock.match(/(?:قادم من|Coming from)\s*[\r\n]*\s*([^\r\n]+)/);
-          if (comingFrom) {
-              from = comingFrom[1].split(/[\n\r,]/)[0].trim();
-          }
-      }
-
-      let to = "";
-      const destinationMatch = arrivalBlock.match(/الوجهة\s*\(([^)]+)\)/);
-      if (destinationMatch) {
-          to = destinationMatch[1].trim();
-      } else {
-           if (from === "جدة") to = "مكة المكرمة";
-           else if (from === "المدينة المنورة") to = "المدينة المنورة";
-      }
-
-      arrivalSegment = {
-        Column1: "وصول",
-        date: arrivalDate,
-        time: time,
-        flight: flight,
-        from: from || "غير محدد",
-        to: to || "غير محدد"
+      arrivalData = {
+          Column1: "وصول",
+          date: dateMatch ? formatDate(dateMatch[0]) : (destBlocks[0]?.startDate || ""),
+          time: timeMatch ? timeMatch[1] : "",
+          flight: findFlight(block),
+          from: airportMatch ? normalizeCity(airportMatch[1]) : "جدة",
+          to: destBlocks[0]?.city || "مكة المكرمة"
       };
   }
 
-  // 2. Detect Departure Block
-  const departureStartIndex = normalizedText.indexOf("رحلة المغادرة");
-  if (departureStartIndex !== -1) {
-    const departureBlock = normalizedText.substring(departureStartIndex);
-    
-    let departureDate = "";
-    const dateMatch = departureBlock.match(/تاريخ المغادرة\s*[\r\n]*\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4})/);
-    const headerDate = departureBlock.match(/\((\d{1,2}\/\d{1,2}\/\d{4})\)/);
+  // Parse Departure
+  let departureData: Partial<LogisticsRow> | null = null;
+  const departureIndex = text.indexOf("رحلة المغادرة");
+  if (departureIndex !== -1) {
+      const block = text.substring(departureIndex);
+      const dateMatch = block.match(/تاريخ المغادرة\s*[\r\n]*\s*([\d-/]{8,10})/) || block.match(/(\d{4}-\d{1,2}-\d{1,2})|(\d{1,2}\/\d{1,2}\/\d{4})/);
+      const timeMatch = block.match(/وقت المغادرة\s*[\r\n]*\s*(\d{1,2}:\d{2})/);
+      const airportMatch = block.match(/المطار\s*[\r\n]*\s*([^\r\n]+)/);
 
-    if (dateMatch) departureDate = formatDate(dateMatch[1]);
-    else if (headerDate) departureDate = formatDate(headerDate[1]);
-    else {
-         const anyDate = departureBlock.match(dateRegex);
-         if (anyDate) departureDate = formatDate(anyDate[0]);
-    }
-
-    let flight = "";
-    const flightMatch = departureBlock.match(/رقم الرحلة\s*[\r\n]*\s*([A-Z0-9\-]+)/i);
-    if (flightMatch) flight = flightMatch[1];
-
-    let time = "";
-    const timeMatch = departureBlock.match(/وقت المغادرة\s*[\r\n]*\s*(\d{1,2}:\d{2})/);
-    if (timeMatch) time = timeMatch[1];
-
-    let to = "";
-    const airportMatch = departureBlock.match(/المطار\s*[\r\n]*\s*([^\r\n]+)/);
-    if (airportMatch) {
-        to = normalizeCity(airportMatch[1].trim());
-    } else {
-        if (departureBlock.includes("جدة") || departureBlock.includes("Jeddah")) to = "جدة";
-        else if (departureBlock.includes("المدينة")) to = "المدينة المنورة";
-    }
-
-    let from = "";
-    if (to === "جدة") from = "مكة المكرمة";
-    else if (to === "المدينة المنورة") from = "المدينة المنورة";
-    
-    if (!from) from = "غير محدد";
-
-    departureSegment = {
-      Column1: "مغادرة",
-      date: departureDate,
-      time: time,
-      flight: flight,
-      from: from,
-      to: to || "غير محدد"
-    };
+      departureData = {
+          Column1: "مغادرة",
+          date: dateMatch ? formatDate(dateMatch[0]) : "",
+          time: timeMatch ? timeMatch[1] : "",
+          flight: findFlight(block),
+          to: airportMatch ? normalizeCity(airportMatch[1]) : "جدة",
+          from: destBlocks[destBlocks.length - 1]?.city || "مكة المكرمة"
+      };
   }
 
-  // 3. Construct Final Rows
-  if (arrivalSegment) {
-    rows.push({
-      id: uid(),
-      ...groupInfo,
-      ...(arrivalSegment as LogisticsRow),
-      carType,
-      tafweej: "لا",
-      status: 'Planned'
-    });
-  }
-
-  // Inter-city Logic
-  if (arrivalSegment && departureSegment) {
-    if (arrivalSegment.to === "المدينة المنورة" && departureSegment.to === "جدة") {
-      let interCityDate = "";
-      // Try to find date associated with Makkah destination
-      const makkahBlockMatch = normalizedText.match(/الوجهة\s*\(مكة المكرمة\)\s*\(([\d-]{10})/);
-      if (makkahBlockMatch) {
-          interCityDate = makkahBlockMatch[1]; 
-      }
-
+  if (arrivalData) {
       rows.push({
-        id: uid(),
-        ...groupInfo,
-        Column1: "بين المدن",
-        date: interCityDate, 
-        time: "",
-        flight: "",
-        from: "المدينة المنورة",
-        to: "مكة المكرمة",
-        carType,
-        tafweej: "لا",
-        status: 'Planned'
-      });
-
-      // Update departure segment to reflect it comes from Makkah
-      departureSegment.from = "مكة المكرمة";
-    }
+          ...groupInfo,
+          ...(arrivalData as any),
+          id: uid(),
+          carType,
+          tafweej: `${arrivalData.Column1} — ${arrivalData.from} → ${arrivalData.to}`,
+          status: 'Planned'
+      } as LogisticsRow);
   }
 
-  if (departureSegment) {
-    rows.push({
-      id: uid(),
-      ...groupInfo,
-      ...(departureSegment as LogisticsRow),
-      carType,
-      tafweej: "لا",
-      status: 'Planned'
-    });
+  for (let i = 0; i < destBlocks.length - 1; i++) {
+      const fromCity = destBlocks[i].city;
+      const toCity = destBlocks[i+1].city;
+      if (fromCity !== toCity) {
+          rows.push({
+              id: uid(),
+              ...groupInfo,
+              Column1: "بين المدن",
+              date: destBlocks[i+1].startDate,
+              time: "10:00",
+              flight: "-",
+              from: fromCity,
+              to: toCity,
+              carType,
+              tafweej: `بين المدن — ${fromCity} → ${toCity}`,
+              status: 'Planned'
+          });
+      }
   }
 
-  // Fallback
+  if (departureData) {
+      rows.push({
+          ...groupInfo,
+          ...(departureData as any),
+          id: uid(),
+          carType,
+          tafweej: `${departureData.Column1} — ${departureData.from} → ${departureData.to}`,
+          status: 'Planned'
+      } as LogisticsRow);
+  }
+
   if (rows.length === 0 && text.trim().length > 10) {
       rows.push({
           id: uid(),
           ...groupInfo,
           Column1: "غير محدد",
-          date: "",
-          time: "",
-          flight: "",
-          from: "?",
-          to: "?",
-          carType,
-          tafweej: "لا",
-          status: 'Planned'
+          date: "", time: "", flight: "", from: "?", to: "?",
+          carType, tafweej: "لا", status: 'Planned'
       });
   }
 

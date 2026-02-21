@@ -1,7 +1,13 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar, Plane, Info, Plus, Copy, Share2, Bookmark, LayoutTemplate, MoreHorizontal } from 'lucide-react';
+import { 
+  Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar, 
+  Plane, Info, Plus, Copy, Share2, Bookmark, LayoutTemplate,
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
+  History as HistoryIcon
+} from 'lucide-react';
 import { LogisticsRow, TripStatus, LogisticsTemplate } from '../types';
+import { parseDateTime } from '../utils/parser';
 
 interface TableEditorProps {
   rows: LogisticsRow[];
@@ -46,17 +52,17 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onShareRow,
   onDeleteTemplate
 }) => {
-    // State for active filters
     const [filters, setFilters] = useState<Record<string, string[]>>({});
     const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
     const [filterSearch, setFilterSearch] = useState("");
     const [calViewDate, setCalViewDate] = useState(new Date());
     const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof LogisticsRow; direction: 'asc' | 'desc' } | null>(null);
+    const [showPastTrips, setShowPastTrips] = useState(false);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const templateDropdownRef = useRef<HTMLDivElement>(null);
 
-    // Sync external filters when they change
     useEffect(() => {
         if (externalFilters) {
             setFilters(externalFilters);
@@ -112,15 +118,85 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     };
 
     const filteredRows = useMemo(() => {
-        if (!enableFiltering) return rows;
-        return rows.filter(row => {
-            return (Object.entries(filters) as [string, string[]][]).every(([key, selectedValues]) => {
-                if (!selectedValues || selectedValues.length === 0) return true;
-                const cellValue = String(row[key] || "");
-                return selectedValues.includes(cellValue);
+        let result = rows;
+        if (enableFiltering) {
+            result = result.filter(row => {
+                return (Object.entries(filters) as [string, string[]][]).every(([key, selectedValues]) => {
+                    if (!selectedValues || selectedValues.length === 0) return true;
+                    const cellValue = String(row[key] || "");
+                    return selectedValues.includes(cellValue);
+                });
             });
+        }
+
+        if (sortConfig) {
+            result = [...result].sort((a, b) => {
+                const valA = a[sortConfig.key];
+                const valB = b[sortConfig.key];
+
+                if (sortConfig.key === 'date' || sortConfig.key === 'time') {
+                    const dateA = parseDateTime(String(a.date || ""), String(a.time || "00:00"));
+                    const dateB = parseDateTime(String(b.date || ""), String(b.time || "00:00"));
+                    
+                    if (dateA && dateB) {
+                        return sortConfig.direction === 'asc' 
+                            ? dateA.getTime() - dateB.getTime() 
+                            : dateB.getTime() - dateA.getTime();
+                    }
+                    if (dateA) return -1;
+                    if (dateB) return 1;
+                }
+
+                if (valA === valB) return 0;
+                if (valA === undefined || valA === null || valA === "") return 1;
+                if (valB === undefined || valB === null || valB === "") return -1;
+
+                const comparison = String(valA).localeCompare(String(valB), 'ar', { numeric: true });
+                return sortConfig.direction === 'asc' ? comparison : -comparison;
+            });
+        }
+
+        return result;
+    }, [rows, filters, enableFiltering, sortConfig]);
+
+    const { activeRows, pastRows } = useMemo(() => {
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        const active: LogisticsRow[] = [];
+        const past: LogisticsRow[] = [];
+
+        filteredRows.forEach(row => {
+            const tripDate = parseDateTime(String(row.date || ""), String(row.time || "23:59"));
+            if (tripDate && tripDate < startOfToday) {
+                past.push(row);
+            } else {
+                active.push(row);
+            }
         });
-    }, [rows, filters, enableFiltering]);
+
+        return { activeRows: active, pastRows: past };
+    }, [filteredRows]);
+
+    const isUpcoming = (row: LogisticsRow) => {
+        const now = new Date();
+        const tripDate = parseDateTime(String(row.date || ""), String(row.time || "00:00"));
+        if (!tripDate) return false;
+        
+        const diffMs = tripDate.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+        
+        // Upcoming if within next 12 hours and not in the past
+        return diffHours > 0 && diffHours <= 12;
+    };
+
+    const handleSort = (key: keyof LogisticsRow) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
 
     const toggleFilter = (columnKey: string, value: string) => {
         setFilters(prev => {
@@ -178,7 +254,11 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 <div className="grid grid-cols-7 gap-1">
                     {days.map((dateObj, idx) => {
                         if (!dateObj) return <div key={`empty-${idx}`} />;
-                        const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+                        const d = String(dateObj.getDate()).padStart(2, '0');
+                        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+                        const y = dateObj.getFullYear();
+                        const dateStr = `${d}/${m}/${y}`;
+                        
                         const count = dateCounts[dateStr] || 0;
                         const isSelected = filters[columnKey]?.includes(dateStr);
                         return (
@@ -253,7 +333,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         if (isLongField(h.key as string)) {
             return (
                 <textarea 
-                   value={row[h.key] || ''} 
+                   value={String(row[h.key] || '')} 
                    onChange={(e) => onChange(row.id, h.key, e.target.value)}
                    readOnly={readOnly}
                    rows={2} 
@@ -276,7 +356,6 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     return (
         <div className="relative pb-10">
-            {/* Toolbar above the table */}
             {!isPreview && !readOnly && (
                 <div className="flex justify-between items-center mb-4 gap-3 px-1">
                     <div className="flex items-center gap-2">
@@ -329,7 +408,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 </div>
             )}
 
-            <div className="overflow-x-auto rounded-xl border border-gray-100">
+            <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
                 <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
                         <tr>
@@ -355,11 +434,20 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 return (
                                     <th key={h.key} className={`px-2 py-3 border-b border-gray-200 relative align-top ${widthClass}`} style={{ width: widthClass }}>
                                         <div className="flex items-start justify-between gap-1">
-                                            <div className="flex items-center gap-1 flex-wrap">
+                                            <div 
+                                                className={`flex items-center gap-1 flex-wrap cursor-pointer hover:text-blue-600 transition-colors`}
+                                                onClick={() => h.key !== 'actions' && handleSort(h.key as keyof LogisticsRow)}
+                                            >
                                                 <span>{h.label}</span>
                                                 {h.key === 'date' && <Calendar size={12} className="text-gray-400" />}
                                                 {h.key === 'flight' && <Plane size={12} className="text-gray-400" />}
                                                 {h.key === 'status' && <Info size={12} className="text-gray-400" />}
+                                                {sortConfig?.key === h.key && (
+                                                    sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+                                                )}
+                                                {sortConfig?.key !== h.key && h.key !== 'actions' && (
+                                                    <ArrowUpDown size={12} className="opacity-0 group-hover:opacity-100" />
+                                                )}
                                             </div>
                                             {enableFiltering && h.key !== 'actions' && (
                                                 <button 
@@ -418,23 +506,59 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {filteredRows.map((row) => (
-                            <tr key={row.id} className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'}`}>
-                                {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0">{renderCellContent(row, h)}</td>)}
-                            </tr>
-                        ))}
+                        {pastRows.length > 0 && (
+                            <>
+                                <tr className="bg-gray-50 border-y border-gray-200">
+                                    <td colSpan={headers.length} className="p-0">
+                                        <button 
+                                            onClick={() => setShowPastTrips(!showPastTrips)}
+                                            className="w-full flex items-center justify-between p-3 hover:bg-gray-100 transition-colors text-gray-600 font-bold text-xs"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <HistoryIcon size={14} className="text-gray-400" />
+                                                <span>الرحلات السابقة ({pastRows.length})</span>
+                                            </div>
+                                            {showPastTrips ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                        </button>
+                                    </td>
+                                </tr>
+                                {showPastTrips && pastRows.map((row) => (
+                                    <tr key={row.id} className="transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50">
+                                        {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0 opacity-70">{renderCellContent(row, h)}</td>)}
+                                    </tr>
+                                ))}
+                            </>
+                        )}
+
+                        {activeRows.map((row) => {
+                            const upcoming = isUpcoming(row);
+                            return (
+                                <tr key={row.id} className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : ''}`}>
+                                    {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0">{renderCellContent(row, h)}</td>)}
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
-            {enableFiltering && Object.keys(filters).length > 0 && (
-                 <div className="absolute bottom-2 right-4 flex gap-2 z-10">
+
+            {(enableFiltering && Object.keys(filters).length > 0 || sortConfig) && (
+                 <div className="absolute bottom-2 right-4 flex flex-wrap gap-2 z-10">
+                    {sortConfig && (
+                        <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 border border-amber-200">
+                            ترتيب حسب {headers.find(h => h.key === sortConfig.key)?.label}: {sortConfig.direction === 'asc' ? 'تصاعدي' : 'تنازلي'}
+                            <button onClick={() => setSortConfig(null)} title="إلغاء الترتيب"><X size={12} /></button>
+                        </span>
+                    )}
                     {Object.entries(filters).map(([key, vals]) => (vals as string[]).length > 0 && (
-                        <span key={key} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                        <span key={key} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 border border-blue-200">
                             {headers.find(h => h.key === key)?.label}: {(vals as string[]).length}
                             <button onClick={() => clearColumnFilter(key)}><X size={12} /></button>
                         </span>
                     ))}
-                    <button onClick={() => setFilters({})} className="text-xs text-gray-500 underline">مسح الكل</button>
+                    {(Object.keys(filters).length > 0 || sortConfig) && (
+                        <button onClick={() => { setFilters({}); setSortConfig(null); }} className="text-xs text-gray-500 underline hover:text-gray-700 transition-colors">إعادة ضبط الكل</button>
+                    )}
                  </div>
             )}
         </div>

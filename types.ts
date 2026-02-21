@@ -19,6 +19,13 @@ export interface LogisticsRow {
   _originalIndex?: number;
 }
 
+export interface TelegramConfig {
+  token: string;
+  chatId: string;
+  enabled: boolean;
+  botName?: string;
+}
+
 export interface LogisticsTemplate {
   id: string;
   name: string;
@@ -40,52 +47,13 @@ export interface NotificationState {
   type: 'success' | 'error';
 }
 
-export interface AviationStackFlight {
-  flight_date: string;
-  flight_status: string;
-  airline: {
-    name: string;
-    iata: string;
-    icao: string;
-  };
-  flight: {
-    number: string;
-    iata: string;
-    icao: string;
-    codeshared?: any;
-  };
-  departure: {
-    airport: string;
-    timezone: string;
-    iata: string;
-    icao: string;
-    terminal: string | null;
-    gate: string | null;
-    delay: number | null;
-    scheduled: string;
-    estimated: string;
-    actual: string | null;
-    estimated_runway: string | null;
-    actual_runway: string | null;
-  };
-  arrival: {
-    airport: string;
-    timezone: string;
-    iata: string;
-    icao: string;
-    terminal: string | null;
-    gate: string | null;
-    baggage: string | null;
-    delay: number | null;
-    scheduled: string;
-    estimated: string;
-    actual: string | null;
-    estimated_runway: string | null;
-    actual_runway: string | null;
-  };
+export interface BotMessage {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+  timestamp: Date;
 }
 
-// Global declaration for SheetJS loaded via CDN
 declare global {
   interface Window {
     XLSX: any;

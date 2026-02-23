@@ -24,6 +24,7 @@ interface TableEditorProps {
   onApplyTemplate?: (templateId: string) => void;
   onShareRow?: (row: LogisticsRow) => void;
   onDeleteTemplate?: (templateId: string) => void;
+  onFilteredRowsChange?: (rows: LogisticsRow[]) => void;
 }
 
 const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
@@ -50,7 +51,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onSaveAsTemplate,
   onApplyTemplate,
   onShareRow,
-  onDeleteTemplate
+  onDeleteTemplate,
+  onFilteredRowsChange
 }) => {
     const [filters, setFilters] = useState<Record<string, string[]>>({});
     const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
@@ -177,6 +179,12 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
         return { activeRows: active, pastRows: past };
     }, [filteredRows]);
+
+    useEffect(() => {
+        if (onFilteredRowsChange) {
+            onFilteredRowsChange(filteredRows);
+        }
+    }, [filteredRows, onFilteredRowsChange]);
 
     const isUpcoming = (row: LogisticsRow) => {
         const now = new Date();
@@ -408,7 +416,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 </div>
             )}
 
-            <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
                 <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
                         <tr>
@@ -542,23 +550,15 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 </table>
             </div>
 
-            {(enableFiltering && Object.keys(filters).length > 0 || sortConfig) && (
-                 <div className="absolute bottom-2 right-4 flex flex-wrap gap-2 z-10">
-                    {sortConfig && (
-                        <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 border border-amber-200">
-                            ترتيب حسب {headers.find(h => h.key === sortConfig.key)?.label}: {sortConfig.direction === 'asc' ? 'تصاعدي' : 'تنازلي'}
-                            <button onClick={() => setSortConfig(null)} title="إلغاء الترتيب"><X size={12} /></button>
-                        </span>
-                    )}
+            {enableFiltering && Object.keys(filters).length > 0 && (
+                 <div className="absolute bottom-2 right-4 flex gap-2 z-10">
                     {Object.entries(filters).map(([key, vals]) => (vals as string[]).length > 0 && (
-                        <span key={key} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 border border-blue-200">
+                        <span key={key} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1">
                             {headers.find(h => h.key === key)?.label}: {(vals as string[]).length}
                             <button onClick={() => clearColumnFilter(key)}><X size={12} /></button>
                         </span>
                     ))}
-                    {(Object.keys(filters).length > 0 || sortConfig) && (
-                        <button onClick={() => { setFilters({}); setSortConfig(null); }} className="text-xs text-gray-500 underline hover:text-gray-700 transition-colors">إعادة ضبط الكل</button>
-                    )}
+                    <button onClick={() => setFilters({})} className="text-xs text-gray-500 underline">مسح الكل</button>
                  </div>
             )}
         </div>

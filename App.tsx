@@ -68,6 +68,7 @@ export default function App() {
   const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [notification, setNotification] = useState<NotificationState | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [filteredRows, setFilteredRows] = useState<LogisticsRow[]>([]);
   const [fontSize, setFontSize] = useState<number>(() => Number(loadFromStorage('umrah_font_size', 100)));
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [isTestingTg, setIsTestingTg] = useState(false);
@@ -266,25 +267,43 @@ export default function App() {
   };
 
   const downloadExcel = () => {
-    if (allRows.length === 0 || !window.XLSX) return;
-    const excelData = allRows.map(row => ({
-      "الحالة": STATUS_LABELS[row.status as TripStatus] || row.status,
-      "الحركة": row.Column1,
-      "التفويج": row.tafweej, 
-      "نوع السيارة": row.carType,
-      "إلى": row.to,
-      "من": row.from,
-      "وقت الرحلة": row.time,
-      "رقم الرحلة": row.flight,
-      "العدد": parseInt(row.count) || 0,
-      "اسم المجموعة": row.groupName,
-      "رقم مجموعة": row.groupNo,
-      "تاريخ": row.date
-    }));
-    const ws = window.XLSX.utils.json_to_sheet(excelData);
-    const wb = window.XLSX.book_new();
-    window.XLSX.utils.book_append_sheet(wb, ws, "Logistics");
-    window.XLSX.writeFile(wb, `Umrah_Logistics_${getLocalDateString().replace(/\//g, '-')}.xlsx`);
+    const rowsToExport = filteredRows.length > 0 ? filteredRows : allRows;
+    
+    if (!window.XLSX) {
+      showNotification("جاري تحميل مكتبة التصدير... يرجى المحاولة مرة أخرى", "error");
+      return;
+    }
+    
+    if (rowsToExport.length === 0) {
+      showNotification("لا توجد بيانات لتصديرها", "error");
+      return;
+    }
+
+    try {
+      const excelData = rowsToExport.map(row => ({
+        "الحالة": STATUS_LABELS[row.status as TripStatus] || row.status,
+        "الحركة": row.Column1,
+        "التفويج": row.tafweej, 
+        "نوع السيارة": row.carType,
+        "إلى": row.to,
+        "من": row.from,
+        "وقت الرحلة": row.time,
+        "رقم الرحلة": row.flight,
+        "العدد": parseInt(row.count) || 0,
+        "اسم المجموعة": row.groupName,
+        "رقم مجموعة": row.groupNo,
+        "تاريخ": row.date
+      }));
+      
+      const ws = window.XLSX.utils.json_to_sheet(excelData);
+      const wb = window.XLSX.utils.book_new();
+      window.XLSX.utils.book_append_sheet(wb, ws, "Logistics");
+      window.XLSX.writeFile(wb, `Umrah_Logistics_${getLocalDateString().replace(/\//g, '-')}.xlsx`);
+      showNotification("تم تصدير الملف بنجاح", "success");
+    } catch (error) {
+      console.error("Export error:", error);
+      showNotification("فشل تصدير الملف: " + (error instanceof Error ? error.message : String(error)), "error");
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -685,6 +704,7 @@ export default function App() {
                         }}
                         onShareRow={shareRowDetails}
                         onDeleteTemplate={(tid) => setTemplates(templates.filter(x => x.id !== tid))}
+                        onFilteredRowsChange={setFilteredRows}
                     />
                 </div>
             </section>

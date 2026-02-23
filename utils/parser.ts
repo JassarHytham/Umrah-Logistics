@@ -122,12 +122,16 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   }
 
   const findFlight = (block: string) => {
-    // Priority 1: Labeled flight number
-    const labeledMatch = block.match(/رقم الرحلة\s*[\r\n:]*\s*([A-Z0-9]{2,}\s?\d{3,})/i);
-    if (labeledMatch) return labeledMatch[1].trim();
-    // Priority 2: Standard airline codes (SV, TK, MS, EK, etc.) followed by numbers
-    const patternMatch = block.match(/\b(SV|TK|MS|EK|QR|AI|KU|WY|RJ|ME|PA|EY|FZ|XY|G9)\s?\d{3,}\b/i);
-    return patternMatch ? patternMatch[0].trim() : "-";
+    // Priority 1: Labeled flight number - more flexible regex to include hyphens and various formats
+    const labeledMatch = block.match(/رقم الرحلة\s*[\r\n:]*\s*([A-Z]{1,3}[- ]?\d{1,5})/i);
+    if (labeledMatch) return labeledMatch[1].trim().toUpperCase();
+    
+    // Priority 2: Standard airline codes or any 2-3 letters followed by numbers
+    // Including common codes and a general pattern for others
+    const patternMatch = block.match(/\b([A-Z]{2,3}[- ]?\d{2,5})\b/i);
+    if (patternMatch) return patternMatch[0].trim().toUpperCase();
+    
+    return "-";
   };
 
   // Parse Arrival

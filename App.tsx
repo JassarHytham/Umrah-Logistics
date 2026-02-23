@@ -665,7 +665,7 @@ export default function App() {
                     <button onClick={() => { setAllRows([...previewRows, ...allRows]); setShowPreview(false); setInputs({...inputs, text: ''}); showNotification("تم اعتماد الرحلات", "success"); }} className="bg-white text-blue-600 px-6 py-1.5 rounded-lg font-bold">حفظ واعتماد</button>
                   </div>
                 </div>
-                <div className="p-4 overflow-x-auto"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? {...r, [f]: v} : r))} isPreview={true} /></div>
+                <div className="p-4"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? {...r, [f]: v} : r))} isPreview={true} /></div>
               </section>
             )}
 
@@ -686,7 +686,7 @@ export default function App() {
                         </button>
                     </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="mt-2">
                     <TableEditor 
                         rows={allRows} 
                         onChange={(id, f, v) => setAllRows(prev => prev.map(r => r.id === id ? {...r, [f]: v} : r))} 

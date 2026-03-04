@@ -17,6 +17,8 @@ import { parseItineraryText, parseDateTime } from './utils/parser';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
 import { LogisticsBot } from './components/LogisticsBot';
+import { Auth } from './components/Auth';
+import { api } from './services/api';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
   try {
@@ -56,11 +58,13 @@ const STATUS_LABELS: Record<TripStatus, string> = {
 };
 
 export default function App() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'operational' | 'analytics' | 'automation'>('operational');
-  const [allRows, setAllRows] = useState<LogisticsRow[]>(() => loadFromStorage('umrah_logistics_rows', []));
-  const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>(() => loadFromStorage('umrah_logistics_deleted', []));
-  const [templates, setTemplates] = useState<LogisticsTemplate[]>(() => loadFromStorage('umrah_logistics_templates', []));
-  const [tgConfig, setTgConfig] = useState<TelegramConfig>(() => loadFromStorage('umrah_tg_config', { token: '', chatId: '', enabled: false }));
+  const [allRows, setAllRows] = useState<LogisticsRow[]>([]);
+  const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
+  const [templates, setTemplates] = useState<LogisticsTemplate[]>([]);
+  const [tgConfig, setTgConfig] = useState<TelegramConfig>({ token: '', chatId: '', enabled: false });
   
   const [inputs, setInputs] = useState<InputState>({ groupNo: '', groupName: '', count: '', text: '' });
   const [previewRows, setPreviewRows] = useState<LogisticsRow[]>([]);
@@ -72,6 +76,72 @@ export default function App() {
   const [fontSize, setFontSize] = useState<number>(() => Number(loadFromStorage('umrah_font_size', 100)));
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [isTestingTg, setIsTestingTg] = useState(false);
+
+  // Initial Load
+  useEffect(() => {
+    const token = localStorage.getItem('umrah_auth_token');
+    if (token) {
+      // We assume the token is valid for now, or the first API call will fail and trigger logout
+      setUser({ token }); // Minimal user object
+      loadUserData();
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+      const [rows, settings] = await Promise.all([
+        api.data.fetchRows(),
+        api.settings.fetch()
+      ]);
+      setAllRows(rows);
+      setDeletedRows(settings.deletedRows || []);
+      setTgConfig(settings.tgConfig || { token: '', chatId: '', enabled: false });
+      setTemplates(settings.templates || []);
+      setFontSize(settings.fontSize || 100);
+
+      // Legacy Migration: If backend is empty but local storage has data, offer to import
+      if (rows.length === 0) {
+        const localRows = loadFromStorage('umrah_logistics_rows', []);
+        if (localRows.length > 0) {
+          if (window.confirm("تم العثور على بيانات قديمة في هذا المتصفح. هل تريد استيرادها إلى حسابك الجديد؟")) {
+            setAllRows(localRows);
+            setDeletedRows(loadFromStorage('umrah_logistics_deleted', []));
+            setTemplates(loadFromStorage('umrah_logistics_templates', []));
+            setTgConfig(loadFromStorage('umrah_tg_config', { token: '', chatId: '', enabled: false }));
+            // Clear local storage to prevent repeated prompts
+            ['umrah_logistics_rows', 'umrah_logistics_deleted', 'umrah_logistics_templates', 'umrah_tg_config'].forEach(k => localStorage.removeItem(k));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncAllData = async () => {
+    if (!user) return;
+    try {
+      await Promise.all([
+        api.data.syncRows(allRows),
+        api.settings.save({ tgConfig, templates, deletedRows, fontSize })
+      ]);
+    } catch (err) {
+      console.error("Sync failed", err);
+    }
+  };
+
+  // Sync on changes (debounced or simple)
+  useEffect(() => {
+    if (user && !loading) {
+      const timer = setTimeout(syncAllData, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [allRows, deletedRows, tgConfig, templates, fontSize, user]);
 
   const notifiedIdsRef = useRef<Set<string>>(new Set(loadFromStorage('umrah_notified_trip_ids', [])));
   const [notifiedCount, setNotifiedCount] = useState(notifiedIdsRef.current.size);
@@ -246,11 +316,7 @@ export default function App() {
   }, [tgConfig.enabled]);
 
   // --- Persistence ---
-  useEffect(() => { localStorage.setItem('umrah_logistics_rows', JSON.stringify(allRows)); }, [allRows]);
-  useEffect(() => { localStorage.setItem('umrah_logistics_deleted', JSON.stringify(deletedRows)); }, [deletedRows]);
-  useEffect(() => { localStorage.setItem('umrah_logistics_templates', JSON.stringify(templates)); }, [templates]);
-  useEffect(() => { localStorage.setItem('umrah_tg_config', JSON.stringify(tgConfig)); }, [tgConfig]);
-  useEffect(() => { localStorage.setItem('umrah_font_size', fontSize.toString()); }, [fontSize]);
+  // Removed local storage persistence in favor of backend sync
 
   const changeFontSize = (delta: number) => {
     setFontSize(prev => Math.min(Math.max(prev + delta, 50), 200));
@@ -459,6 +525,21 @@ export default function App() {
     showNotification("تم نسخ التفاصيل للحافظة", "success");
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto" />
+          <p className="text-gray-500 font-bold">جاري تحميل بياناتك الآمنة...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Auth onLogin={(u: any) => { setUser(u); loadUserData(); }} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 text-right pb-20 relative transition-all duration-300" dir="rtl" style={{ fontSize: `${fontSize}%` }}>
       {notification && (
@@ -479,6 +560,16 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
+              <Users size={16} className="text-blue-200" />
+              <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
+              <button 
+                onClick={() => api.auth.logout()}
+                className="mr-2 text-xs bg-red-500/20 hover:bg-red-500/40 text-red-200 px-2 py-1 rounded-lg transition-all"
+              >
+                خروج
+              </button>
+            </div>
             <div className="flex bg-white/10 p-1 rounded-xl">
               <button onClick={() => setView('operational')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Settings size={16} className="inline ml-1" />العمليات</button>
               <button onClick={() => setView('analytics')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />الذكاء</button>

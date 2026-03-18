@@ -49,6 +49,17 @@ db.exec(`
   );
 `);
 
+// Migration: Add notified_ids if missing
+try {
+  db.prepare("SELECT notified_ids FROM settings LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE settings ADD COLUMN notified_ids TEXT");
+  } catch (err) {
+    console.error("Migration failed", err);
+  }
+}
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));

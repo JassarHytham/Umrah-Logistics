@@ -72,10 +72,20 @@ export default function App() {
   const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [notification, setNotification] = useState<NotificationState | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [filteredRows, setFilteredRows] = useState<LogisticsRow[]>([]);
-  const [fontSize, setFontSize] = useState<number>(() => Number(loadFromStorage('umrah_font_size', 100)));
+  const [fontSize, setFontSize] = useState<number>(100);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [isTestingTg, setIsTestingTg] = useState(false);
+
+  const [notifiedIds, setNotifiedIds] = useState<string[]>([]);
+  const notifiedIdsRef = useRef<Set<string>>(new Set());
+  const [notifiedCount, setNotifiedCount] = useState(0);
+
+  useEffect(() => {
+    notifiedIdsRef.current = new Set(notifiedIds);
+    setNotifiedCount(notifiedIds.length);
+  }, [notifiedIds]);
 
   // Initial Load
   useEffect(() => {
@@ -98,6 +108,7 @@ export default function App() {
       ]);
       setAllRows(rows);
       setDeletedRows(settings.deletedRows || []);
+      setNotifiedIds(settings.notifiedIds || []);
       setTgConfig(settings.tgConfig || { token: '', chatId: '', enabled: false });
       setTemplates(settings.templates || []);
       setFontSize(settings.fontSize || 100);
@@ -111,8 +122,9 @@ export default function App() {
             setDeletedRows(loadFromStorage('umrah_logistics_deleted', []));
             setTemplates(loadFromStorage('umrah_logistics_templates', []));
             setTgConfig(loadFromStorage('umrah_tg_config', { token: '', chatId: '', enabled: false }));
+            setNotifiedIds(loadFromStorage('umrah_notified_trip_ids', []));
             // Clear local storage to prevent repeated prompts
-            ['umrah_logistics_rows', 'umrah_logistics_deleted', 'umrah_logistics_templates', 'umrah_tg_config'].forEach(k => localStorage.removeItem(k));
+            ['umrah_logistics_rows', 'umrah_logistics_deleted', 'umrah_logistics_templates', 'umrah_tg_config', 'umrah_notified_trip_ids'].forEach(k => localStorage.removeItem(k));
           }
         }
       }
@@ -125,13 +137,17 @@ export default function App() {
 
   const syncAllData = async () => {
     if (!user) return;
+    setIsSyncing(true);
     try {
       await Promise.all([
         api.data.syncRows(allRows),
-        api.settings.save({ tgConfig, templates, deletedRows, fontSize })
+        api.settings.save({ tgConfig, templates, deletedRows, notifiedIds, fontSize })
       ]);
     } catch (err) {
       console.error("Sync failed", err);
+      showNotification("فشل مزامنة البيانات مع الخادم", "error");
+    } finally {
+      setTimeout(() => setIsSyncing(false), 1000);
     }
   };
 
@@ -141,11 +157,8 @@ export default function App() {
       const timer = setTimeout(syncAllData, 2000);
       return () => clearTimeout(timer);
     }
-  }, [allRows, deletedRows, tgConfig, templates, fontSize, user]);
+  }, [allRows, deletedRows, tgConfig, templates, fontSize, notifiedIds, user, loading]);
 
-  const notifiedIdsRef = useRef<Set<string>>(new Set(loadFromStorage('umrah_notified_trip_ids', [])));
-  const [notifiedCount, setNotifiedCount] = useState(notifiedIdsRef.current.size);
-  
   const tgLastUpdateId = useRef<number>(0);
   const isPollingRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -304,9 +317,7 @@ export default function App() {
       });
 
       if (hasUpdates) {
-        const updatedList = Array.from(notifiedIdsRef.current);
-        localStorage.setItem('umrah_notified_trip_ids', JSON.stringify(updatedList));
-        setNotifiedCount(updatedList.length);
+        setNotifiedIds(Array.from(notifiedIdsRef.current));
       }
     };
 
@@ -560,6 +571,12 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            {isSyncing && (
+              <div className="flex items-center gap-2 text-blue-200 text-xs animate-pulse">
+                <RotateCw size={12} className="animate-spin" />
+                <span>جاري المزامنة...</span>
+              </div>
+            )}
             <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
               <Users size={16} className="text-blue-200" />
               <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>

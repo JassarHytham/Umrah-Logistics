@@ -43,13 +43,15 @@ db.exec(`
     tg_config TEXT,
     templates TEXT,
     deleted_rows TEXT,
+    notified_ids TEXT,
     font_size INTEGER DEFAULT 100,
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
 `);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Middleware to verify JWT
 const authenticateToken = (req: any, res: any, next: any) => {
@@ -131,20 +133,22 @@ app.get("/api/settings", authenticateToken, (req: any, res) => {
     tgConfig: settings.tg_config ? JSON.parse(settings.tg_config) : null,
     templates: settings.templates ? JSON.parse(settings.templates) : [],
     deletedRows: settings.deleted_rows ? JSON.parse(settings.deleted_rows) : [],
+    notifiedIds: settings.notified_ids ? JSON.parse(settings.notified_ids) : [],
     fontSize: settings.font_size || 100
   });
 });
 
 app.post("/api/settings", authenticateToken, (req: any, res) => {
-  const { tgConfig, templates, deletedRows, fontSize } = req.body;
+  const { tgConfig, templates, deletedRows, notifiedIds, fontSize } = req.body;
   
   const stmt = db.prepare(`
-    INSERT INTO settings (user_id, tg_config, templates, deleted_rows, font_size)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO settings (user_id, tg_config, templates, deleted_rows, notified_ids, font_size)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
       tg_config = excluded.tg_config,
       templates = excluded.templates,
       deleted_rows = excluded.deleted_rows,
+      notified_ids = excluded.notified_ids,
       font_size = excluded.font_size
   `);
 
@@ -153,6 +157,7 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
     tgConfig ? JSON.stringify(tgConfig) : null,
     templates ? JSON.stringify(templates) : null,
     deletedRows ? JSON.stringify(deletedRows) : null,
+    notifiedIds ? JSON.stringify(notifiedIds) : null,
     fontSize || 100
   );
 

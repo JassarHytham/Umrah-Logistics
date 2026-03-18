@@ -88,8 +88,9 @@ app.post("/api/auth/register", async (req, res) => {
     const stmt = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
     const info = stmt.run(username, hashedPassword);
     
-    const token = jwt.sign({ id: info.lastInsertRowid, username }, JWT_SECRET);
-    res.json({ token, user: { id: info.lastInsertRowid, username } });
+    const userId = Number(info.lastInsertRowid);
+    const token = jwt.sign({ id: userId, username }, JWT_SECRET);
+    res.json({ token, user: { id: userId, username } });
   } catch (err: any) {
     if (err.code === "SQLITE_CONSTRAINT") {
       res.status(400).json({ error: "Username already exists" });
@@ -107,8 +108,8 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET);
-  res.json({ token, user: { id: user.id, username: user.username } });
+  const token = jwt.sign({ id: Number(user.id), username: user.username }, JWT_SECRET);
+  res.json({ token, user: { id: Number(user.id), username: user.username } });
 });
 
 // Data Routes

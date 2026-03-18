@@ -90,11 +90,12 @@ export default function App() {
   // Initial Load
   useEffect(() => {
     const token = localStorage.getItem('umrah_auth_token');
-    if (token) {
+    if (token && typeof token === 'string' && token.split('.').length === 3) {
       // We assume the token is valid for now, or the first API call will fail and trigger logout
       setUser({ token }); // Minimal user object
       loadUserData();
     } else {
+      if (token) localStorage.removeItem('umrah_auth_token');
       setLoading(false);
     }
   }, []);

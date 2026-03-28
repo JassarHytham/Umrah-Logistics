@@ -27,7 +27,7 @@ const CAR_TYPES = {
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 
-const getCarType = (count: string): string => {
+export const getCarType = (count: string): string => {
   const num = parseInt(count, 10);
   if (isNaN(num)) return "";
   if (num >= 1 && num <= 4) return CAR_TYPES.SEDAN;
@@ -35,7 +35,7 @@ const getCarType = (count: string): string => {
   return CAR_TYPES.BUS;
 };
 
-const formatDate = (dateStr: string | null | undefined): string => {
+export const formatDate = (dateStr: string | null | undefined): string => {
   if (!dateStr) return "";
   const match = dateStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})|(\d{1,2})[-/](\d{1,2})[-/](\d{4})|(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
   
@@ -53,7 +53,7 @@ const formatDate = (dateStr: string | null | undefined): string => {
   return dateStr;
 };
 
-const normalizeCity = (text: string | null | undefined): string => {
+export const normalizeCity = (text: string | null | undefined): string => {
   if (!text) return "";
   const t = text.trim();
   for (const [key, value] of Object.entries(AIRPORT_MAP)) {

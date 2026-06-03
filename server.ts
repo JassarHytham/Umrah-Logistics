@@ -255,18 +255,30 @@ app.post("/api/alerts/trigger", authenticateToken, async (_req, res) => {
   res.json({ success: true, message: 'Alert check completed — see server logs' });
 });
 
-// Browser Extension Ingestion Endpoint
-// POST /api/ingest/text
-// Body: { text: string, groupNo: string, groupName: string, count: string }
-app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
-  const { text, groupNo, groupName, count } = req.body;
+// GET /api/check/group/:groupNo — used by extension to detect duplicates
+app.get("/api/check/group/:groupNo", authenticateToken, (req: any, res) => {
+  const { groupNo } = req.params;
 
-  if (!text || typeof text !== "string" || text.trim().length < 5) {
+  const rawRows = db
+    .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
+    .all(req.user.id) as { data: string }[];
+
+  const matches = rawRows.filter(({ data }) => {
+    try { return JSON.parse(data).groupNo === groupNo; } catch { return false; }
+  });
+
+  res.json({ exists: matches.length > 0, count: matches.length });
+});
+
+// POST /api/ingest/text — ingest raw itinerary text from browser extension
+// Body: { text, groupNo, groupName, count, overwrite? }
+app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
+  const { text, groupNo, groupName, count, overwrite = false } = req.body;
+
+  if (!text || typeof text !== "string" || text.trim().length < 5)
     return res.status(400).json({ error: "النص مطلوب ولا يمكن أن يكون فارغاً" });
-  }
-  if (!groupNo || !groupName || !count) {
+  if (!groupNo || !groupName || !count)
     return res.status(400).json({ error: "بيانات المجموعة مطلوبة (رقم، اسم، عدد)" });
-  }
 
   try {
     const newRows = parseItineraryText(text.trim(), {
@@ -275,44 +287,33 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
       count: String(count).trim(),
     });
 
-    if (newRows.length === 0) {
-      return res.status(422).json({
-        error: "لم يتم استخراج أي رحلات من النص — تحقق من صيغة النص",
-        rows: []
-      });
-    }
+    if (newRows.length === 0)
+      return res.status(422).json({ error: "لم يتم استخراج أي رحلات من النص", rows: [] });
 
     const existingRaw = db
       .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
       .all(req.user.id) as { data: string }[];
 
-    const existingRows = existingRaw.map((r) => JSON.parse(r.data));
+    let existingRows = existingRaw.map((r) => JSON.parse(r.data));
+
+    if (overwrite) {
+      existingRows = existingRows.filter((r) => r.groupNo !== String(groupNo).trim());
+    }
+
     const mergedRows = [...newRows, ...existingRows];
 
     const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ?");
-    const insertStmt = db.prepare(
-      "INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)"
-    );
+    const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
 
-    const sync = db.transaction((rows: any[]) => {
+    db.transaction((rows: any[]) => {
       deleteStmt.run(req.user.id);
-      for (const row of rows) {
-        insertStmt.run(row.id, req.user.id, JSON.stringify(row));
-      }
-    });
+      for (const row of rows) insertStmt.run(row.id, req.user.id, JSON.stringify(row));
+    })(mergedRows);
 
-    sync(mergedRows);
+    const action = overwrite ? "استبدال" : "إضافة";
+    console.log(`[Ingest] ${action} ${newRows.length} rows for group ${groupNo} (user ${req.user.id})`);
 
-    console.log(
-      `[Ingest] Added ${newRows.length} rows for user ${req.user.id} ` +
-      `(group: ${groupName}, total rows now: ${mergedRows.length})`
-    );
-
-    res.json({
-      success: true,
-      rows: newRows,
-      message: `تم إضافة ${newRows.length} رحلة بنجاح`
-    });
+    res.json({ success: true, rows: newRows, message: `تم ${action} ${newRows.length} رحلة` });
 
   } catch (err: any) {
     console.error("[Ingest] Error:", err);

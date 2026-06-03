@@ -7,7 +7,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { parseDateTime } from "./utils/parser.js";
+import { parseDateTime, parseItineraryText, getCarType } from "./utils/parser.js";
 
 dotenv.config();
 
@@ -253,6 +253,71 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
 app.post("/api/alerts/trigger", authenticateToken, async (_req, res) => {
   await checkAndSendAlerts();
   res.json({ success: true, message: 'Alert check completed — see server logs' });
+});
+
+// Browser Extension Ingestion Endpoint
+// POST /api/ingest/text
+// Body: { text: string, groupNo: string, groupName: string, count: string }
+app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
+  const { text, groupNo, groupName, count } = req.body;
+
+  if (!text || typeof text !== "string" || text.trim().length < 5) {
+    return res.status(400).json({ error: "النص مطلوب ولا يمكن أن يكون فارغاً" });
+  }
+  if (!groupNo || !groupName || !count) {
+    return res.status(400).json({ error: "بيانات المجموعة مطلوبة (رقم، اسم، عدد)" });
+  }
+
+  try {
+    const newRows = parseItineraryText(text.trim(), {
+      groupNo: String(groupNo).trim(),
+      groupName: String(groupName).trim(),
+      count: String(count).trim(),
+    });
+
+    if (newRows.length === 0) {
+      return res.status(422).json({
+        error: "لم يتم استخراج أي رحلات من النص — تحقق من صيغة النص",
+        rows: []
+      });
+    }
+
+    const existingRaw = db
+      .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
+      .all(req.user.id) as { data: string }[];
+
+    const existingRows = existingRaw.map((r) => JSON.parse(r.data));
+    const mergedRows = [...newRows, ...existingRows];
+
+    const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ?");
+    const insertStmt = db.prepare(
+      "INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)"
+    );
+
+    const sync = db.transaction((rows: any[]) => {
+      deleteStmt.run(req.user.id);
+      for (const row of rows) {
+        insertStmt.run(row.id, req.user.id, JSON.stringify(row));
+      }
+    });
+
+    sync(mergedRows);
+
+    console.log(
+      `[Ingest] Added ${newRows.length} rows for user ${req.user.id} ` +
+      `(group: ${groupName}, total rows now: ${mergedRows.length})`
+    );
+
+    res.json({
+      success: true,
+      rows: newRows,
+      message: `تم إضافة ${newRows.length} رحلة بنجاح`
+    });
+
+  } catch (err: any) {
+    console.error("[Ingest] Error:", err);
+    res.status(500).json({ error: "خطأ في معالجة النص: " + err.message });
+  }
 });
 
 // Vite middleware for development

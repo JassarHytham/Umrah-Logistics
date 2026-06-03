@@ -62,6 +62,13 @@ export const normalizeCity = (text: string | null | undefined): string => {
   return t;
 };
 
+const formatAirportLabel = (rawName: string): string => {
+  const name = rawName.trim();
+  const city = normalizeCity(name);
+  if (city && city !== name) return `${name} (${city})`;
+  return name;
+};
+
 export const parseDateTime = (dateStr: string, timeStr: string) => {
   if (!dateStr) return null;
   const cleanDate = dateStr.trim();
@@ -108,7 +115,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   const carType = getCarType(groupInfo.count);
   
   // Extract Destination Blocks
-  const destBlocks: { city: string; startDate: string; index: number }[] = [];
+  const destBlocks: { city: string; startDate: string; hotel: string; index: number }[] = [];
   const destRegex = /الوجهة\s*\(([^)]+)\)/g;
   let match;
   while ((match = destRegex.exec(text)) !== null) {
@@ -118,7 +125,11 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const blockText = text.substring(searchStart, searchEnd === -1 ? text.length : searchEnd);
       const dateMatch = blockText.match(/(\d{1,2}\/\d{1,2}\/\d{4})|(\d{4}-\d{1,2}-\d{1,2})/);
       const startDate = dateMatch ? formatDate(dateMatch[0]) : "";
-      destBlocks.push({ city, startDate, index: match.index });
+      // Grab the first data row after the "اسم الفندق" header line, then split on 3+ spaces or tab
+      const hotelLineMatch = blockText.match(/اسم الفندق[^\r\n]*\r?\n([^\r\n]+)/);
+      const hotelLine = hotelLineMatch ? hotelLineMatch[1].trim() : "";
+      const hotel = hotelLine ? (hotelLine.split(/\s{3,}|\t/)[0] || "").trim() : "";
+      destBlocks.push({ city, startDate, hotel, index: match.index });
   }
 
   const findFlight = (block: string) => {
@@ -143,13 +154,17 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const timeMatch = block.match(/وقت الوصول\s*[\r\n]*\s*(\d{1,2}:\d{2})/);
       const airportMatch = block.match(/المطار\s*[\r\n]*\s*([^\r\n]+)/);
 
+      const firstDest = destBlocks[0];
+      const arrivalTo = firstDest?.hotel
+          ? `${firstDest.hotel} (${firstDest.city})`
+          : (firstDest?.city || "مكة المكرمة");
       arrivalData = {
           Column1: "وصول",
-          date: dateMatch ? formatDate(dateMatch[0]) : (destBlocks[0]?.startDate || ""),
+          date: dateMatch ? formatDate(dateMatch[0]) : (firstDest?.startDate || ""),
           time: timeMatch ? timeMatch[1] : "",
           flight: findFlight(block),
-          from: airportMatch ? normalizeCity(airportMatch[1]) : "جدة",
-          to: destBlocks[0]?.city || "مكة المكرمة"
+          from: airportMatch ? formatAirportLabel(airportMatch[1]) : "جدة",
+          to: arrivalTo
       };
   }
 
@@ -162,13 +177,17 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const timeMatch = block.match(/وقت المغادرة\s*[\r\n]*\s*(\d{1,2}:\d{2})/);
       const airportMatch = block.match(/المطار\s*[\r\n]*\s*([^\r\n]+)/);
 
+      const lastDest = destBlocks[destBlocks.length - 1];
+      const departureFrom = lastDest?.hotel
+          ? `${lastDest.hotel} (${lastDest.city})`
+          : (lastDest?.city || "مكة المكرمة");
       departureData = {
           Column1: "مغادرة",
           date: dateMatch ? formatDate(dateMatch[0]) : "",
           time: timeMatch ? timeMatch[1] : "",
           flight: findFlight(block),
-          to: airportMatch ? normalizeCity(airportMatch[1]) : "جدة",
-          from: destBlocks[destBlocks.length - 1]?.city || "مكة المكرمة"
+          to: airportMatch ? formatAirportLabel(airportMatch[1]) : "جدة",
+          from: departureFrom
       };
   }
 
@@ -184,20 +203,22 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   }
 
   for (let i = 0; i < destBlocks.length - 1; i++) {
-      const fromCity = destBlocks[i].city;
-      const toCity = destBlocks[i+1].city;
-      if (fromCity !== toCity) {
+      const from = destBlocks[i];
+      const to = destBlocks[i+1];
+      if (from.city !== to.city) {
+          const fromLabel = from.hotel ? `${from.hotel} (${from.city})` : from.city;
+          const toLabel = to.hotel ? `${to.hotel} (${to.city})` : to.city;
           rows.push({
               id: uid(),
               ...groupInfo,
               Column1: "بين المدن",
-              date: destBlocks[i+1].startDate,
+              date: to.startDate,
               time: "10:00",
               flight: "-",
-              from: fromCity,
-              to: toCity,
+              from: fromLabel,
+              to: toLabel,
               carType,
-              tafweej: `بين المدن — ${fromCity} → ${toCity}`,
+              tafweej: `بين المدن — ${fromLabel} → ${toLabel}`,
               status: 'Planned'
           });
       }

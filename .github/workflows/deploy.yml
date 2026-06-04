@@ -17,11 +17,13 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd /var/www/umrah-prod
-            git pull origin ${{ github.ref_name }}
             if [ "${{ github.ref_name }}" = "main" ]; then
-              pm2 restart umrah-prod
+            cd /var/www/umrah-prod
+            git pull origin main
+            pm2 restart umrah-prod
             else
-              pm2 restart umrah-staging
+            cd /var/www/umrah-staging
+            git pull origin staging
+            pm2 restart umrah-staging
             fi
 

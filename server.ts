@@ -15,11 +15,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "umrah-secret-key-2026";
 
 // Database initialization
-const DB_PATH = process.env.VITEST ? ":memory:" : "umrah.db";
+const DB_PATH = process.env.VITEST ? ":memory:" : (process.env.DB_PATH || "umrah.db");
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
@@ -322,7 +322,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
 });
 
 // Vite middleware for development
-if (process.env.NODE_ENV !== "production" && !process.env.VITEST) {
+if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !process.env.VITEST) {
   const vite = await createViteServer({
     server: { middlewareMode: true },
     appType: "spa",

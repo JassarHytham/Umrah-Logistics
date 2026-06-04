@@ -16,14 +16,21 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: BRANCH_NAME
           script: |
-            if [ "${{ github.ref_name }}" = "main" ]; then
+            if [ "$BRANCH_NAME" = "main" ]; then
             cd /var/www/umrah-prod
             git pull origin main
+            npm install
+            npm run build
             pm2 restart umrah-prod
             else
             cd /var/www/umrah-staging
             git pull origin staging
+            npm install
+            npm run build
             pm2 restart umrah-staging
             fi
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
 

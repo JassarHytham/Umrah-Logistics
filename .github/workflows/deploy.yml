@@ -19,5 +19,9 @@ jobs:
           script: |
             cd /var/www/umrah-prod
             git pull origin ${{ github.ref_name }}
-            # add restart commands here, e.g:
-            # pm2 restart umrah
+            if [ "${{ github.ref_name }}" = "main" ]; then
+              pm2 restart umrah-prod
+            else
+              pm2 restart umrah-staging
+            fi
+

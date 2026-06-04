@@ -125,10 +125,13 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const blockText = text.substring(searchStart, searchEnd === -1 ? text.length : searchEnd);
       const dateMatch = blockText.match(/(\d{1,2}\/\d{1,2}\/\d{4})|(\d{4}-\d{1,2}-\d{1,2})/);
       const startDate = dateMatch ? formatDate(dateMatch[0]) : "";
-      // Grab the first data row after the "اسم الفندق" header line, then split on 3+ spaces or tab
+      // Grab the first data row after the "اسم الفندق" header line
       const hotelLineMatch = blockText.match(/اسم الفندق[^\r\n]*\r?\n([^\r\n]+)/);
       const hotelLine = hotelLineMatch ? hotelLineMatch[1].trim() : "";
-      const hotel = hotelLine ? (hotelLine.split(/\s{3,}|\t/)[0] || "").trim() : "";
+      // Stop at the first date column (works with both single-space and multi-space separators)
+      const hotel = hotelLine
+        ? (hotelLine.match(/^(.+?)\s+\d{1,2}\/\d{1,2}\/\d{4}/)?.[1] || hotelLine.split(/\s{3,}|\t/)[0] || "").trim()
+        : "";
       destBlocks.push({ city, startDate, hotel, index: match.index });
   }
 

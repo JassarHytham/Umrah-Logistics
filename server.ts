@@ -321,6 +321,14 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
   }
 });
 
+// GET /api/download/extension — serve Chrome extension zip (public, no auth required)
+app.get("/api/download/extension", (_req, res) => {
+  const zipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
+  res.download(zipPath, "umrah-extension.zip", (err) => {
+    if (err) res.status(404).json({ error: "الملف غير موجود" });
+  });
+});
+
 // Vite middleware for development
 if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !process.env.VITEST) {
   const vite = await createViteServer({

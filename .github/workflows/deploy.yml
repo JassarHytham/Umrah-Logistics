@@ -21,12 +21,14 @@ jobs:
             set -e
             if [ "$BRANCH_NAME" = "main" ]; then
               cd /var/www/umrah-prod
+              rm -rf dist/
               git pull origin main
               npm install
               npm run build
               pm2 restart umrah-prod || pm2 start npm --name umrah-prod -- start
             else
               cd /var/www/umrah-staging
+              rm -rf dist/
               git pull origin staging
               npm install
               npm run build

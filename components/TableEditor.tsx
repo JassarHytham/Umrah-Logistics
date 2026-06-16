@@ -365,20 +365,20 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     return (
         <div className="relative pb-10">
             {!isPreview && !readOnly && (
-                <div className="flex flex-col sm:flex-row sm:justify-between items-stretch sm:items-center mb-4 gap-3 px-1">
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                <div className="flex justify-between items-center mb-4 gap-3 px-1">
+                    <div className="flex items-center gap-2">
                          <button 
                             onClick={onAddNewRow}
-                            className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition-all min-h-[44px] flex-1 sm:flex-none"
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition-all"
                         >
                             <Plus size={16} />
                             إضافة رحلة جديدة
                         </button>
 
-                        <div className="relative w-full sm:w-auto" ref={templateDropdownRef}>
+                        <div className="relative" ref={templateDropdownRef}>
                             <button 
                                 onClick={() => setShowTemplatesDropdown(!showTemplatesDropdown)}
-                                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-white text-gray-700 border border-gray-200 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 transition-all min-h-[44px]"
+                                className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 transition-all"
                             >
                                 <LayoutTemplate size={16} />
                                 تطبيق قالب

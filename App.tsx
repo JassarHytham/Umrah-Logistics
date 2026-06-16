@@ -21,7 +21,6 @@ import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
 import { LogisticsBot } from './components/LogisticsBot';
 import { Auth } from './components/Auth';
-import { JourneyView } from './components/JourneyView';
 import { api } from './services/api';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
@@ -64,7 +63,7 @@ const STATUS_LABELS: Record<TripStatus, string> = {
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'operational' | 'analytics' | 'automation' | 'journey'>('operational');
+  const [view, setView] = useState<'operational' | 'analytics' | 'automation'>('operational');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [allRows, setAllRows] = useState<LogisticsRow[]>([]);
   const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
@@ -619,7 +618,6 @@ export default function App() {
               </div>
               <div className="flex bg-white/10 p-1 rounded-xl">
                 <button onClick={() => setView('operational')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Settings size={16} className="inline ml-1" />العمليات</button>
-                <button onClick={() => setView('journey')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'journey' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><MapPin size={16} className="inline ml-1" />الرحلات</button>
                 <button onClick={() => setView('analytics')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />الذكاء</button>
                 <button onClick={() => setView('automation')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'automation' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Bell size={16} className="inline ml-1" />الأتمتة</button>
               </div>
@@ -636,7 +634,6 @@ export default function App() {
             <div className="xl:hidden mt-4 flex flex-col gap-3 animate-fade-in pb-2">
               <div className="flex flex-col sm:flex-row gap-2 bg-white/5 p-2 rounded-xl">
                 <button onClick={() => { setView('operational'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Settings size={18} /> العمليات</button>
-                <button onClick={() => { setView('journey'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'journey' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><MapPin size={18} /> الرحلات</button>
                 <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={18} /> الذكاء</button>
                 <button onClick={() => { setView('automation'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'automation' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Bell size={18} /> الأتمتة</button>
               </div>
@@ -815,8 +812,6 @@ export default function App() {
               </div>
             </section>
           </div>
-        ) : view === 'journey' ? (
-          <JourneyView rows={allRows} />
         ) : view === 'analytics' ? (
           <OperationsIntelligence rows={allRows} onNavigateToTable={() => setView('operational')} />
         ) : (

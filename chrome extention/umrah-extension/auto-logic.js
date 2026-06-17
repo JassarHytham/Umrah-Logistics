@@ -11,8 +11,8 @@
   // Mirror of popup.js normalizeText so auto-captured text parses identically.
   function normalizeText(raw) {
     return String(raw == null ? '' : raw)
-      .replace(/ /g, ' ')
-      .replace(/[​‌‍⁠﻿]/g, '')
+      .replace(/\u00A0/g, ' ')
+      .replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, '')
       .replace(/(تاريخ[^:\n\r]{0,30}):\s*/g, '$1\n')
       .replace(/(وقت[^:\n\r]{0,20}):\s*/g, '$1\n')
       .replace(/(المطار[^:\n\r]{0,20}):\s*/g, '$1\n')

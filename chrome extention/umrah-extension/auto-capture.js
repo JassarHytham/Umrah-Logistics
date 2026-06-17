@@ -84,13 +84,17 @@
         '<div style="background:#fff;max-width:360px;width:90%;border-radius:12px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3);text-align:center;">' +
           '<div style="font-size:32px">⚠️</div>' +
           '<div style="font-weight:700;margin:8px 0;color:#b45309">المجموعة موجودة مسبقاً</div>' +
-          '<div style="font-size:14px;color:#444;margin-bottom:16px">يوجد ' + count + ' رحلة محفوظة للمجموعة "' + (groupName || '') + '". هل تريد الاستبدال أم الإيقاف؟</div>' +
+          '<div id="umrah-dup-msg" style="font-size:14px;color:#444;margin-bottom:16px"></div>' +
           '<div style="display:flex;gap:10px;justify-content:center">' +
             '<button id="umrah-dup-overwrite" style="flex:1;padding:10px;border:0;border-radius:8px;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">🔄 استبدال</button>' +
             '<button id="umrah-dup-stop" style="flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#333;font-weight:700;cursor:pointer">إيقاف</button>' +
           '</div>' +
         '</div>';
       document.body.appendChild(wrap);
+      // groupName traces back to untrusted page-scraped text — render as a
+      // text node so no HTML in it is interpreted (count is numeric/safe).
+      wrap.querySelector('#umrah-dup-msg').textContent =
+        'يوجد ' + count + ' رحلة محفوظة للمجموعة "' + (groupName || '') + '". هل تريد الاستبدال أم الإيقاف؟';
       function close(decision) { wrap.remove(); resolve(decision); }
       wrap.querySelector('#umrah-dup-overwrite').addEventListener('click', () => close('overwrite'));
       wrap.querySelector('#umrah-dup-stop').addEventListener('click', () => close('stop'));
@@ -142,7 +146,7 @@
   });
 
   function start() { mo.observe(document.body, { childList: true, subtree: true }); evaluatePresence(); }
-  function stop()  { mo.disconnect(); onPage = false; snapshot = null; setStatus('disabled'); }
+  function stop()  { mo.disconnect(); clearTimeout(debounce); debounce = null; onPage = false; snapshot = null; setStatus('disabled'); }
 
   // ── React to the on/off toggle ──────────────────────────
   function applyEnabled(val) {

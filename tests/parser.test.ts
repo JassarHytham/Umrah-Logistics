@@ -371,3 +371,73 @@ SV456
     expect(intercity.length).toBe(0);
   });
 });
+
+// ─────────────────────────────────────────────
+// Hotel name extraction — layout tolerance
+// The browser extension's DOM-walk capture serializes each table cell on its
+// own line (cell-per-line), unlike the clipboard copy (row-per-line). The hotel
+// name must be extracted correctly from BOTH layouts, never a column header.
+// ─────────────────────────────────────────────
+describe('parseItineraryText — hotel name extraction layouts', () => {
+  const groupInfo = { groupNo: 'G009', groupName: 'مجموعة', count: '4' };
+
+  it('cell-per-line capture: extracts the hotel name, not the تاريخ الدخول header', () => {
+    const cellPerLine = `
+رحلة الوصول
+تاريخ الوصول
+08/07/2026
+المطار
+مطار الملك عبد العزيز
+
+الوجهة (مكة المكرمة)
+08/07/2026
+الفنادق
+اسم الفندق/ المستضيف
+تاريخ الدخول
+تاريخ المغادرة
+مدة الاقامة
+سعة الغرفة
+السعر
+شركة فجر النسك لتشغيل الفنادق
+07/08/2026
+07/13/2026
+5
+1
+1880 ر.س
+
+رحلة المغادرة
+تاريخ المغادرة
+13/07/2026
+المطار
+مطار الأمير محمد
+`;
+    const rows = parseItineraryText(cellPerLine, groupInfo);
+    const arrival = rows.find(r => r.Column1 === 'وصول');
+    expect(arrival?.to).toBe('شركة فجر النسك لتشغيل الفنادق (مكة المكرمة)');
+  });
+
+  it('row-per-line capture: still extracts the hotel name before the date', () => {
+    const rowPerLine = `
+رحلة الوصول
+تاريخ الوصول
+08/07/2026
+المطار
+مطار الملك عبد العزيز
+
+الوجهة (مكة المكرمة)
+08/07/2026
+الفنادق
+اسم الفندق/ المستضيف تاريخ الدخول تاريخ المغادرة مدة الاقامة سعة الغرفة السعر
+شركة فجر النسك لتشغيل الفنادق 07/08/2026 07/13/2026 5 1 1880 ر.س
+
+رحلة المغادرة
+تاريخ المغادرة
+13/07/2026
+المطار
+مطار الأمير محمد
+`;
+    const rows = parseItineraryText(rowPerLine, groupInfo);
+    const arrival = rows.find(r => r.Column1 === 'وصول');
+    expect(arrival?.to).toBe('شركة فجر النسك لتشغيل الفنادق (مكة المكرمة)');
+  });
+});

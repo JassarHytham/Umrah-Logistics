@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Umrah Logistics Capture</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">✈</div>
+      <div>
+        <div class="title">نظام التفويج</div>
+        <div class="subtitle">Umrah Logistics Capture</div>
+      </div>
+    </div>
+    <div id="statusDot" class="status-dot disconnected"></div>
+  </div>
+
+  <!-- LOGIN VIEW -->
+  <div id="loginView" class="view">
+    <div class="section-label">⚙️ إعداد الاتصال بالخادم</div>
+    <div class="field-group">
+      <label class="field-label">رابط الخادم</label>
+      <input id="serverUrl" type="url" class="input ltr" placeholder="http://localhost:3000" />
+    </div>
+    <div class="field-group">
+      <label class="field-label">اسم المستخدم</label>
+      <input id="loginUsername" type="text" class="input ltr" placeholder="username" />
+    </div>
+    <div class="field-group">
+      <label class="field-label">كلمة المرور</label>
+      <input id="loginPassword" type="password" class="input ltr" placeholder="••••••••" />
+    </div>
+    <div id="loginError" class="error-msg hidden"></div>
+    <button id="loginBtn" class="btn btn-primary">
+      <span id="loginBtnText">تسجيل الدخول وحفظ</span>
+      <span id="loginSpinner" class="spinner hidden"></span>
+    </button>
+  </div>
+
+  <!-- CAPTURE VIEW -->
+  <div id="captureView" class="view hidden">
+
+    <div class="server-bar">
+      <span id="serverLabel" class="server-label">—</span>
+      <button id="logoutBtn" class="btn-link">تغيير</button>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="section-label">① النص المراد تحليله</div>
+    <button id="capturePageBtn" class="btn btn-capture-full">
+      📄 التقاط نص الصفحة
+    </button>
+    <textarea id="capturedText" class="textarea ltr"
+      placeholder="اضغط الزر أعلاه لالتقاط النص تلقائياً — أو الصق هنا مباشرة..."
+      rows="7"></textarea>
+    <div id="captureHint" class="hint">
+      💡 انتقل إلى صفحة الحجز ثم اضغط الزر لالتقاط النص مباشرة
+    </div>
+
+    <!-- Step 2 -->
+    <div class="section-label">② بيانات المجموعة</div>
+    <div class="group-fields">
+      <div class="field-group">
+        <label class="field-label">رقم المجموعة</label>
+        <input id="groupNo" type="text" class="input" placeholder="G-001" />
+      </div>
+      <div class="field-group">
+        <label class="field-label">العدد</label>
+        <input id="groupCount" type="number" class="input" placeholder="4" min="1" />
+      </div>
+      <div class="field-group full-width">
+        <label class="field-label">اسم المجموعة</label>
+        <input id="groupName" type="text" class="input" placeholder="مجموعة الرياض" />
+      </div>
+    </div>
+
+    <!-- Step 3: Duplicate warning + send buttons -->
+    <div id="dupWarning" class="dup-warning hidden">
+      <div class="dup-icon">⚠️</div>
+      <div class="dup-text">
+        <strong id="dupTitle">رقم المجموعة موجود مسبقاً</strong>
+        <span id="dupDetail"></span>
+      </div>
+    </div>
+
+    <div id="sendError" class="error-msg hidden"></div>
+    <div id="sendSuccess" class="success-msg hidden"></div>
+
+    <button id="sendBtn" class="btn btn-primary btn-send" disabled>
+      <span id="sendBtnText">⚡ إرسال إلى النظام</span>
+      <span id="sendSpinner" class="spinner hidden"></span>
+    </button>
+
+    <button id="overwriteBtn" class="btn btn-overwrite hidden">
+      <span id="overwriteBtnText">🔄 استبدال — حذف القديم وإضافة الجديد</span>
+      <span id="overwriteSpinner" class="spinner hidden"></span>
+    </button>
+
+    <!-- Result preview -->
+    <div id="resultSection" class="result-section hidden">
+      <div class="section-label">✅ الرحلات المستخرجة</div>
+      <div id="resultList" class="result-list"></div>
+      <a id="openAppBtn" class="btn btn-outline" href="#" target="_blank">
+        🔗 فتح التطبيق لمراجعة البيانات
+      </a>
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

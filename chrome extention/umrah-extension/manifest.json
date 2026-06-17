@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Umrah Logistics Capture",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Capture itinerary text from any page → send directly to Umrah Logistics Pro",
   "permissions": [
     "activeTab",
     "storage",
     "scripting",
-    "clipboardRead"
+    "clipboardRead",
+    "notifications"
   ],
   "host_permissions": ["<all_urls>"],
   "action": {
@@ -23,8 +24,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.nusuk.sa/*"],
+      "matches": ["*://*.nusuk.sa/*", "*://*.haj.gov.sa/*"],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://*.nusuk.sa/*", "*://*.haj.gov.sa/*"],
+      "js": ["auto-logic.js", "auto-capture.js"],
       "run_at": "document_idle"
     }
   ],

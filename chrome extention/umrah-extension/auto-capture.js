@@ -13,11 +13,14 @@
   const ENABLED_KEY  = 'umrah_auto_enabled';
   const STATUS_KEY   = 'umrah_auto_status';
   const LASTSENT_KEY = 'umrah_auto_lastsent';
+  const GROUP_KEY    = 'umrah_active_group';
+  const AUTOFILL_KEY = 'umrah_autofill';
 
   let enabled  = false;
   let onPage   = false;
   let snapshot = null;     // { text, hash }
   let debounce = null;
+  let badgeEl  = null;     // on-page "saving to group" pill
 
   function setStatus(state, extra) {
     chrome.storage.local.set({ [STATUS_KEY]: { state, extra: extra || '', at: Date.now() } });
@@ -132,11 +135,57 @@
     else setStatus(res.result, res.message);
   }
 
+  // ── On-page "saving to group" badge ─────────────────────
+  //  Always shows which group this trip will be attached to (or warns that
+  //  none is selected), so a stale/previous group is never used silently.
+  //  The ✕ button clears the captured group in one click → next finalize
+  //  becomes a no-group no-op until a fresh group row is clicked.
+  function clearGroup() { chrome.storage.local.remove([GROUP_KEY, AUTOFILL_KEY]); }
+
+  function renderBadge(group) {
+    if (!badgeEl) return;
+    badgeEl.textContent = '';
+    const hasGroup = !!(group && group.groupName);
+    badgeEl.style.background = hasGroup ? '#111827' : '#b45309';
+    const label = document.createElement('span');
+    if (hasGroup) {
+      label.appendChild(document.createTextNode('📍 سيتم الحفظ للمجموعة: '));
+      // groupName/groupNo are page-scraped — keep them as text nodes.
+      const g = document.createElement('strong');
+      g.textContent = group.groupName + (group.groupNo ? ' (' + group.groupNo + ')' : '');
+      label.appendChild(g);
+    } else {
+      label.textContent = '⚠️ لا توجد مجموعة محددة — لن يتم الحفظ';
+    }
+    badgeEl.appendChild(label);
+    if (hasGroup) {
+      const btn = document.createElement('button');
+      btn.textContent = '✕ مسح';
+      btn.style.cssText = 'margin-inline-start:10px;border:0;border-radius:12px;background:rgba(255,255,255,.2);color:#fff;font-weight:700;cursor:pointer;padding:3px 9px;font-family:inherit;font-size:12px;';
+      btn.addEventListener('click', clearGroup);
+      badgeEl.appendChild(btn);
+    }
+  }
+
+  async function showBadge() {
+    if (!badgeEl) {
+      badgeEl = document.createElement('div');
+      badgeEl.id = 'umrah-auto-badge';
+      badgeEl.setAttribute('dir', 'rtl');
+      badgeEl.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:2147483646;display:flex;align-items:center;color:#fff;padding:8px 14px;border-radius:20px;font-family:Tahoma,Arial,sans-serif;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.3);';
+      document.body.appendChild(badgeEl);
+    }
+    const s = await chrome.storage.local.get([GROUP_KEY]);
+    renderBadge(s[GROUP_KEY]);
+  }
+
+  function hideBadge() { if (badgeEl) { badgeEl.remove(); badgeEl = null; } }
+
   // ── Page presence tracking ──────────────────────────────
   function evaluatePresence() {
     const present = !!tripRoot();
-    if (present && !onPage) { onPage = true; setStatus('monitoring'); takeSnapshot(); }
-    else if (!present && onPage) { onPage = false; finalize(); }
+    if (present && !onPage) { onPage = true; setStatus('monitoring'); takeSnapshot(); showBadge(); }
+    else if (!present && onPage) { onPage = false; hideBadge(); finalize(); }
   }
 
   const mo = new MutationObserver(() => {
@@ -146,7 +195,7 @@
   });
 
   function start() { mo.observe(document.body, { childList: true, subtree: true }); evaluatePresence(); }
-  function stop()  { mo.disconnect(); clearTimeout(debounce); debounce = null; onPage = false; snapshot = null; setStatus('disabled'); }
+  function stop()  { mo.disconnect(); clearTimeout(debounce); debounce = null; onPage = false; snapshot = null; hideBadge(); setStatus('disabled'); }
 
   // ── React to the on/off toggle ──────────────────────────
   function applyEnabled(val) {
@@ -157,6 +206,10 @@
 
   chrome.storage.local.get([ENABLED_KEY], (r) => applyEnabled(r[ENABLED_KEY]));
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes[ENABLED_KEY]) applyEnabled(changes[ENABLED_KEY].newValue);
+    if (area !== 'local') return;
+    if (changes[ENABLED_KEY]) applyEnabled(changes[ENABLED_KEY].newValue);
+    // Keep the on-page badge in sync if the group is selected/cleared while
+    // we're monitoring (e.g. cleared by the ✕ button or after a save).
+    if (changes[GROUP_KEY] && enabled && onPage) renderBadge(changes[GROUP_KEY].newValue);
   });
 })();

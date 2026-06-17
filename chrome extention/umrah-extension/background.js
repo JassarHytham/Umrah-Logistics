@@ -110,6 +110,10 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
       [LASTSENT_KEY]: hash,
       [RESULT_KEY]: { groupNo: group.groupNo, groupName: group.groupName, rows: r.rows, at: Date.now() }
     });
+    // Forget the group after a successful save so the next trip can't be
+    // silently attached to this (now stale) group. A fresh group-row click
+    // is required to capture again.
+    await chrome.storage.local.remove([GROUP_KEY, AUTOFILL_KEY]);
     setStatus('sent', String(r.rows));
     badge('✓', '#16a34a');
     notify('تم الإرسال', `تم إرسال ${r.rows} رحلة للمجموعة "${group.groupName}"`);

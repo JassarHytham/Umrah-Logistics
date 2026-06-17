@@ -37,6 +37,7 @@ export const api = {
         body: JSON.stringify(credentials),
       });
       localStorage.setItem('umrah_auth_token', data.token);
+      localStorage.setItem('umrah_user', JSON.stringify(data.user));
       return data.user;
     },
     async register(credentials: any) {
@@ -45,10 +46,12 @@ export const api = {
         body: JSON.stringify(credentials),
       });
       localStorage.setItem('umrah_auth_token', data.token);
+      localStorage.setItem('umrah_user', JSON.stringify(data.user));
       return data.user;
     },
     logout() {
       localStorage.removeItem('umrah_auth_token');
+      localStorage.removeItem('umrah_user');
       window.location.reload();
     }
   },

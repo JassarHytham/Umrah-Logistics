@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users, 
-  ClipboardList, Upload, Trash2, History, RotateCcw, XCircle, 
-  Eraser, Calendar, Clock, Check, FileJson, Database, AlertTriangle, 
-  LayoutDashboard, Settings, Plus, Copy, Share2, Bookmark, 
+import {
+  Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users,
+  ClipboardList, Upload, Trash2, History, RotateCcw, XCircle,
+  Eraser, Calendar, Clock, Check, FileJson, Database, AlertTriangle,
+  LayoutDashboard, Settings, Plus, Copy, Share2, Bookmark,
   CheckSquare, Square, Type, Minus, PlusCircle, RotateCw, Bell, BellRing, Smartphone, Bot, Send, ShieldCheck,
   Info,
   ExternalLink,
   Zap,
   CheckCircle2,
-  Loader2
+  Loader2,
+  MapPin,
+  Menu,
+  X
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig } from './types';
@@ -61,11 +64,12 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'operational' | 'analytics' | 'automation'>('operational');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [allRows, setAllRows] = useState<LogisticsRow[]>([]);
   const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
   const [templates, setTemplates] = useState<LogisticsTemplate[]>([]);
   const [tgConfig, setTgConfig] = useState<TelegramConfig>({ token: '', chatId: '', enabled: false });
-  
+
   const [inputs, setInputs] = useState<InputState>({ groupNo: '', groupName: '', count: '', text: '' });
   const [previewRows, setPreviewRows] = useState<LogisticsRow[]>([]);
   const [showPreview, setShowPreview] = useState(false);
@@ -92,7 +96,8 @@ export default function App() {
     const token = localStorage.getItem('umrah_auth_token');
     if (token && typeof token === 'string' && token.split('.').length === 3) {
       // We assume the token is valid for now, or the first API call will fail and trigger logout
-      setUser({ token }); // Minimal user object
+      const savedUser = localStorage.getItem('umrah_user');
+      setUser(savedUser ? { ...JSON.parse(savedUser), token } : { token });
       loadUserData();
     } else {
       if (token) localStorage.removeItem('umrah_auth_token');
@@ -188,15 +193,15 @@ export default function App() {
     const { token, chatId } = tgConfigRef.current;
     const targetId = overrideChatId || chatId;
     if (!token || !targetId) return false;
-    
+
     try {
       const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          chat_id: targetId, 
-          text: message, 
-          parse_mode: 'HTML' 
+        body: JSON.stringify({
+          chat_id: targetId,
+          text: message,
+          parse_mode: 'HTML'
         })
       });
       const data = await res.json();
@@ -236,7 +241,7 @@ export default function App() {
       try {
         const response = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${tgLastUpdateId.current + 1}&timeout=10`);
         const data = await response.json();
-        
+
         if (data.ok && data.result.length > 0) {
           for (const update of data.result) {
             tgLastUpdateId.current = update.update_id;
@@ -289,12 +294,12 @@ export default function App() {
 
       allRowsRef.current.forEach(row => {
         if (!row.date || !row.time || notifiedIdsRef.current.has(row.id)) return;
-        
+
         const tripDate = parseDateTime(row.date, row.time);
         if (!tripDate) return;
 
         const diffMinutes = (tripDate.getTime() - now.getTime()) / (1000 * 60);
-        
+
         if (diffMinutes > 0 && diffMinutes <= 130) {
           if (typeof Notification !== 'undefined' && Notification.permission === "granted") {
             try {
@@ -311,7 +316,7 @@ export default function App() {
             const msg = `<b>🔔 تنبيه: رحلة قادمة خلال ساعتين</b>\n\n📦 <b>المجموعة:</b> ${escapeHTML(row.groupName)}\n🔢 <b>رقم م:</b> ${escapeHTML(row.groupNo)}\n${flightStr}🕒 <b>الوقت:</b> ${escapeHTML(row.time)}\n📍 <b>من:</b> ${escapeHTML(row.from)}\n📍 <b>إلى:</b> ${escapeHTML(row.to)}\n🚗 <b>نوع السيارة:</b> ${escapeHTML(row.carType)}\n📊 <b>الحالة:</b> ${STATUS_LABELS[row.status as TripStatus] || row.status}`;
             sendTelegram(msg);
           }
-          
+
           notifiedIdsRef.current.add(row.id);
           hasUpdates = true;
         }
@@ -346,12 +351,12 @@ export default function App() {
 
   const downloadExcel = () => {
     const rowsToExport = filteredRows.length > 0 ? filteredRows : allRows;
-    
+
     if (!window.XLSX) {
       showNotification("جاري تحميل مكتبة التصدير... يرجى المحاولة مرة أخرى", "error");
       return;
     }
-    
+
     if (rowsToExport.length === 0) {
       showNotification("لا توجد بيانات لتصديرها", "error");
       return;
@@ -361,7 +366,7 @@ export default function App() {
       const excelData = rowsToExport.map(row => ({
         "الحالة": STATUS_LABELS[row.status as TripStatus] || row.status,
         "الحركة": row.Column1,
-        "التفويج": row.tafweej, 
+        "التفويج": row.tafweej,
         "نوع السيارة": row.carType,
         "إلى": row.to,
         "من": row.from,
@@ -372,7 +377,7 @@ export default function App() {
         "رقم مجموعة": row.groupNo,
         "تاريخ": row.date
       }));
-      
+
       const ws = window.XLSX.utils.json_to_sheet(excelData);
       const wb = window.XLSX.utils.book_new();
       window.XLSX.utils.book_append_sheet(wb, ws, "Logistics");
@@ -400,7 +405,7 @@ export default function App() {
           const wb = window.XLSX.read(dataArray, { type: 'array', cellDates: true });
           const ws = wb.Sheets[wb.SheetNames[0]];
           const data: any[] = window.XLSX.utils.sheet_to_json(ws, { defval: "" });
-          
+
           const getVal = (obj: any, keys: string[]) => {
             const objKeys = Object.keys(obj);
             for (const searchKey of keys) {
@@ -445,26 +450,26 @@ export default function App() {
             } else {
               dateStr = String(d || '');
             }
-            
+
             const movement = String(getVal(r, ['Column1', 'الحركة', 'نوع الحركة', 'نوع_الحركة']) || '');
             const from = String(getVal(r, ['من', 'From', 'المنشأ']) || '');
             const to = String(getVal(r, ['إلى', 'إلي', 'To', 'الوجهة']) || '');
             const tafweejStatus = String(getVal(r, ['تفويج', 'التفويج', 'Tafweej']) || '');
 
-            return { 
-              id: uid(), 
-              groupNo: String(getVal(r, ['رقم مجموعة', 'رقم المجموعة', 'Group No', 'رقم_المجموعة']) || ''), 
-              groupName: String(getVal(r, ['اسم المجموعة', 'Group Name', 'اسم_المجموعة']) || ''), 
-              count: String(getVal(r, ['العدد', 'عدد', 'Count', 'عدد المعتمرين']) || '0'), 
-              Column1: movement, 
-              date: dateStr, 
-              time: String(getVal(r, ['وقت الرحلة', 'الوقت', 'Time', 'وقت_الرحلة']) || ''), 
-              flight: String(getVal(r, ['رقم الرحلة', 'الرحلة', 'Flight No', 'رقم_الرحلة', 'Flight']) || ''), 
-              from: from, 
-              to: to, 
-              carType: String(getVal(r, ['نوع السيارة', 'السيارة', 'Car Type', 'نوع_السيارة']) || ''), 
-              tafweej: tafweejStatus ? `${movement} — ${from} → ${to} (${tafweejStatus})` : `${movement} — ${from} → ${to}`, 
-              status: 'Planned' as TripStatus 
+            return {
+              id: uid(),
+              groupNo: String(getVal(r, ['رقم مجموعة', 'رقم المجموعة', 'Group No', 'رقم_المجموعة']) || ''),
+              groupName: String(getVal(r, ['اسم المجموعة', 'Group Name', 'اسم_المجموعة']) || ''),
+              count: String(getVal(r, ['العدد', 'عدد', 'Count', 'عدد المعتمرين']) || '0'),
+              Column1: movement,
+              date: dateStr,
+              time: String(getVal(r, ['وقت الرحلة', 'الوقت', 'Time', 'وقت_الرحلة']) || ''),
+              flight: String(getVal(r, ['رقم الرحلة', 'الرحلة', 'Flight No', 'رقم_الرحلة', 'Flight']) || ''),
+              from: from,
+              to: to,
+              carType: String(getVal(r, ['نوع السيارة', 'السيارة', 'Car Type', 'نوع_السيارة']) || ''),
+              tafweej: tafweejStatus ? `${movement} — ${from} → ${to} (${tafweejStatus})` : `${movement} — ${from} → ${to}`,
+              status: 'Planned' as TripStatus
             };
           });
           setPreviewRows(imported);
@@ -563,51 +568,111 @@ export default function App() {
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
 
       <div className="bg-gradient-to-l from-slate-900 via-blue-900 to-indigo-900 text-white shadow-lg sticky top-0 z-40">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex flex-col xl:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-4">
-            <div className="bg-white/10 p-2.5 rounded-xl"><Plane size={28} /></div>
-            <div>
-              <h1 className="text-xl font-bold">نظام تفويج العمرة Pro</h1>
-              <p className="text-blue-200 text-xs">إدارة لوجستية متكاملة</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            {isSyncing && (
-              <div className="flex items-center gap-2 text-blue-200 text-xs animate-pulse">
-                <RotateCw size={12} className="animate-spin" />
-                <span>جاري المزامنة...</span>
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="bg-white/10 p-2 sm:p-2.5 rounded-xl"><Plane size={24} className="sm:w-7 sm:h-7" /></div>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold">UM For Logistics</h1>
+                <p className="text-blue-200 text-[10px] sm:text-xs">إدارة لوجستية متكاملة</p>
               </div>
-            )}
-            <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
-              <Users size={16} className="text-blue-200" />
-              <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
-              <a
-                href="/api/download/extension"
-                download="umrah-extension.zip"
-                title="تحميل إضافة Chrome"
-                className="text-xs bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 px-2 py-1 rounded-lg transition-all flex items-center gap-1"
-              >
-                <Download size={12} />
-                الإضافة
-              </a>
-              <button
-                onClick={() => api.auth.logout()}
-                className="mr-2 text-xs bg-red-500/20 hover:bg-red-500/40 text-red-200 px-2 py-1 rounded-lg transition-all"
-              >
-                خروج
-              </button>
             </div>
-            <div className="flex bg-white/10 p-1 rounded-xl">
-              <button onClick={() => setView('operational')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Settings size={16} className="inline ml-1" />العمليات</button>
-              <button onClick={() => setView('analytics')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />الذكاء</button>
-              <button onClick={() => setView('automation')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'automation' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Bell size={16} className="inline ml-1" />الأتمتة</button>
-            </div>
-            <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/5">
-                <button onClick={() => changeFontSize(-5)} className="p-1.5 hover:bg-white/10 rounded-lg"><Minus size={14} /></button>
-                <span className="text-xs font-black px-1">{fontSize}%</span>
-                <button onClick={() => changeFontSize(5)} className="p-1.5 hover:bg-white/10 rounded-lg"><PlusCircle size={14} /></button>
+            {/* Hamburger Button */}
+            <button
+              className="xl:hidden p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle navigation menu"
+              style={{ minHeight: '44px', minWidth: '44px' }}
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+
+            {/* Desktop Navigation */}
+            <div className="hidden xl:flex items-center gap-4">
+              {isSyncing && (
+                <div className="flex items-center gap-2 text-blue-200 text-xs animate-pulse">
+                  <RotateCw size={12} className="animate-spin" />
+                  <span>جاري المزامنة...</span>
+                </div>
+              )}
+              <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
+                <Users size={16} className="text-blue-200" />
+                <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
+                <a
+                  href="/api/download/extension"
+                  download="umrah-extension.zip"
+                  title="تحميل إضافة Chrome"
+                  className="text-xs bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 px-3 py-2 rounded-lg transition-all flex items-center gap-1"
+                  style={{ minHeight: '44px' }}
+                >
+                  <Download size={14} />
+                  الإضافة
+                </a>
+                <button
+                  onClick={() => api.auth.logout()}
+                  className="mr-2 text-xs bg-red-500/20 hover:bg-red-500/40 text-red-200 px-3 py-2 rounded-lg transition-all"
+                  style={{ minHeight: '44px' }}
+                >
+                  خروج
+                </button>
+              </div>
+              <div className="flex bg-white/10 p-1 rounded-xl">
+                <button onClick={() => setView('operational')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Settings size={16} className="inline ml-1" />العمليات</button>
+                <button onClick={() => setView('analytics')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />الذكاء</button>
+                <button onClick={() => setView('automation')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'automation' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Bell size={16} className="inline ml-1" />الأتمتة</button>
+              </div>
+              <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/5">
+                <button onClick={() => changeFontSize(-5)} className="p-2 hover:bg-white/10 rounded-lg" style={{ minHeight: '44px', minWidth: '44px' }}><Minus size={16} /></button>
+                <span className="text-xs font-black px-1 min-w-[36px] text-center">{fontSize}%</span>
+                <button onClick={() => changeFontSize(5)} className="p-2 hover:bg-white/10 rounded-lg" style={{ minHeight: '44px', minWidth: '44px' }}><PlusCircle size={16} /></button>
+              </div>
             </div>
           </div>
+
+          {/* Mobile Navigation Drawer */}
+          {isMobileMenuOpen && (
+            <div className="xl:hidden mt-4 flex flex-col gap-3 animate-fade-in pb-2">
+              <div className="flex flex-col sm:flex-row gap-2 bg-white/5 p-2 rounded-xl">
+                <button onClick={() => { setView('operational'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Settings size={18} /> العمليات</button>
+                <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={18} /> الذكاء</button>
+                <button onClick={() => { setView('automation'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'automation' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Bell size={18} /> الأتمتة</button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white/5 px-4 py-3 rounded-xl">
+                <div className="flex items-center gap-3 mb-2 sm:mb-0 text-sm">
+                  <Users size={16} className="text-blue-200 shrink-0" />
+                  <span className="font-bold truncate">{user?.username || 'مستخدم'}</span>
+                </div>
+
+                <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full">
+                  <a
+                    href="/api/download/extension"
+                    download="umrah-extension.zip"
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-2 text-sm bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 px-3 py-2.5 rounded-lg transition-all"
+                    style={{ minHeight: '44px' }}
+                  >
+                    <Download size={16} /> الإضافة
+                  </a>
+                  <button
+                    onClick={() => api.auth.logout()}
+                    className="flex-1 min-w-[100px] flex items-center justify-center gap-2 text-sm bg-red-500/20 hover:bg-red-500/40 text-red-200 px-3 py-2.5 rounded-lg transition-all"
+                    style={{ minHeight: '44px' }}
+                  >
+                    خروج
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-4 bg-white/5 p-2 rounded-xl mt-1">
+                <span className="text-sm font-medium text-blue-200">حجم الخط:</span>
+                <div className="flex items-center bg-black/20 rounded-lg overflow-hidden">
+                  <button onClick={() => changeFontSize(-5)} className="p-3 hover:bg-white/10 transition-colors" style={{ minHeight: '44px', minWidth: '44px' }}><Minus size={16} /></button>
+                  <span className="text-sm font-black px-4 w-[60px] text-center bg-white/10 py-3">{fontSize}%</span>
+                  <button onClick={() => changeFontSize(5)} className="p-3 hover:bg-white/10 transition-colors" style={{ minHeight: '44px', minWidth: '44px' }}><PlusCircle size={16} /></button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -628,42 +693,42 @@ export default function App() {
               <div className="p-8 space-y-6">
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">توكن البوت (Bot Token)</label>
-                  <input 
-                    type="password" 
-                    value={tgConfig.token} 
-                    onChange={(e) => setTgConfig({...tgConfig, token: e.target.value})}
-                    placeholder="7483XXXXXX:AAHyXXXXXX..." 
+                  <input
+                    type="password"
+                    value={tgConfig.token}
+                    onChange={(e) => setTgConfig({ ...tgConfig, token: e.target.value })}
+                    placeholder="7483XXXXXX:AAHyXXXXXX..."
                     className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none text-left"
                     dir="ltr"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">معرف الدردشة (Chat ID)</label>
-                  <input 
-                    type="text" 
-                    value={tgConfig.chatId} 
-                    onChange={(e) => setTgConfig({...tgConfig, chatId: e.target.value})}
-                    placeholder="مثال: 123456789" 
+                  <input
+                    type="text"
+                    value={tgConfig.chatId}
+                    onChange={(e) => setTgConfig({ ...tgConfig, chatId: e.target.value })}
+                    placeholder="مثال: 123456789"
                     className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none text-left"
                     dir="ltr"
                   />
                 </div>
-                
+
                 <div className="pt-4 border-t border-gray-100 flex flex-col gap-4">
                   <div className="flex items-center justify-between bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
                     <div className="flex items-center gap-3">
                       <div className={`w-3 h-3 rounded-full ${tgConfig.enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-300'}`}></div>
                       <span className="text-sm font-bold text-blue-900">وضع التنبيهات التلقائية</span>
                     </div>
-                    <button 
-                      onClick={() => setTgConfig({...tgConfig, enabled: !tgConfig.enabled})}
+                    <button
+                      onClick={() => setTgConfig({ ...tgConfig, enabled: !tgConfig.enabled })}
                       className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${tgConfig.enabled ? 'bg-red-500 text-white shadow-lg hover:bg-red-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                     >
                       {tgConfig.enabled ? 'إيقاف الخدمة' : 'تشغيل الخدمة'}
                     </button>
                   </div>
 
-                  <button 
+                  <button
                     onClick={handleTestTelegram}
                     disabled={!tgConfig.token || !tgConfig.chatId || isTestingTg}
                     className="w-full flex items-center justify-center gap-3 p-4 bg-white border-2 border-blue-600 text-blue-600 rounded-2xl font-black text-sm hover:bg-blue-50 transition-all active:scale-95 disabled:opacity-50 disabled:border-gray-300 disabled:text-gray-400"
@@ -678,15 +743,15 @@ export default function App() {
                 </div>
 
                 <div className="bg-gray-50 p-6 rounded-2xl text-[11px] text-gray-500 leading-relaxed border border-gray-100">
-                   <p className="font-bold text-gray-700 mb-2 flex items-center gap-2">
-                     <Info size={14} className="text-blue-500" /> كيف تحصل على المعرف الصحيح؟
-                   </p>
-                   <ol className="list-decimal mr-4 space-y-2 text-xs">
-                     <li>ابحث عن البوت <b>@userinfobot</b> في تيليجرام.</li>
-                     <li>أرسل له أي رسالة، سيعطيك رقم (ID) خاص بك.</li>
-                     <li>انسخ هذا الرقم وضعه في حقل "معرف الدردشة" أعلاه.</li>
-                     <li><b>تنبيه:</b> إذا وضعت رقم البوت نفسه (الذي يبدأ به التوكن)، فسيظهر خطأ "Forbidden: bots can't send messages to bots".</li>
-                   </ol>
+                  <p className="font-bold text-gray-700 mb-2 flex items-center gap-2">
+                    <Info size={14} className="text-blue-500" /> كيف تحصل على المعرف الصحيح؟
+                  </p>
+                  <ol className="list-decimal mr-4 space-y-2 text-xs">
+                    <li>ابحث عن البوت <b>@userinfobot</b> في تيليجرام.</li>
+                    <li>أرسل له أي رسالة، سيعطيك رقم (ID) خاص بك.</li>
+                    <li>انسخ هذا الرقم وضعه في حقل "معرف الدردشة" أعلاه.</li>
+                    <li><b>تنبيه:</b> إذا وضعت رقم البوت نفسه (الذي يبدأ به التوكن)، فسيظهر خطأ "Forbidden: bots can't send messages to bots".</li>
+                  </ol>
                 </div>
               </div>
             </section>
@@ -711,7 +776,7 @@ export default function App() {
                         <CheckCircle2 size={16} /> مفعّل
                       </span>
                     ) : (
-                      <button 
+                      <button
                         onClick={requestNotificationPermission}
                         className="text-xs font-bold bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-700 transition-all shadow-md"
                       >
@@ -751,27 +816,27 @@ export default function App() {
           <OperationsIntelligence rows={allRows} onNavigateToTable={() => setView('operational')} />
         ) : (
           <>
-            <section className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 overflow-hidden">
-                <div className="p-1 bg-gradient-to-r from-blue-500 to-indigo-500 -mt-8 -mx-8 mb-8"></div>
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                    <span className="bg-blue-100 text-blue-700 p-2 rounded-lg"><Edit3 size={20} /></span>
-                    إدخال بيانات الرحلة
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-                    <div className="md:col-span-4 space-y-4">
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
-                            <input type="text" placeholder="رقم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" value={inputs.groupNo} onChange={(e) => setInputs({...inputs, groupNo: e.target.value})} />
-                            <input type="text" placeholder="اسم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" value={inputs.groupName} onChange={(e) => setInputs({...inputs, groupName: e.target.value})} />
-                            <input type="number" placeholder="العدد" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" value={inputs.count} onChange={(e) => setInputs({...inputs, count: e.target.value})} />
-                        </div>
-                        <button onClick={handleExtract} className="w-full bg-blue-600 text-white p-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100">
-                            <FileText size={20} /> تحليل واستخراج
-                        </button>
-                    </div>
-                    <div className="md:col-span-8">
-                        <textarea placeholder="الصق نص الرحلة هنا..." className="w-full h-[250px] p-4 border rounded-xl font-mono text-sm bg-gray-50 focus:bg-white transition-colors" value={inputs.text} onChange={(e) => setInputs({...inputs, text: e.target.value})}></textarea>
-                    </div>
+            <section className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 sm:p-8 overflow-hidden">
+              <div className="p-1 bg-gradient-to-r from-blue-500 to-indigo-500 -mt-4 sm:-mt-8 -mx-4 sm:-mx-8 mb-4 sm:mb-8"></div>
+              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
+                <span className="bg-blue-100 text-blue-700 p-2 rounded-lg"><Edit3 size={20} /></span>
+                إدخال بيانات الرحلة
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8">
+                <div className="md:col-span-4 space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                    <input type="text" placeholder="رقم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.groupNo} onChange={(e) => setInputs({ ...inputs, groupNo: e.target.value })} />
+                    <input type="text" placeholder="اسم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.groupName} onChange={(e) => setInputs({ ...inputs, groupName: e.target.value })} />
+                    <input type="number" placeholder="العدد" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.count} onChange={(e) => setInputs({ ...inputs, count: e.target.value })} />
+                  </div>
+                  <button onClick={handleExtract} className="w-full bg-blue-600 text-white p-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 min-h-[44px]">
+                    <FileText size={20} /> تحليل واستخراج
+                  </button>
                 </div>
+                <div className="md:col-span-8">
+                  <textarea placeholder="الصق نص الرحلة هنا..." className="w-full h-[200px] sm:h-[250px] p-4 border rounded-xl font-mono text-sm bg-gray-50 focus:bg-white transition-colors" value={inputs.text} onChange={(e) => setInputs({ ...inputs, text: e.target.value })}></textarea>
+                </div>
+              </div>
             </section>
 
             {showPreview && (
@@ -780,51 +845,51 @@ export default function App() {
                   <h3 className="font-bold flex items-center gap-2"><Clock size={18} /> معاينة النتائج قبل الاعتماد</h3>
                   <div className="flex gap-2">
                     <button onClick={() => setShowPreview(false)} className="bg-white/10 hover:bg-white/20 px-4 py-1.5 rounded-lg text-sm">إلغاء</button>
-                    <button onClick={() => { setAllRows([...previewRows, ...allRows]); setShowPreview(false); setInputs({...inputs, text: ''}); showNotification("تم اعتماد الرحلات", "success"); }} className="bg-white text-blue-600 px-6 py-1.5 rounded-lg font-bold">حفظ واعتماد</button>
+                    <button onClick={() => { setAllRows([...previewRows, ...allRows]); setShowPreview(false); setInputs({ ...inputs, text: '' }); showNotification("تم اعتماد الرحلات", "success"); }} className="bg-white text-blue-600 px-6 py-1.5 rounded-lg font-bold">حفظ واعتماد</button>
                   </div>
                 </div>
-                <div className="p-4"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? {...r, [f]: v} : r))} isPreview={true} /></div>
+                <div className="p-4"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))} isPreview={true} /></div>
               </section>
             )}
 
-            <section className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 overflow-visible">
-                <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-                    <div className="flex items-center gap-4">
-                        <h3 className="font-bold text-gray-800">سجل العمليات اللوجستية</h3>
-                        <div className="flex gap-1">
-                            <button onClick={downloadExcel} title="تصدير إكسل" className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg border border-emerald-100 transition-colors"><Download size={18} /></button>
-                            <button onClick={() => fileInputRef.current?.click()} title="استيراد إكسل / JSON" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg border border-indigo-100 transition-colors"><Upload size={18} /></button>
-                            <button onClick={() => setShowRecycleBin(true)} title="المحذوفات" className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg border border-gray-100 transition-colors"><History size={18} /></button>
-                            <button onClick={deleteAllRows} title="حذف الكل" className="p-2 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 transition-colors"><Eraser size={18} /></button>
-                        </div>
-                    </div>
-                    <div className="flex gap-3">
-                        <button onClick={() => setIsEditing(!isEditing)} className={`px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition-all ${isEditing ? 'bg-green-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
-                            {isEditing ? 'إنهاء التعديل وحفظ' : 'بدء تعديل الجدول'}
-                        </button>
-                    </div>
+            <section className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-6 overflow-visible w-full">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                  <h3 className="font-bold text-gray-800 text-lg">سجل العمليات اللوجستية</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={downloadExcel} title="تصدير إكسل" className="p-3 sm:p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg border border-emerald-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><Download size={18} /></button>
+                    <button onClick={() => fileInputRef.current?.click()} title="استيراد إكسل / JSON" className="p-3 sm:p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg border border-indigo-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><Upload size={18} /></button>
+                    <button onClick={() => setShowRecycleBin(true)} title="المحذوفات" className="p-3 sm:p-2 text-gray-400 hover:bg-gray-50 rounded-lg border border-gray-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><History size={18} /></button>
+                    <button onClick={deleteAllRows} title="حذف الكل" className="p-3 sm:p-2 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><Eraser size={18} /></button>
+                  </div>
                 </div>
-                <div className="mt-2">
-                    <TableEditor 
-                        rows={allRows} 
-                        onChange={(id, f, v) => setAllRows(prev => prev.map(r => r.id === id ? {...r, [f]: v} : r))} 
-                        onDelete={softDeleteRow} 
-                        isPreview={false} 
-                        readOnly={!isEditing} 
-                        enableFiltering={true}
-                        templates={templates}
-                        onAddNewRow={addNewEmptyRow}
-                        onDuplicateRow={duplicateRow}
-                        onSaveAsTemplate={saveAsTemplate}
-                        onApplyTemplate={(tid) => {
-                            const t = templates.find(x => x.id === tid);
-                            if (t) setAllRows([{ id: uid(), ...t.data, date: getLocalDateString(), status: 'Planned' } as any, ...allRows]);
-                        }}
-                        onShareRow={shareRowDetails}
-                        onDeleteTemplate={(tid) => setTemplates(templates.filter(x => x.id !== tid))}
-                        onFilteredRowsChange={setFilteredRows}
-                    />
+                <div className="flex gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                  <button onClick={() => setIsEditing(!isEditing)} className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 sm:py-2 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center justify-center ${isEditing ? 'bg-green-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
+                    {isEditing ? 'إنهاء التعديل وحفظ' : 'بدء تعديل الجدول'}
+                  </button>
                 </div>
+              </div>
+              <div className="mt-2">
+                <TableEditor
+                  rows={allRows}
+                  onChange={(id, f, v) => setAllRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))}
+                  onDelete={softDeleteRow}
+                  isPreview={false}
+                  readOnly={!isEditing}
+                  enableFiltering={true}
+                  templates={templates}
+                  onAddNewRow={addNewEmptyRow}
+                  onDuplicateRow={duplicateRow}
+                  onSaveAsTemplate={saveAsTemplate}
+                  onApplyTemplate={(tid) => {
+                    const t = templates.find(x => x.id === tid);
+                    if (t) setAllRows([{ id: uid(), ...t.data, date: getLocalDateString(), status: 'Planned' } as any, ...allRows]);
+                  }}
+                  onShareRow={shareRowDetails}
+                  onDeleteTemplate={(tid) => setTemplates(templates.filter(x => x.id !== tid))}
+                  onFilteredRowsChange={setFilteredRows}
+                />
+              </div>
             </section>
           </>
         )}
@@ -835,36 +900,38 @@ export default function App() {
       {showRecycleBin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in text-right">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-red-50/50">
-              <div className="flex items-center gap-4">
-                <h3 className="text-xl font-bold flex items-center gap-2 text-red-700"><Trash2 /> سلة المحذوفات</h3>
+            <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 bg-red-50/50">
+              <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
+                <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-red-700"><Trash2 /> سلة المحذوفات</h3>
                 {deletedRows.length > 0 && (
-                  <button 
+                  <button
                     onClick={restoreAllRows}
-                    className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-700 transition-all flex items-center gap-1 shadow-sm"
+                    className="text-xs bg-green-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-green-700 transition-all flex items-center gap-1 shadow-sm min-h-[44px]"
                   >
-                    <RotateCcw size={14} /> استعادة الكل
+                    <RotateCcw size={16} /> استعادة الكل
                   </button>
                 )}
               </div>
-              <button onClick={() => setShowRecycleBin(false)} className="p-2 hover:bg-white rounded-full transition-colors"><XCircle size={24} /></button>
+              <button onClick={() => setShowRecycleBin(false)} className="p-2 sm:p-2 hover:bg-white rounded-full transition-colors self-end sm:self-auto min-h-[44px] min-w-[44px] flex items-center justify-center -mt-12 sm:mt-0"><XCircle size={24} /></button>
             </div>
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               {deletedRows.length > 0 ? (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-gray-500 font-bold"><tr className="border-b"> <th className="p-3">المجموعة</th> <th className="p-3">الحركة</th> <th className="p-3">الإجراء</th> </tr></thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {deletedRows.map(row => (
-                      <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="p-4 font-bold">{row.groupName} ({row.groupNo})</td>
-                        <td className="p-4">{row.Column1} - {row.to}</td>
-                        <td className="p-4 flex gap-2">
-                          <button onClick={() => { setAllRows([row, ...allRows]); setDeletedRows(p => p.filter(x => x.id !== row.id)); }} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded-lg border border-green-100 flex items-center gap-1 text-xs"><RotateCcw size={14} /> استعادة</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[600px]">
+                    <thead className="bg-gray-50 text-gray-500 font-bold"><tr className="border-b"> <th className="p-3">المجموعة</th> <th className="p-3">الحركة</th> <th className="p-3">الإجراء</th> </tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {deletedRows.map(row => (
+                        <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="p-4 font-bold">{row.groupName} ({row.groupNo})</td>
+                          <td className="p-4">{row.Column1} - {row.to}</td>
+                          <td className="p-4 flex gap-2">
+                            <button onClick={() => { setAllRows([row, ...allRows]); setDeletedRows(p => p.filter(x => x.id !== row.id)); }} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded-lg border border-green-100 flex items-center gap-1 text-xs"><RotateCcw size={14} /> استعادة</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : <div className="text-center py-20 text-gray-400 italic">لا يوجد سجلات محذوفة حالياً</div>}
             </div>
           </div>

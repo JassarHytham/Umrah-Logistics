@@ -19,6 +19,13 @@
     <div id="statusDot" class="status-dot disconnected"></div>
   </div>
 
+  <div class="tabbar">
+    <button id="tabManual" class="tab active">يدوي</button>
+    <button id="tabAuto" class="tab">تلقائي</button>
+  </div>
+
+  <div id="manualPane">
+
   <!-- LOGIN VIEW -->
   <div id="loginView" class="view">
     <div class="section-label">⚙️ إعداد الاتصال بالخادم</div>
@@ -111,6 +118,33 @@
 
   </div>
 
+  </div><!-- /manualPane -->
+
+  <div id="autoPane" class="hidden">
+    <div class="auto-row">
+      <div>
+        <div class="auto-title">الالتقاط التلقائي</div>
+        <div class="auto-sub">يلتقط صفحة "معلومات الرحلة" تلقائياً ويُرسلها عند مغادرتك للصفحة</div>
+      </div>
+      <label class="switch">
+        <input id="autoToggle" type="checkbox" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="auto-status">
+      <span id="autoDot" class="auto-dot"></span>
+      <span id="autoStatusText">—</span>
+    </div>
+
+    <div class="auto-meta">
+      <div><span class="auto-meta-label">المجموعة الحالية:</span> <span id="autoGroup">—</span></div>
+      <div><span class="auto-meta-label">آخر إرسال:</span> <span id="autoLastSync">—</span></div>
+      <div><span class="auto-meta-label">عدد الرحلات المُرسلة:</span> <span id="autoRows">—</span></div>
+    </div>
+  </div>
+
   <script src="popup.js"></script>
+  <script src="auto.js"></script>
 </body>
 </html>

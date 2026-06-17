@@ -82,7 +82,7 @@
       const wrap = document.createElement('div');
       wrap.id = 'umrah-dup-modal';
       wrap.setAttribute('dir', 'rtl');
-      wrap.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:Tahoma,Arial,sans-serif;';
+      wrap.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:Tahoma,Arial,sans-serif;user-select:none;-webkit-user-select:none;';
       wrap.innerHTML =
         '<div style="background:#fff;max-width:360px;width:90%;border-radius:12px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3);text-align:center;">' +
           '<div style="font-size:32px">⚠️</div>' +
@@ -172,7 +172,9 @@
       badgeEl = document.createElement('div');
       badgeEl.id = 'umrah-auto-badge';
       badgeEl.setAttribute('dir', 'rtl');
-      badgeEl.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:2147483646;display:flex;align-items:center;color:#fff;padding:8px 14px;border-radius:20px;font-family:Tahoma,Arial,sans-serif;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.3);';
+      // user-select:none keeps the badge out of any Select-All / clipboard
+      // capture of the page (it lives in document.body, outside app-trip-info).
+      badgeEl.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:2147483646;display:flex;align-items:center;color:#fff;padding:8px 14px;border-radius:20px;font-family:Tahoma,Arial,sans-serif;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.3);user-select:none;-webkit-user-select:none;';
       document.body.appendChild(badgeEl);
     }
     const s = await chrome.storage.local.get([GROUP_KEY]);

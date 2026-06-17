@@ -125,16 +125,25 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const blockText = text.substring(searchStart, searchEnd === -1 ? text.length : searchEnd);
       const dateMatch = blockText.match(/(\d{1,2}\/\d{1,2}\/\d{4})|(\d{4}-\d{1,2}-\d{1,2})/);
       const startDate = dateMatch ? formatDate(dateMatch[0]) : "";
-      // Grab the first data row after the "اسم الفندق" header line
-      const hotelLineMatch = blockText.match(/اسم الفندق[^\r\n]*\r?\n([^\r\n]+)/);
-      const hotelLine = hotelLineMatch ? hotelLineMatch[1].trim() : "";
-      // Slice before the first date — robust to invisible Unicode chars (RTL marks etc.) between hotel name and date
-      const dateStart = hotelLine.search(/\d{1,2}\/\d{1,2}\/\d{4}/);
-      const hotel = hotelLine
-        ? (dateStart > 0
-            ? hotelLine.slice(0, dateStart).replace(/[\s​-‏‪-‮⁦-⁩﻿]+$/, "")
-            : hotelLine.split(/\s{3,}|\t/)[0]).trim()
-        : "";
+      // The hotel name is the first real data cell after the "اسم الفندق"
+      // header. Tolerate two capture layouts:
+      //   • clipboard / row-per-line: "<hotel>  <date>  <date> ..." on the next line
+      //   • DOM walk / cell-per-line: each column header then the hotel on its own line
+      const afterHeader = blockText.split(/اسم الفندق[^\r\n]*\r?\n/)[1] || "";
+      const HOTEL_COL_HEADERS = /^(تاريخ\s+الدخول|تاريخ\s+المغادرة|مدة\s+ال[إا]?قامة|سعة\s+الغرفة|السعر)\s*$/;
+      let hotel = "";
+      for (const rawLine of afterHeader.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        if (/الخدمة|الخدمات/.test(line)) break;        // reached the enrichment table → no hotel row
+        if (HOTEL_COL_HEADERS.test(line)) continue;     // skip leftover column headers (cell-per-line)
+        const dStart = line.search(/\d{1,2}\/\d{1,2}\/\d{4}/);
+        if (dStart === 0) continue;                     // a pure date cell → not the hotel name
+        const candidate = (dStart > 0 ? line.slice(0, dStart) : line)
+          .replace(/[\s\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]+$/, "")
+          .trim();
+        if (candidate) { hotel = candidate; break; }
+      }
       destBlocks.push({ city, startDate, hotel, index: match.index });
   }
 

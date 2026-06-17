@@ -66,7 +66,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   }
   function notify(title, message) {
     try {
-      chrome.notifications.create({ type: 'basic', iconUrl: 'icons/icon128.png', title, message });
+      chrome.notifications.create('umrah-auto-sent', { type: 'basic', iconUrl: 'icons/icon128.png', title, message });
     } catch (_) {}
   }
 
@@ -113,7 +113,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
     setStatus('sent', String(r.rows));
     badge('✓', '#16a34a');
     notify('تم الإرسال', `تم إرسال ${r.rows} رحلة للمجموعة "${group.groupName}"`);
-    setTimeout(() => badge('', '#16a34a'), 6000);
+    setTimeout(() => badge(''), 6000);
     return { result: 'sent', rows: r.rows };
   }
 
@@ -125,6 +125,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
         const s = await get([GROUP_KEY]);
         const group = s[GROUP_KEY];
         if (!group || !group.groupNo || !group.groupName) { setStatus('no-group'); sendResponse({ result: 'no-group' }); return; }
+        if (!group.count) { setStatus('missing-count'); sendResponse({ result: 'missing-count' }); return; }
         const base = await apiBase();
         if (!base.token) { setStatus('login-required'); badge('!', '#dc2626'); sendResponse({ result: 'login-required' }); return; }
         setStatus('sending');
@@ -141,6 +142,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
         const s = await get([GROUP_KEY]);
         const group = s[GROUP_KEY];
         if (!group || !group.groupNo) { sendResponse({ result: 'no-group' }); return; }
+        if (!group.count) { sendResponse({ result: 'missing-count' }); return; }
         sendResponse(await doSend(group, msg.text, msg.hash, true));
       })();
       return true;   // async

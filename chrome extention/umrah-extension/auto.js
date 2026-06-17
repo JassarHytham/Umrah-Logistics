@@ -28,6 +28,7 @@
     sending:          { dot: 'blue', text: '📤 جارٍ الإرسال…' },
     sent:             { dot: 'green',text: '✅ تم الإرسال' },
     'no-group':       { dot: 'amber',text: '⚠️ لا توجد مجموعة محددة' },
+    'missing-count':  { dot: 'amber',text: '⚠️ عدد المعتمرين غير متوفر — استخدم تبويب يدوي' },
     stopped:          { dot: 'amber',text: 'أُوقف بواسطة المستخدم' },
     'login-required': { dot: 'red',  text: '⚠️ سجّل الدخول من تبويب "يدوي"' },
     error:            { dot: 'red',  text: '❌ خطأ في الإرسال' }

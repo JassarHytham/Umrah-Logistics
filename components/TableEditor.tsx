@@ -25,6 +25,8 @@ interface TableEditorProps {
   onShareRow?: (row: LogisticsRow) => void;
   onDeleteTemplate?: (templateId: string) => void;
   onFilteredRowsChange?: (rows: LogisticsRow[]) => void;
+  density?: 'compact' | 'comfortable';
+  requiredFields?: string[];
 }
 
 const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
@@ -53,8 +55,11 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onApplyTemplate,
   onShareRow,
   onDeleteTemplate,
-  onFilteredRowsChange
+  onFilteredRowsChange,
+  density = 'compact',
+  requiredFields,
 }) => {
+    const cellPad = density === 'comfortable' ? 'p-2' : 'p-1';
     const [filters, setFilters] = useState<Record<string, string[]>>({});
     const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
     const [filterSearch, setFilterSearch] = useState("");
@@ -361,7 +366,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                    onChange={(e) => onChange(row.id, h.key, e.target.value)}
                    readOnly={readOnly}
                    rows={2} 
-                   className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] ${readOnly ? 'focus:outline-none cursor-default resize-none' : 'focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none'} ${!row[h.key] && isPreview ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
+                   className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] ${readOnly ? 'focus:outline-none cursor-default resize-none' : 'focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none'} ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
                    placeholder={readOnly ? "" : "-"}
                 />
             );
@@ -372,7 +377,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 value={String(row[h.key] || '')} 
                 onChange={(e) => onChange(row.id, h.key as keyof LogisticsRow, e.target.value)}
                 readOnly={readOnly}
-                className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs ${readOnly ? 'focus:outline-none cursor-default' : 'focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none'} ${!row[h.key] && isPreview ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
+                className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs ${readOnly ? 'focus:outline-none cursor-default' : 'focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none'} ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
                 placeholder={readOnly ? "" : "-"}
             />
         );
@@ -550,7 +555,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 {showPastTrips && pastRows.map((row) => (
                                     <React.Fragment key={row.id}>
                                         <tr className="transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50">
-                                            {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0 opacity-70">{renderCellContent(row, h)}</td>)}
+                                            {headers.map(h => <td key={h.key} className={`${cellPad} border-l border-gray-100 last:border-l-0 opacity-70`}>{renderCellContent(row, h)}</td>)}
                                         </tr>
                                         {expandedNoteRowId === row.id && (
                                             <tr>
@@ -584,7 +589,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             return (
                                 <React.Fragment key={row.id}>
                                     <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : ''}`}>
-                                        {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0">{renderCellContent(row, h)}</td>)}
+                                        {headers.map(h => <td key={h.key} className={`${cellPad} border-l border-gray-100 last:border-l-0`}>{renderCellContent(row, h)}</td>)}
                                     </tr>
                                     {expandedNoteRowId === row.id && (
                                         <tr className="bg-amber-50/60">

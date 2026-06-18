@@ -55,6 +55,26 @@ export interface BotMessage {
   timestamp: Date;
 }
 
+export interface AlertSettings {
+  arrivalMinutes: number;       // default 120
+  departureMinutes: number;     // default 60
+  messageFields: {
+    flight: boolean;
+    carType: boolean;
+    count: boolean;
+    tafweej: boolean;
+  };
+}
+
+export interface PreviewSettings {
+  requiredFields: string[];     // field keys that highlight red in preview
+  defaultStatus: TripStatus;   // status assigned to new empty rows
+}
+
+export interface DisplaySettings {
+  density: 'compact' | 'comfortable';
+}
+
 declare global {
   interface Window {
     XLSX: any;

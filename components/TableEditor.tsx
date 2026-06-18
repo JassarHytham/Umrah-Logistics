@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-  Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar, 
+  Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar,
   Plane, Info, Plus, Copy, Share2, Bookmark, LayoutTemplate,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
-  History as HistoryIcon
+  History as HistoryIcon, StickyNote
 } from 'lucide-react';
 import { LogisticsRow, TripStatus, LogisticsTemplate } from '../types';
 import { parseDateTime } from '../utils/parser';
@@ -35,6 +35,7 @@ const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
   'Completed': { label: 'مكتمل', color: 'bg-green-100 text-green-700 border-green-200' },
   'Delayed': { label: 'متأخر', color: 'bg-orange-100 text-orange-700 border-orange-200' },
   'Cancelled': { label: 'ملغي', color: 'bg-red-100 text-red-700 border-red-200' },
+  'Uncompleted': { label: 'لم يكتمل', color: 'bg-purple-100 text-purple-700 border-purple-200' },
 };
 
 export const TableEditor: React.FC<TableEditorProps> = ({ 
@@ -61,6 +62,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: keyof LogisticsRow; direction: 'asc' | 'desc' } | null>(null);
     const [showPastTrips, setShowPastTrips] = useState(false);
+    const [expandedNoteRowId, setExpandedNoteRowId] = useState<string | null>(null);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const templateDropdownRef = useRef<HTMLDivElement>(null);
@@ -100,6 +102,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         { key: "flight", label: "رحلة" },
         { key: "date", label: "تاريخ" },
         { key: "count", label: "عدد" },
+        ...(isPreview ? [] : [{ key: "notes" as const, label: "" }]),
         ...(isPreview || readOnly ? [] : [{ key: "actions" as const, label: "إجراءات" }])
     ];
 
@@ -289,8 +292,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         if (h.key === 'actions') {
             return (
                 <div className="flex items-center justify-center gap-1">
-                    <button 
-                        onClick={() => onDuplicateRow?.(row)} 
+                    <button
+                        onClick={() => onDuplicateRow?.(row)}
                         title="تكرار الرحلة"
                         className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
                     >
@@ -322,13 +325,26 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 </div>
             );
         }
+        if (h.key === 'notes') {
+            const hasNote = Boolean(row.notes);
+            return (
+                <div className="flex justify-center">
+                    <button
+                        onClick={() => setExpandedNoteRowId(expandedNoteRowId === row.id ? null : row.id)}
+                        title={hasNote ? row.notes : "إضافة ملاحظة"}
+                        className={`p-1.5 rounded-lg transition-colors ${hasNote ? 'text-amber-500 hover:bg-amber-50' : 'text-gray-300 hover:bg-gray-50 hover:text-gray-400'}`}
+                    >
+                        <StickyNote size={14} />
+                    </button>
+                </div>
+            );
+        }
         if (h.key === 'status') {
             const status = (row.status || 'Planned') as TripStatus;
             const config = STATUS_CONFIG[status];
-            if (readOnly) return <div className={`px-2 py-1 rounded-full text-[10px] font-bold border text-center ${config.color}`}>{config.label}</div>;
             return (
-                <select 
-                    value={status} 
+                <select
+                    value={status}
                     onChange={(e) => onChange(row.id, 'status', e.target.value)}
                     className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all cursor-pointer text-center ${config.color}`}
                 >
@@ -433,6 +449,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 else if (h.key === "Column1") widthClass = "w-[110px]";
                                 else if (h.key === "date") widthClass = "w-[120px]";
                                 else if (h.key === "time") widthClass = "w-[90px]";
+                                else if (h.key === "notes") widthClass = "w-[40px]";
                                 else if (h.key === "actions") widthClass = "w-[130px]";
                                 else widthClass = "w-[100px]";
                                 
@@ -531,9 +548,33 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                     </td>
                                 </tr>
                                 {showPastTrips && pastRows.map((row) => (
-                                    <tr key={row.id} className="transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50">
-                                        {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0 opacity-70">{renderCellContent(row, h)}</td>)}
-                                    </tr>
+                                    <React.Fragment key={row.id}>
+                                        <tr className="transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50">
+                                            {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0 opacity-70">{renderCellContent(row, h)}</td>)}
+                                        </tr>
+                                        {expandedNoteRowId === row.id && (
+                                            <tr>
+                                                <td colSpan={headers.length} className="px-2 pt-0 pb-2 border-b border-gray-100">
+                                                    <div className="flex justify-end">
+                                                        <div className="bg-amber-50 border border-amber-200 rounded-xl shadow-sm p-2.5 w-72">
+                                                            <div className="flex items-center gap-1.5 mb-1.5">
+                                                                <StickyNote size={11} className="text-amber-500" />
+                                                                <span className="text-[10px] font-bold text-amber-700">ملاحظة</span>
+                                                            </div>
+                                                            <textarea
+                                                                value={row.notes || ''}
+                                                                onChange={(e) => onChange(row.id, 'notes', e.target.value)}
+                                                                placeholder="أضف ملاحظة..."
+                                                                rows={2}
+                                                                autoFocus
+                                                                className="w-full bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
                                 ))}
                             </>
                         )}
@@ -541,9 +582,24 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                         {activeRows.map((row) => {
                             const upcoming = isUpcoming(row);
                             return (
-                                <tr key={row.id} className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : ''}`}>
-                                    {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0">{renderCellContent(row, h)}</td>)}
-                                </tr>
+                                <React.Fragment key={row.id}>
+                                    <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : ''}`}>
+                                        {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0">{renderCellContent(row, h)}</td>)}
+                                    </tr>
+                                    {expandedNoteRowId === row.id && (
+                                        <tr className="bg-amber-50/60">
+                                            <td colSpan={headers.length} className="px-4 py-2 border-b border-amber-100">
+                                                <textarea
+                                                    value={row.notes || ''}
+                                                    onChange={(e) => onChange(row.id, 'notes', e.target.value)}
+                                                    placeholder="أضف ملاحظة..."
+                                                    rows={2}
+                                                    className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                                                />
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
                             );
                         })}
                     </tbody>

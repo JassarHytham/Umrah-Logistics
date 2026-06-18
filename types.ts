@@ -1,5 +1,5 @@
 
-export type TripStatus = 'Planned' | 'Confirmed' | 'Driver Assigned' | 'In Progress' | 'Completed' | 'Delayed' | 'Cancelled';
+export type TripStatus = 'Planned' | 'Confirmed' | 'Driver Assigned' | 'In Progress' | 'Completed' | 'Delayed' | 'Cancelled' | 'Uncompleted';
 
 export interface LogisticsRow {
   id: string;
@@ -15,6 +15,7 @@ export interface LogisticsRow {
   carType: string;
   tafweej: string; // Description
   status: TripStatus;
+  notes?: string;
   [key: string]: string | number | undefined; // Index signature for dynamic access
   _originalIndex?: number;
 }

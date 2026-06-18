@@ -57,7 +57,7 @@ export const getLocalDateString = (date: Date = new Date()) => {
 
 const STATUS_LABELS: Record<TripStatus, string> = {
   'Planned': 'مخطط', 'Confirmed': 'مؤكد', 'Driver Assigned': 'تم تعيين السائق',
-  'In Progress': 'قيد التنفيذ', 'Completed': 'مكتمل', 'Delayed': 'متأخر', 'Cancelled': 'ملغي',
+  'In Progress': 'قيد التنفيذ', 'Completed': 'مكتمل', 'Delayed': 'متأخر', 'Cancelled': 'ملغي', 'Uncompleted': 'لم يكتمل',
 };
 
 export default function App() {

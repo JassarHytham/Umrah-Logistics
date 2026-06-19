@@ -657,11 +657,6 @@ export default function App() {
                 <button onClick={() => setView('analytics')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />الذكاء</button>
                 <button onClick={() => setView('settings')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'settings' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={16} className="inline ml-1" />الإعدادات</button>
               </div>
-              <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/5">
-                <button onClick={() => changeFontSize(-5)} className="p-2 hover:bg-white/10 rounded-lg" style={{ minHeight: '44px', minWidth: '44px' }}><Minus size={16} /></button>
-                <span className="text-xs font-black px-1 min-w-[36px] text-center">{fontSize}%</span>
-                <button onClick={() => changeFontSize(5)} className="p-2 hover:bg-white/10 rounded-lg" style={{ minHeight: '44px', minWidth: '44px' }}><PlusCircle size={16} /></button>
-              </div>
             </div>
           </div>
 
@@ -696,15 +691,6 @@ export default function App() {
                   >
                     خروج
                   </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-4 bg-white/5 p-2 rounded-xl mt-1">
-                <span className="text-sm font-medium text-blue-200">حجم الخط:</span>
-                <div className="flex items-center bg-black/20 rounded-lg overflow-hidden">
-                  <button onClick={() => changeFontSize(-5)} className="p-3 hover:bg-white/10 transition-colors" style={{ minHeight: '44px', minWidth: '44px' }}><Minus size={16} /></button>
-                  <span className="text-sm font-black px-4 w-[60px] text-center bg-white/10 py-3">{fontSize}%</span>
-                  <button onClick={() => changeFontSize(5)} className="p-3 hover:bg-white/10 transition-colors" style={{ minHeight: '44px', minWidth: '44px' }}><PlusCircle size={16} /></button>
                 </div>
               </div>
             </div>

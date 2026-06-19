@@ -466,7 +466,7 @@ export const Settings: React.FC<SettingsProps> = ({
                           setDragIndex(null);
                         }}
                         onDragEnd={() => setDragIndex(null)}
-                        className={`flex items-center gap-3 px-3 py-2.5 bg-white border-b border-gray-100 last:border-b-0 cursor-grab active:cursor-grabbing transition-colors ${dragIndex === i ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                        className={`flex items-center gap-3 px-3 py-2.5 border-b border-gray-100 last:border-b-0 cursor-grab active:cursor-grabbing transition-colors ${dragIndex === i ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}
                       >
                         <GripVertical size={14} className="text-gray-300 flex-shrink-0" />
                         <span className={`flex-1 text-sm ${isHidden ? 'text-gray-300' : 'text-gray-700'}`}>{label}</span>

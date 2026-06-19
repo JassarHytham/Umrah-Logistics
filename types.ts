@@ -73,6 +73,29 @@ export interface PreviewSettings {
   defaultStatus: TripStatus;   // status assigned to new empty rows
 }
 
+export const DEFAULT_COLUMN_ORDER: string[] = [
+  'status', 'groupNo', 'groupName', 'Column1', 'tafweej',
+  'carType', 'from', 'to', 'time', 'flight', 'date', 'count',
+  'notes', 'actions',
+];
+
+export const COLUMN_LABELS: Record<string, string> = {
+  status:    'الحالة',
+  groupNo:   'رقم م',
+  groupName: 'اسم المجموعة',
+  Column1:   'الحركة',
+  tafweej:   'التفويج',
+  carType:   'السيارة',
+  from:      'من',
+  to:        'إلى',
+  time:      'وقت',
+  flight:    'رحلة',
+  date:      'تاريخ',
+  count:     'عدد',
+  notes:     'الملاحظات',
+  actions:   'إجراءات',
+};
+
 export interface DisplaySettings {
   density: 'compact' | 'comfortable';
   tableFontSize: number;                     // default 100 (percent)
@@ -80,6 +103,8 @@ export interface DisplaySettings {
   noteHighlightEnabled: boolean;             // default true
   noteHighlightColor: NoteHighlightColor;   // default 'amber'
   wrapCells: boolean;                        // default true
+  columnOrder: string[];                    // ordered array of column keys
+  hiddenColumns: string[];                  // keys of columns to hide
 }
 
 declare global {

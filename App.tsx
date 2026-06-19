@@ -15,7 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
-import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings } from './types';
+import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
@@ -96,6 +96,8 @@ export default function App() {
     noteHighlightEnabled: true,
     noteHighlightColor: 'amber',
     wrapCells: true,
+    columnOrder: DEFAULT_COLUMN_ORDER,
+    hiddenColumns: [],
   });
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [isTestingTg, setIsTestingTg] = useState(false);
@@ -149,7 +151,7 @@ export default function App() {
         requiredFields: ['groupName', 'groupNo', 'flight', 'date', 'time', 'from', 'to'],
         defaultStatus: 'Planned',
       });
-      setDisplaySettings(settings.displaySettings ? { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', wrapCells: true, ...settings.displaySettings } : { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', wrapCells: true });
+      setDisplaySettings(settings.displaySettings ? { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', wrapCells: true, columnOrder: DEFAULT_COLUMN_ORDER, hiddenColumns: [], ...settings.displaySettings } : { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', wrapCells: true, columnOrder: DEFAULT_COLUMN_ORDER, hiddenColumns: [] });
 
       // Legacy Migration: If backend is empty but local storage has data, offer to import
       if (rows.length === 0) {

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
   Send, Zap, Bell, BellRing, Smartphone, CheckCircle2, Info,
-  Loader2, SlidersHorizontal, Eye, Type, Minus, PlusCircle,
+  Loader2, SlidersHorizontal, Eye, EyeOff, GripVertical, Type, Minus, PlusCircle,
   LayoutList, AlignJustify, Download, Puzzle, ChevronLeft,
   Monitor, Package, FolderOpen, StickyNote
 } from 'lucide-react';
-import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings, NoteHighlightColor } from '../types';
+import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings, NoteHighlightColor, COLUMN_LABELS, DEFAULT_COLUMN_ORDER } from '../types';
 
 type SettingsPage = 'telegram' | 'display' | 'extension';
 
@@ -96,6 +96,7 @@ export const Settings: React.FC<SettingsProps> = ({
   notifiedCount, allRowsCount,
 }) => {
   const [activePage, setActivePage] = useState<SettingsPage>('display');
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const toggleRequiredField = (key: string) => {
     const current = previewSettings.requiredFields;
@@ -441,6 +442,53 @@ export const Settings: React.FC<SettingsProps> = ({
                 >
                   {(displaySettings.wrapCells ?? true) ? 'مفعّل' : 'معطّل'}
                 </button>
+              </div>
+
+              {/* Column visibility & order */}
+              <div className="border-t border-gray-100 pt-5">
+                <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">أعمدة الجدول</label>
+                <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                  {(displaySettings.columnOrder ?? DEFAULT_COLUMN_ORDER).map((key, i) => {
+                    const isHidden = (displaySettings.hiddenColumns ?? []).includes(key);
+                    const label = COLUMN_LABELS[key] ?? key;
+                    return (
+                      <div
+                        key={key}
+                        draggable
+                        onDragStart={() => setDragIndex(i)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => {
+                          if (dragIndex === null || dragIndex === i) { setDragIndex(null); return; }
+                          const newOrder = [...(displaySettings.columnOrder ?? DEFAULT_COLUMN_ORDER)];
+                          const [moved] = newOrder.splice(dragIndex, 1);
+                          newOrder.splice(i, 0, moved);
+                          onDisplaySettingsChange({ ...displaySettings, columnOrder: newOrder });
+                          setDragIndex(null);
+                        }}
+                        onDragEnd={() => setDragIndex(null)}
+                        className={`flex items-center gap-3 px-3 py-2.5 bg-white border-b border-gray-100 last:border-b-0 cursor-grab active:cursor-grabbing transition-colors ${dragIndex === i ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                      >
+                        <GripVertical size={14} className="text-gray-300 flex-shrink-0" />
+                        <span className={`flex-1 text-sm ${isHidden ? 'text-gray-300' : 'text-gray-700'}`}>{label}</span>
+                        <button
+                          onClick={() => {
+                            const current = displaySettings.hiddenColumns ?? [];
+                            const next = isHidden
+                              ? current.filter(k => k !== key)
+                              : [...current, key];
+                            onDisplaySettingsChange({ ...displaySettings, hiddenColumns: next });
+                          }}
+                          className="p-1 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          {isHidden
+                            ? <EyeOff size={15} className="text-gray-300" />
+                            : <Eye size={15} className="text-gray-500" />
+                          }
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Preview fields + default status */}

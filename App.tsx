@@ -784,6 +784,8 @@ export default function App() {
                   noteHighlightEnabled={displaySettings.noteHighlightEnabled}
                   noteHighlightColor={displaySettings.noteHighlightColor}
                   wrapCells={displaySettings.wrapCells}
+                  columnOrder={displaySettings.columnOrder}
+                  hiddenColumns={displaySettings.hiddenColumns}
                   enableFiltering={true}
                   templates={templates}
                   onAddNewRow={addNewEmptyRow}

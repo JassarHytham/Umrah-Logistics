@@ -449,8 +449,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 </div>
             )}
 
-            <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]" style={{ fontSize: `${tableFontSize}%` }}>
-                <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
+            <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
+                <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse" style={{ fontSize: `${tableFontSize}%` }}>
                     <thead className="bg-gray-100 text-gray-700 font-medium">
                         <tr>
                             {headers.map((h) => {

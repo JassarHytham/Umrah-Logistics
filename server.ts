@@ -62,6 +62,17 @@ try {
   }
 }
 
+// Migration: Add extra_settings if missing
+try {
+  db.prepare("SELECT extra_settings FROM settings LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE settings ADD COLUMN extra_settings TEXT");
+  } catch (err) {
+    console.error("Migration extra_settings failed", err);
+  }
+}
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -148,12 +159,13 @@ app.get("/api/settings", authenticateToken, (req: any, res) => {
     templates: settings.templates ? JSON.parse(settings.templates) : [],
     deletedRows: settings.deleted_rows ? JSON.parse(settings.deleted_rows) : [],
     notifiedIds: settings.notified_ids ? JSON.parse(settings.notified_ids) : [],
-    fontSize: settings.font_size || 100
+    fontSize: settings.font_size || 100,
+    ...(settings.extra_settings ? JSON.parse(settings.extra_settings) : {})
   });
 });
 
 app.post("/api/settings", authenticateToken, (req: any, res) => {
-  const { tgConfig, templates, deletedRows, notifiedIds, fontSize } = req.body;
+  const { tgConfig, templates, deletedRows, notifiedIds, fontSize, alertSettings, previewSettings, displaySettings } = req.body;
 
   // Merge with existing settings so partial saves never wipe unrelated fields
   const existing: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
@@ -168,24 +180,31 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
     notified_ids: notifiedIds !== undefined ? JSON.stringify(notifiedIds)
       : (existing?.notified_ids ?? null),
     font_size: fontSize !== undefined ? fontSize : (existing?.font_size ?? 100),
+    extra_settings: JSON.stringify({
+      alertSettings: alertSettings !== undefined ? alertSettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).alertSettings : undefined),
+      previewSettings: previewSettings !== undefined ? previewSettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).previewSettings : undefined),
+      displaySettings: displaySettings !== undefined ? displaySettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).displaySettings : undefined),
+    }),
   };
 
   db.prepare(`
-    INSERT INTO settings (user_id, tg_config, templates, deleted_rows, notified_ids, font_size)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO settings (user_id, tg_config, templates, deleted_rows, notified_ids, font_size, extra_settings)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
-      tg_config    = excluded.tg_config,
-      templates    = excluded.templates,
-      deleted_rows = excluded.deleted_rows,
-      notified_ids = excluded.notified_ids,
-      font_size    = excluded.font_size
+      tg_config     = excluded.tg_config,
+      templates     = excluded.templates,
+      deleted_rows  = excluded.deleted_rows,
+      notified_ids  = excluded.notified_ids,
+      font_size     = excluded.font_size,
+      extra_settings = excluded.extra_settings
   `).run(
     req.user.id,
     merged.tg_config,
     merged.templates,
     merged.deleted_rows,
     merged.notified_ids,
-    merged.font_size
+    merged.font_size,
+    merged.extra_settings
   );
 
   res.json({ success: true });

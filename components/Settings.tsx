@@ -360,17 +360,6 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
               </div>
 
-              {/* Page font size */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">حجم خط الصفحة العام</label>
-                <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
-                  <button onClick={() => onFontSizeChange(-5)} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors font-black text-lg">−</button>
-                  <div className="flex-1 text-center">
-                    <span className="text-2xl font-black text-gray-800">{fontSize}%</span>
-                  </div>
-                  <button onClick={() => onFontSizeChange(5)} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors font-black text-lg">+</button>
-                </div>
-              </div>
 
               {/* Density */}
               <div>

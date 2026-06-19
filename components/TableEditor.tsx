@@ -452,21 +452,31 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
             <style>{`#${tbodyId}{font-size:${tableFontSize}%}#${tbodyId} *{font-size:inherit!important}`}</style>
             <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
-                <table className="text-sm text-right bg-white min-w-[1200px] border-collapse">
+                <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
                         <tr>
                             {headers.map((h) => {
                                 const isColumnFiltered = filters[h.key as string] && filters[h.key as string].length > 0;
                                 const isActive = activeFilterCol === h.key;
                                 let widthClass = "";
-                                if (h.key === "notes") widthClass = "w-[40px]";
+                                if (h.key === "status") widthClass = "w-[120px]";
+                                else if (h.key === "tafweej") widthClass = "w-[80px]"; 
+                                else if (h.key === "groupName") widthClass = "w-[180px]";
+                                else if (h.key === "count") widthClass = "w-[60px]";
+                                else if (h.key === "groupNo") widthClass = "w-[80px]";
+                                else if (h.key === "from" || h.key === "to") widthClass = "w-[140px]";
+                                else if (h.key === "Column1") widthClass = "w-[110px]";
+                                else if (h.key === "date") widthClass = "w-[120px]";
+                                else if (h.key === "time") widthClass = "w-[90px]";
+                                else if (h.key === "notes") widthClass = "w-[40px]";
                                 else if (h.key === "actions") widthClass = "w-[130px]";
+                                else widthClass = "w-[100px]";
                                 
                                 const isEndColumn = ['date', 'time', 'flight', 'count', 'actions'].includes(h.key as string);
                                 const dropdownAlignment = isEndColumn ? 'left-0' : 'right-0';
                                 
                                 return (
-                                    <th key={h.key} className={`px-2 py-3 ${borderHeaderClass} relative align-top ${widthClass} whitespace-nowrap`}>
+                                    <th key={h.key} className={`px-2 py-3 ${borderHeaderClass} relative align-top ${widthClass}`} style={{ width: widthClass }}>
                                         <div className="flex items-start justify-between gap-1">
                                             <div 
                                                 className={`flex items-center gap-1 flex-wrap cursor-pointer hover:text-blue-600 transition-colors`}
@@ -559,7 +569,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 {showPastTrips && pastRows.map((row) => (
                                     <React.Fragment key={row.id}>
                                         <tr className="transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50">
-                                            {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0 opacity-70 whitespace-nowrap`}>{renderCellContent(row, h)}</td>)}
+                                            {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0 opacity-70`}>{renderCellContent(row, h)}</td>)}
                                         </tr>
                                         {expandedNoteRowId === row.id && (
                                             <tr>
@@ -593,7 +603,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             return (
                                 <React.Fragment key={row.id}>
                                     <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}>
-                                        {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0 whitespace-nowrap`}>{renderCellContent(row, h)}</td>)}
+                                        {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0`}>{renderCellContent(row, h)}</td>)}
                                     </tr>
                                     {expandedNoteRowId === row.id && (
                                         <tr className="bg-amber-50/60">

@@ -83,6 +83,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const templateDropdownRef = useRef<HTMLDivElement>(null);
+    const tbodyId = useRef(`tbl-${Math.random().toString(36).slice(2)}`).current;
 
     useEffect(() => {
         if (externalFilters) {
@@ -449,6 +450,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 </div>
             )}
 
+            <style>{`#${tbodyId}{font-size:${tableFontSize}%}#${tbodyId} *{font-size:inherit!important}`}</style>
             <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
                 <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
@@ -547,7 +549,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             })}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100" style={{ fontSize: `${tableFontSize}%` }}>
+                    <tbody id={tbodyId} className="divide-y divide-gray-100">
                         {pastRows.length > 0 && (
                             <>
                                 <tr className="bg-gray-50 border-y border-gray-200">

@@ -3,9 +3,9 @@ import {
   Send, Zap, Bell, BellRing, Smartphone, CheckCircle2, Info,
   Loader2, SlidersHorizontal, Eye, Type, Minus, PlusCircle,
   LayoutList, AlignJustify, Download, Puzzle, ChevronLeft,
-  Monitor, Package, FolderOpen
+  Monitor, Package, FolderOpen, StickyNote
 } from 'lucide-react';
-import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings } from '../types';
+import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings, NoteHighlightColor } from '../types';
 
 type SettingsPage = 'telegram' | 'display' | 'extension';
 
@@ -49,6 +49,35 @@ const STATUS_OPTIONS: { value: TripStatus; label: string }[] = [
   { value: 'Delayed',         label: 'متأخر' },
   { value: 'Cancelled',       label: 'ملغي' },
   { value: 'Uncompleted',     label: 'لم يكتمل' },
+];
+
+const NOTE_ROW_COLORS: Record<string, string> = {
+  amber: 'bg-amber-50', yellow: 'bg-yellow-50', blue: 'bg-blue-50',
+  green: 'bg-green-50', pink: 'bg-pink-50', purple: 'bg-purple-50',
+};
+const NOTE_ICON_COLORS: Record<string, string> = {
+  amber: 'text-amber-500', yellow: 'text-yellow-500', blue: 'text-blue-500',
+  green: 'text-green-500', pink: 'text-pink-500', purple: 'text-purple-500',
+};
+const NOTE_SWATCH_BG: Record<string, string> = {
+  amber: 'bg-amber-400', yellow: 'bg-yellow-400', blue: 'bg-blue-500',
+  green: 'bg-green-500', pink: 'bg-pink-400', purple: 'bg-purple-500',
+};
+const SAMPLE_PREVIEW_ROWS = [
+  { id: 'p1', groupName: 'مجموعة النور',    Column1: 'وصول',    flight: 'SV٢٣١', date: '٢٠/٦', time: '١٤:٣٠', status: 'Confirmed'  as const, notes: 'تأكيد رقم الرحلة قبل المغادرة' },
+  { id: 'p2', groupName: 'مجموعة الفجر',    Column1: 'مغادرة',  flight: 'SV٤٠٥', date: '٢١/٦', time: '٠٩:٠٠', status: 'In Progress' as const, notes: '' },
+  { id: 'p3', groupName: 'مجموعة الإخلاص', Column1: 'وصول',    flight: 'SV١٠٧', date: '٢٢/٦', time: '١٨:١٥', status: 'Planned'     as const, notes: '' },
+];
+const SAMPLE_STATUS_COLORS: Record<string, string> = {
+  Confirmed: 'bg-blue-100 text-blue-700', 'In Progress': 'bg-yellow-100 text-yellow-800', Planned: 'bg-gray-100 text-gray-700',
+};
+const SAMPLE_STATUS_LABELS: Record<string, string> = {
+  Confirmed: 'مؤكد', 'In Progress': 'قيد التنفيذ', Planned: 'مخطط',
+};
+const COLOR_OPTIONS: { key: NoteHighlightColor; label: string }[] = [
+  { key: 'amber', label: 'ذهبي' }, { key: 'yellow', label: 'أصفر' },
+  { key: 'blue', label: 'أزرق' }, { key: 'green', label: 'أخضر' },
+  { key: 'pink', label: 'وردي' }, { key: 'purple', label: 'بنفسجي' },
 ];
 
 const NAV_ITEMS: { id: SettingsPage; label: string; sublabel: string; Icon: React.FC<{ size?: number; className?: string }> }[] = [
@@ -259,27 +288,42 @@ export const Settings: React.FC<SettingsProps> = ({
 
           {/* ── Display & Preview page ── */}
           {activePage === 'display' && (
-            <div className="space-y-8 max-w-xl">
+            <div className="space-y-6 max-w-xl">
               <div>
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
                   <Eye size={20} className="text-amber-500" /> العرض والمعاينة
                 </h2>
-                <p className="text-sm text-gray-400">حجم الخط وكثافة الجدول والحقول المطلوبة</p>
+                <p className="text-sm text-gray-400">حجم الخط والحدود وتمييز الملاحظات والحقول</p>
               </div>
 
-              {/* Font size */}
+              {/* Table font size */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">حجم الخط</label>
+                <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">حجم خط الجدول</label>
                 <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
-                  <button onClick={() => onFontSizeChange(-5)} className="p-2 hover:bg-gray-200 rounded-lg transition-colors">
-                    <Minus size={16} />
-                  </button>
+                  <button
+                    onClick={() => onDisplaySettingsChange({ ...displaySettings, tableFontSize: Math.max(70, (displaySettings.tableFontSize ?? 100) - 5) })}
+                    className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors font-black text-lg"
+                  >−</button>
+                  <div className="flex-1 text-center">
+                    <span className="text-2xl font-black text-gray-800">{displaySettings.tableFontSize ?? 100}%</span>
+                    <p className="text-[10px] text-gray-400 mt-0.5">مثالي: ١١٠٪ – ١٣٠٪ للوضوح</p>
+                  </div>
+                  <button
+                    onClick={() => onDisplaySettingsChange({ ...displaySettings, tableFontSize: Math.min(160, (displaySettings.tableFontSize ?? 100) + 5) })}
+                    className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors font-black text-lg"
+                  >+</button>
+                </div>
+              </div>
+
+              {/* Page font size */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">حجم خط الصفحة العام</label>
+                <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
+                  <button onClick={() => onFontSizeChange(-5)} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors font-black text-lg">−</button>
                   <div className="flex-1 text-center">
                     <span className="text-2xl font-black text-gray-800">{fontSize}%</span>
                   </div>
-                  <button onClick={() => onFontSizeChange(5)} className="p-2 hover:bg-gray-200 rounded-lg transition-colors">
-                    <PlusCircle size={16} />
-                  </button>
+                  <button onClick={() => onFontSizeChange(5)} className="w-10 h-10 flex items-center justify-center bg-white border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors font-black text-lg">+</button>
                 </div>
               </div>
 
@@ -287,54 +331,135 @@ export const Settings: React.FC<SettingsProps> = ({
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">كثافة الجدول</label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => onDisplaySettingsChange({ ...displaySettings, density: 'compact' })}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${displaySettings.density === 'compact' ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}
-                  >
-                    <LayoutList size={22} className={displaySettings.density === 'compact' ? 'text-blue-600' : 'text-gray-400'} />
-                    <span className={`text-xs font-bold ${displaySettings.density === 'compact' ? 'text-blue-700' : 'text-gray-400'}`}>مضغوط</span>
-                  </button>
-                  <button
-                    onClick={() => onDisplaySettingsChange({ ...displaySettings, density: 'comfortable' })}
-                    className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${displaySettings.density === 'comfortable' ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}
-                  >
-                    <AlignJustify size={22} className={displaySettings.density === 'comfortable' ? 'text-blue-600' : 'text-gray-400'} />
-                    <span className={`text-xs font-bold ${displaySettings.density === 'comfortable' ? 'text-blue-700' : 'text-gray-400'}`}>مريح</span>
-                  </button>
+                  {([['compact', 'مضغوط', LayoutList], ['comfortable', 'مريح', AlignJustify]] as const).map(([val, label, Icon]) => (
+                    <button key={val}
+                      onClick={() => onDisplaySettingsChange({ ...displaySettings, density: val })}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${displaySettings.density === val ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}
+                    >
+                      <Icon size={22} className={displaySettings.density === val ? 'text-blue-600' : 'text-gray-400'} />
+                      <span className={`text-xs font-bold ${displaySettings.density === val ? 'text-blue-700' : 'text-gray-400'}`}>{label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="border-t border-gray-100 pt-6 space-y-5">
+              {/* Border style */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">سمك الحدود</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([['thin', 'رفيعة'], ['medium', 'متوسطة'], ['thick', 'سميكة']] as const).map(([val, label]) => {
+                    const active = (displaySettings.borderStyle ?? 'thin') === val;
+                    return (
+                      <button key={val}
+                        onClick={() => onDisplaySettingsChange({ ...displaySettings, borderStyle: val })}
+                        className={`flex flex-col items-center gap-2.5 py-3 px-2 rounded-2xl border-2 transition-all ${active ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}
+                      >
+                        <div className={`w-12 h-6 rounded ${active ? 'bg-blue-100' : 'bg-gray-100'} flex flex-col justify-around p-1 gap-0.5`}>
+                          {[...Array(3)].map((_, i) => (
+                            <div key={i} className={`w-full rounded-full ${active ? 'bg-blue-400' : 'bg-gray-300'} ${val === 'thick' ? 'h-[3px]' : val === 'medium' ? 'h-[2px]' : 'h-px'}`} />
+                          ))}
+                        </div>
+                        <span className={`text-[11px] font-bold ${active ? 'text-blue-700' : 'text-gray-400'}`}>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Note row highlight */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">تمييز صفوف الملاحظات</label>
+                  <button
+                    onClick={() => onDisplaySettingsChange({ ...displaySettings, noteHighlightEnabled: !(displaySettings.noteHighlightEnabled ?? true) })}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${(displaySettings.noteHighlightEnabled ?? true) ? 'bg-amber-500 text-white' : 'bg-gray-200 text-gray-500'}`}
+                  >
+                    {(displaySettings.noteHighlightEnabled ?? true) ? 'مفعّل' : 'معطّل'}
+                  </button>
+                </div>
+                {(displaySettings.noteHighlightEnabled ?? true) && (
+                  <div className="flex gap-2 flex-wrap">
+                    {COLOR_OPTIONS.map(({ key, label }) => {
+                      const active = (displaySettings.noteHighlightColor ?? 'amber') === key;
+                      return (
+                        <button key={key}
+                          onClick={() => onDisplaySettingsChange({ ...displaySettings, noteHighlightColor: key })}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 text-xs font-bold transition-all ${active ? 'border-gray-800 scale-110' : 'border-transparent hover:border-gray-300'}`}
+                        >
+                          <span className={`w-3 h-3 rounded-full ${NOTE_SWATCH_BG[key]}`} />
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Preview fields + default status */}
+              <div className="border-t border-gray-100 pt-5 space-y-5">
                 <div>
                   <p className="text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">الحقول المطلوبة في المعاينة</p>
                   <p className="text-xs text-gray-400 mb-3">الحقول الفارغة ستُظلَّل بالأحمر عند مراجعة الرحلات قبل الإضافة</p>
                   <div className="grid grid-cols-2 gap-2">
                     {PREVIEW_FIELD_OPTIONS.map(({ key, label }) => (
                       <label key={key} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer hover:bg-amber-50 transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={previewSettings.requiredFields.includes(key)}
-                          onChange={() => toggleRequiredField(key)}
-                          className="rounded border-gray-300 text-amber-500 w-4 h-4"
-                        />
+                        <input type="checkbox" checked={previewSettings.requiredFields.includes(key)} onChange={() => toggleRequiredField(key)} className="rounded border-gray-300 text-amber-500 w-4 h-4" />
                         <span className="text-xs font-medium text-gray-700">{label}</span>
                       </label>
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">الحالة الافتراضية للرحلات الجديدة</label>
-                  <select
-                    value={previewSettings.defaultStatus}
-                    onChange={(e) => onPreviewSettingsChange({ ...previewSettings, defaultStatus: e.target.value as TripStatus })}
-                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-amber-400 outline-none"
-                  >
-                    {STATUS_OPTIONS.map(({ value, label }) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
+                  <select value={previewSettings.defaultStatus} onChange={(e) => onPreviewSettingsChange({ ...previewSettings, defaultStatus: e.target.value as TripStatus })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-amber-400 outline-none">
+                    {STATUS_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </div>
+              </div>
+
+              {/* Live preview table */}
+              <div className="border-t border-gray-100 pt-5">
+                <p className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">معاينة مباشرة</p>
+                <div
+                  className="overflow-x-auto rounded-xl border border-gray-200"
+                  style={{ fontSize: `${displaySettings.tableFontSize ?? 100}%` }}
+                  dir="rtl"
+                >
+                  <table className="w-full text-right border-collapse">
+                    <thead className="bg-gray-50 text-gray-500">
+                      <tr>
+                        {['المجموعة', 'النوع', 'الرحلة', 'الوقت', 'الحالة', ''].map(h => (
+                          <th key={h} className={`px-3 py-2 text-xs font-bold ${(displaySettings.borderStyle ?? 'thin') === 'thick' ? 'border-b-2 border-gray-500' : (displaySettings.borderStyle ?? 'thin') === 'medium' ? 'border-b-2 border-gray-300' : 'border-b border-gray-200'}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {SAMPLE_PREVIEW_ROWS.map(row => {
+                        const hasNote = Boolean(row.notes);
+                        const highlightEnabled = displaySettings.noteHighlightEnabled ?? true;
+                        const color = displaySettings.noteHighlightColor ?? 'amber';
+                        const cellBorder = (displaySettings.borderStyle ?? 'thin') === 'thick' ? 'border-l-2 border-gray-400' : (displaySettings.borderStyle ?? 'thin') === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
+                        const pad = (displaySettings.density ?? 'compact') === 'comfortable' ? 'py-2 px-3' : 'py-1 px-3';
+                        const rowBg = hasNote && highlightEnabled ? NOTE_ROW_COLORS[color] : '';
+                        return (
+                          <tr key={row.id} className={`${rowBg} transition-colors`}>
+                            <td className={`${pad} ${cellBorder}`}><span className="font-medium">{row.groupName}</span></td>
+                            <td className={`${pad} ${cellBorder} text-gray-500`}>{row.Column1}</td>
+                            <td className={`${pad} ${cellBorder} font-mono text-xs`}>{row.flight}</td>
+                            <td className={`${pad} ${cellBorder} text-gray-500 text-xs`}>{row.date} {row.time}</td>
+                            <td className={`${pad} ${cellBorder}`}>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${SAMPLE_STATUS_COLORS[row.status]}`}>{SAMPLE_STATUS_LABELS[row.status]}</span>
+                            </td>
+                            <td className={`${pad} text-center`}>
+                              <StickyNote size={12} className={hasNote ? NOTE_ICON_COLORS[color] : 'text-gray-200'} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2 text-center">الصف الأول يحتوي على ملاحظة — الباقيان بدون</p>
               </div>
             </div>
           )}

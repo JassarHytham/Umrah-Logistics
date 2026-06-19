@@ -27,6 +27,10 @@ interface TableEditorProps {
   onFilteredRowsChange?: (rows: LogisticsRow[]) => void;
   density?: 'compact' | 'comfortable';
   requiredFields?: string[];
+  tableFontSize?: number;
+  borderStyle?: 'thin' | 'medium' | 'thick';
+  noteHighlightEnabled?: boolean;
+  noteHighlightColor?: 'amber' | 'yellow' | 'blue' | 'green' | 'pink' | 'purple';
 }
 
 const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
@@ -58,8 +62,16 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onFilteredRowsChange,
   density = 'compact',
   requiredFields,
+  tableFontSize = 100,
+  borderStyle = 'thin',
+  noteHighlightEnabled = true,
+  noteHighlightColor = 'amber',
 }) => {
     const cellPad = density === 'comfortable' ? 'p-2' : 'p-1';
+    const borderCellClass = borderStyle === 'thick' ? 'border-l-2 border-gray-400' : borderStyle === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
+    const borderHeaderClass = borderStyle === 'thick' ? 'border-b-2 border-gray-500' : borderStyle === 'medium' ? 'border-b-2 border-gray-300' : 'border-b border-gray-200';
+    const NOTE_ROW_BG: Record<string, string> = { amber: 'bg-amber-50', yellow: 'bg-yellow-50', blue: 'bg-blue-50', green: 'bg-green-50', pink: 'bg-pink-50', purple: 'bg-purple-50' };
+    const NOTE_BTN: Record<string, string> = { amber: 'text-amber-500 hover:bg-amber-50', yellow: 'text-yellow-500 hover:bg-yellow-50', blue: 'text-blue-500 hover:bg-blue-50', green: 'text-green-500 hover:bg-green-50', pink: 'text-pink-500 hover:bg-pink-50', purple: 'text-purple-500 hover:bg-purple-50' };
     const [filters, setFilters] = useState<Record<string, string[]>>({});
     const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
     const [filterSearch, setFilterSearch] = useState("");
@@ -337,7 +349,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     <button
                         onClick={() => setExpandedNoteRowId(expandedNoteRowId === row.id ? null : row.id)}
                         title={hasNote ? row.notes : "إضافة ملاحظة"}
-                        className={`p-1.5 rounded-lg transition-colors ${hasNote ? 'text-amber-500 hover:bg-amber-50' : 'text-gray-300 hover:bg-gray-50 hover:text-gray-400'}`}
+                        className={`p-1.5 rounded-lg transition-colors ${hasNote ? NOTE_BTN[noteHighlightColor] : 'text-gray-300 hover:bg-gray-50 hover:text-gray-400'}`}
                     >
                         <StickyNote size={14} />
                     </button>
@@ -437,7 +449,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 </div>
             )}
 
-            <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
+            <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]" style={{ fontSize: `${tableFontSize}%` }}>
                 <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
                         <tr>
@@ -462,7 +474,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 const dropdownAlignment = isEndColumn ? 'left-0' : 'right-0';
                                 
                                 return (
-                                    <th key={h.key} className={`px-2 py-3 border-b border-gray-200 relative align-top ${widthClass}`} style={{ width: widthClass }}>
+                                    <th key={h.key} className={`px-2 py-3 ${borderHeaderClass} relative align-top ${widthClass}`} style={{ width: widthClass }}>
                                         <div className="flex items-start justify-between gap-1">
                                             <div 
                                                 className={`flex items-center gap-1 flex-wrap cursor-pointer hover:text-blue-600 transition-colors`}
@@ -555,7 +567,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 {showPastTrips && pastRows.map((row) => (
                                     <React.Fragment key={row.id}>
                                         <tr className="transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50">
-                                            {headers.map(h => <td key={h.key} className={`${cellPad} border-l border-gray-100 last:border-l-0 opacity-70`}>{renderCellContent(row, h)}</td>)}
+                                            {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0 opacity-70`}>{renderCellContent(row, h)}</td>)}
                                         </tr>
                                         {expandedNoteRowId === row.id && (
                                             <tr>
@@ -588,8 +600,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             const upcoming = isUpcoming(row);
                             return (
                                 <React.Fragment key={row.id}>
-                                    <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : ''}`}>
-                                        {headers.map(h => <td key={h.key} className={`${cellPad} border-l border-gray-100 last:border-l-0`}>{renderCellContent(row, h)}</td>)}
+                                    <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}>
+                                        {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0`}>{renderCellContent(row, h)}</td>)}
                                     </tr>
                                     {expandedNoteRowId === row.id && (
                                         <tr className="bg-amber-50/60">

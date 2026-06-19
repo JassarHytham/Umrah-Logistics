@@ -91,6 +91,10 @@ export default function App() {
   });
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>({
     density: 'compact',
+    tableFontSize: 100,
+    borderStyle: 'thin',
+    noteHighlightEnabled: true,
+    noteHighlightColor: 'amber',
   });
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [isTestingTg, setIsTestingTg] = useState(false);
@@ -140,7 +144,7 @@ export default function App() {
         requiredFields: ['groupName', 'groupNo', 'flight', 'date', 'time', 'from', 'to'],
         defaultStatus: 'Planned',
       });
-      setDisplaySettings(settings.displaySettings || { density: 'compact' });
+      setDisplaySettings(settings.displaySettings ? { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', ...settings.displaySettings } : { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber' });
 
       // Legacy Migration: If backend is empty but local storage has data, offer to import
       if (rows.length === 0) {
@@ -768,6 +772,10 @@ export default function App() {
                   readOnly={!isEditing}
                   density={displaySettings.density}
                   requiredFields={previewSettings.requiredFields}
+                  tableFontSize={displaySettings.tableFontSize}
+                  borderStyle={displaySettings.borderStyle}
+                  noteHighlightEnabled={displaySettings.noteHighlightEnabled}
+                  noteHighlightColor={displaySettings.noteHighlightColor}
                   enableFiltering={true}
                   templates={templates}
                   onAddNewRow={addNewEmptyRow}

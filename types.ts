@@ -1,6 +1,8 @@
 
 export type TripStatus = 'Planned' | 'Confirmed' | 'Driver Assigned' | 'In Progress' | 'Completed' | 'Delayed' | 'Cancelled' | 'Uncompleted';
 
+export type NoteHighlightColor = 'amber' | 'yellow' | 'blue' | 'green' | 'pink' | 'purple';
+
 export interface LogisticsRow {
   id: string;
   groupNo: string;
@@ -73,6 +75,10 @@ export interface PreviewSettings {
 
 export interface DisplaySettings {
   density: 'compact' | 'comfortable';
+  tableFontSize: number;                     // default 100 (percent)
+  borderStyle: 'thin' | 'medium' | 'thick'; // default 'thin'
+  noteHighlightEnabled: boolean;             // default true
+  noteHighlightColor: NoteHighlightColor;   // default 'amber'
 }
 
 declare global {

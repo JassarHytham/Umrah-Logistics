@@ -108,6 +108,10 @@ export default function App() {
     setNotifiedCount(notifiedIds.length);
   }, [notifiedIds]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [view]);
+
   // Initial Load
   useEffect(() => {
     const token = localStorage.getItem('umrah_auth_token');

@@ -81,8 +81,8 @@ const COLOR_OPTIONS: { key: NoteHighlightColor; label: string }[] = [
 ];
 
 const NAV_ITEMS: { id: SettingsPage; label: string; sublabel: string; Icon: React.FC<{ size?: number; className?: string }> }[] = [
-  { id: 'telegram',  label: 'تيليجرام والتنبيهات', sublabel: 'البوت والتوقيت والإشعارات', Icon: Send },
   { id: 'display',   label: 'العرض والمعاينة',    sublabel: 'الخط والجدول والحقول',      Icon: Eye },
+  { id: 'telegram',  label: 'تيليجرام والتنبيهات', sublabel: 'البوت والتوقيت والإشعارات', Icon: Send },
   { id: 'extension', label: 'إضافة المتصفح',     sublabel: 'تحميل وتثبيت الإضافة',     Icon: Puzzle },
 ];
 
@@ -95,7 +95,7 @@ export const Settings: React.FC<SettingsProps> = ({
   notifPermission, onRequestNotifPermission,
   notifiedCount, allRowsCount,
 }) => {
-  const [activePage, setActivePage] = useState<SettingsPage>('telegram');
+  const [activePage, setActivePage] = useState<SettingsPage>('display');
 
   const toggleRequiredField = (key: string) => {
     const current = previewSettings.requiredFields;
@@ -296,6 +296,51 @@ export const Settings: React.FC<SettingsProps> = ({
                 <p className="text-sm text-gray-400">حجم الخط والحدود وتمييز الملاحظات والحقول</p>
               </div>
 
+              {/* Live preview table */}
+              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">معاينة مباشرة</p>
+                <div
+                  className="overflow-x-auto rounded-xl border border-gray-200 bg-white"
+                  style={{ fontSize: `${displaySettings.tableFontSize ?? 100}%` }}
+                  dir="rtl"
+                >
+                  <table className="w-full text-right border-collapse">
+                    <thead className="bg-gray-50 text-gray-500">
+                      <tr>
+                        {['المجموعة', 'النوع', 'الرحلة', 'الوقت', 'الحالة', ''].map(h => (
+                          <th key={h} className={`px-3 py-2 text-xs font-bold ${(displaySettings.borderStyle ?? 'thin') === 'thick' ? 'border-b-2 border-gray-500' : (displaySettings.borderStyle ?? 'thin') === 'medium' ? 'border-b-2 border-gray-300' : 'border-b border-gray-200'}`}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {SAMPLE_PREVIEW_ROWS.map(row => {
+                        const hasNote = Boolean(row.notes);
+                        const highlightEnabled = displaySettings.noteHighlightEnabled ?? true;
+                        const color = displaySettings.noteHighlightColor ?? 'amber';
+                        const cellBorder = (displaySettings.borderStyle ?? 'thin') === 'thick' ? 'border-l-2 border-gray-400' : (displaySettings.borderStyle ?? 'thin') === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
+                        const pad = (displaySettings.density ?? 'compact') === 'comfortable' ? 'py-2 px-3' : 'py-1 px-3';
+                        const rowBg = hasNote && highlightEnabled ? NOTE_ROW_COLORS[color] : '';
+                        return (
+                          <tr key={row.id} className={`${rowBg} transition-colors`}>
+                            <td className={`${pad} ${cellBorder}`}><span className="font-medium">{row.groupName}</span></td>
+                            <td className={`${pad} ${cellBorder} text-gray-500`}>{row.Column1}</td>
+                            <td className={`${pad} ${cellBorder} font-mono text-xs`}>{row.flight}</td>
+                            <td className={`${pad} ${cellBorder} text-gray-500 text-xs`}>{row.date} {row.time}</td>
+                            <td className={`${pad} ${cellBorder}`}>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${SAMPLE_STATUS_COLORS[row.status]}`}>{SAMPLE_STATUS_LABELS[row.status]}</span>
+                            </td>
+                            <td className={`${pad} text-center`}>
+                              <StickyNote size={12} className={hasNote ? NOTE_ICON_COLORS[color] : 'text-gray-200'} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-2 text-center">الصف الأول يحتوي على ملاحظة — الباقيان بدون</p>
+              </div>
+
               {/* Table font size */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">حجم خط الجدول</label>
@@ -417,50 +462,6 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
               </div>
 
-              {/* Live preview table */}
-              <div className="border-t border-gray-100 pt-5">
-                <p className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">معاينة مباشرة</p>
-                <div
-                  className="overflow-x-auto rounded-xl border border-gray-200"
-                  style={{ fontSize: `${displaySettings.tableFontSize ?? 100}%` }}
-                  dir="rtl"
-                >
-                  <table className="w-full text-right border-collapse">
-                    <thead className="bg-gray-50 text-gray-500">
-                      <tr>
-                        {['المجموعة', 'النوع', 'الرحلة', 'الوقت', 'الحالة', ''].map(h => (
-                          <th key={h} className={`px-3 py-2 text-xs font-bold ${(displaySettings.borderStyle ?? 'thin') === 'thick' ? 'border-b-2 border-gray-500' : (displaySettings.borderStyle ?? 'thin') === 'medium' ? 'border-b-2 border-gray-300' : 'border-b border-gray-200'}`}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {SAMPLE_PREVIEW_ROWS.map(row => {
-                        const hasNote = Boolean(row.notes);
-                        const highlightEnabled = displaySettings.noteHighlightEnabled ?? true;
-                        const color = displaySettings.noteHighlightColor ?? 'amber';
-                        const cellBorder = (displaySettings.borderStyle ?? 'thin') === 'thick' ? 'border-l-2 border-gray-400' : (displaySettings.borderStyle ?? 'thin') === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
-                        const pad = (displaySettings.density ?? 'compact') === 'comfortable' ? 'py-2 px-3' : 'py-1 px-3';
-                        const rowBg = hasNote && highlightEnabled ? NOTE_ROW_COLORS[color] : '';
-                        return (
-                          <tr key={row.id} className={`${rowBg} transition-colors`}>
-                            <td className={`${pad} ${cellBorder}`}><span className="font-medium">{row.groupName}</span></td>
-                            <td className={`${pad} ${cellBorder} text-gray-500`}>{row.Column1}</td>
-                            <td className={`${pad} ${cellBorder} font-mono text-xs`}>{row.flight}</td>
-                            <td className={`${pad} ${cellBorder} text-gray-500 text-xs`}>{row.date} {row.time}</td>
-                            <td className={`${pad} ${cellBorder}`}>
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${SAMPLE_STATUS_COLORS[row.status]}`}>{SAMPLE_STATUS_LABELS[row.status]}</span>
-                            </td>
-                            <td className={`${pad} text-center`}>
-                              <StickyNote size={12} className={hasNote ? NOTE_ICON_COLORS[color] : 'text-gray-200'} />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-[10px] text-gray-400 mt-2 text-center">الصف الأول يحتوي على ملاحظة — الباقيان بدون</p>
-              </div>
             </div>
           )}
 

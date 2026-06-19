@@ -450,7 +450,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             )}
 
             <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
-                <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse" style={{ fontSize: `${tableFontSize}%` }}>
+                <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
                         <tr>
                             {headers.map((h) => {
@@ -547,7 +547,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             })}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-100" style={{ fontSize: `${tableFontSize}%` }}>
                         {pastRows.length > 0 && (
                             <>
                                 <tr className="bg-gray-50 border-y border-gray-200">

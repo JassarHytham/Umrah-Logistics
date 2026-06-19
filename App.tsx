@@ -636,16 +636,6 @@ export default function App() {
               <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
                 <Users size={16} className="text-blue-200" />
                 <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
-                <a
-                  href="/api/download/extension"
-                  download="umrah-extension.zip"
-                  title="تحميل إضافة Chrome"
-                  className="text-xs bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 px-3 py-2 rounded-lg transition-all flex items-center gap-1"
-                  style={{ minHeight: '44px' }}
-                >
-                  <Download size={14} />
-                  الإضافة
-                </a>
                 <button
                   onClick={() => api.auth.logout()}
                   className="mr-2 text-xs bg-red-500/20 hover:bg-red-500/40 text-red-200 px-3 py-2 rounded-lg transition-all"
@@ -678,14 +668,6 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full">
-                  <a
-                    href="/api/download/extension"
-                    download="umrah-extension.zip"
-                    className="flex-1 min-w-[100px] flex items-center justify-center gap-2 text-sm bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 px-3 py-2.5 rounded-lg transition-all"
-                    style={{ minHeight: '44px' }}
-                  >
-                    <Download size={16} /> الإضافة
-                  </a>
                   <button
                     onClick={() => api.auth.logout()}
                     className="flex-1 min-w-[100px] flex items-center justify-center gap-2 text-sm bg-red-500/20 hover:bg-red-500/40 text-red-200 px-3 py-2.5 rounded-lg transition-all"

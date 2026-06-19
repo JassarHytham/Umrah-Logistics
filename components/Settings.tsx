@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings } from '../types';
 
-type SettingsPage = 'telegram' | 'alerts' | 'display' | 'extension';
+type SettingsPage = 'telegram' | 'display' | 'extension';
 
 interface SettingsProps {
   tgConfig: TelegramConfig;
@@ -52,10 +52,9 @@ const STATUS_OPTIONS: { value: TripStatus; label: string }[] = [
 ];
 
 const NAV_ITEMS: { id: SettingsPage; label: string; sublabel: string; Icon: React.FC<{ size?: number; className?: string }> }[] = [
-  { id: 'telegram',  label: 'تيليجرام',       sublabel: 'ربط البوت والتنبيهات',   Icon: Send },
-  { id: 'alerts',    label: 'التنبيهات',       sublabel: 'التوقيت وحقول الرسالة',  Icon: Bell },
-  { id: 'display',   label: 'العرض والمعاينة', sublabel: 'الخط والجدول والحقول',   Icon: Eye },
-  { id: 'extension', label: 'إضافة المتصفح',  sublabel: 'تحميل وتثبيت الإضافة',  Icon: Puzzle },
+  { id: 'telegram',  label: 'تيليجرام والتنبيهات', sublabel: 'البوت والتوقيت والإشعارات', Icon: Send },
+  { id: 'display',   label: 'العرض والمعاينة',    sublabel: 'الخط والجدول والحقول',      Icon: Eye },
+  { id: 'extension', label: 'إضافة المتصفح',     sublabel: 'تحميل وتثبيت الإضافة',     Icon: Puzzle },
 ];
 
 export const Settings: React.FC<SettingsProps> = ({
@@ -180,32 +179,11 @@ export const Settings: React.FC<SettingsProps> = ({
                 </ol>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                  <p className="text-3xl font-black text-blue-900">{allRowsCount}</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">رحلة مسجلة</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                  <p className="text-3xl font-black text-emerald-600">{notifiedCount}</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">إشعار أُرسل</p>
-                </div>
-              </div>
-            </div>
-          )}
+              <div className="border-t border-gray-100 pt-6 space-y-5">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5"><Bell size={13} className="text-indigo-500" /> توقيت الإشعارات</p>
 
-          {/* ── Alerts page ── */}
-          {activePage === 'alerts' && (
-            <div className="space-y-6 max-w-xl">
-              <div>
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
-                  <Bell size={20} className="text-indigo-600" /> إعدادات التنبيهات
-                </h2>
-                <p className="text-sm text-gray-400">توقيت الإشعارات وحقول رسالة التيليجرام</p>
-              </div>
-
-              <div className="space-y-5">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">قبل رحلة الوصول بـ</label>
+                  <label className="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">قبل رحلة الوصول بـ</label>
                   <div className="flex items-center gap-4">
                     <input
                       type="range" min={10} max={300} step={5}
@@ -218,7 +196,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">قبل رحلة المغادرة بـ</label>
+                  <label className="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">قبل رحلة المغادرة بـ</label>
                   <div className="flex items-center gap-4">
                     <input
                       type="range" min={10} max={300} step={5}
@@ -231,8 +209,8 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-gray-100">
-                <p className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">حقول رسالة التيليجرام</p>
+              <div className="border-t border-gray-100 pt-6 space-y-3">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">حقول رسالة التيليجرام</p>
                 <div className="grid grid-cols-2 gap-2">
                   {([ ['flight', 'رقم الرحلة'], ['carType', 'نوع السيارة'], ['count', 'العدد'], ['tafweej', 'التفويج'] ] as const).map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer hover:bg-indigo-50 transition-colors">
@@ -248,7 +226,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-gray-100">
+              <div className="border-t border-gray-100 pt-6">
                 <div className="flex items-center justify-between p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
                   <div className="flex items-center gap-3">
                     <Smartphone size={18} className="text-emerald-600" />
@@ -263,6 +241,17 @@ export const Settings: React.FC<SettingsProps> = ({
                       تفعيل
                     </button>
                   )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center">
+                  <p className="text-3xl font-black text-blue-900">{allRowsCount}</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">رحلة مسجلة</p>
+                </div>
+                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center">
+                  <p className="text-3xl font-black text-emerald-600">{notifiedCount}</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">إشعار أُرسل</p>
                 </div>
               </div>
             </div>

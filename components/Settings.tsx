@@ -429,6 +429,20 @@ export const Settings: React.FC<SettingsProps> = ({
                 )}
               </div>
 
+              {/* Wrap cells toggle */}
+              <div className="flex items-center justify-between py-4 border-t border-gray-100">
+                <div>
+                  <p className="text-sm font-bold text-gray-700">التفاف نص الخلايا</p>
+                  <p className="text-xs text-gray-400 mt-0.5">عرض النص على أسطر متعددة داخل الخلية</p>
+                </div>
+                <button
+                  onClick={() => onDisplaySettingsChange({ ...displaySettings, wrapCells: !(displaySettings.wrapCells ?? true) })}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${(displaySettings.wrapCells ?? true) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}
+                >
+                  {(displaySettings.wrapCells ?? true) ? 'مفعّل' : 'معطّل'}
+                </button>
+              </div>
+
               {/* Preview fields + default status */}
               <div className="border-t border-gray-100 pt-5 space-y-5">
                 <div>

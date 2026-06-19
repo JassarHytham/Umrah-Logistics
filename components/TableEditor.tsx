@@ -31,6 +31,7 @@ interface TableEditorProps {
   borderStyle?: 'thin' | 'medium' | 'thick';
   noteHighlightEnabled?: boolean;
   noteHighlightColor?: 'amber' | 'yellow' | 'blue' | 'green' | 'pink' | 'purple';
+  wrapCells?: boolean;
 }
 
 const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
@@ -66,6 +67,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   borderStyle = 'thin',
   noteHighlightEnabled = true,
   noteHighlightColor = 'amber',
+  wrapCells = true,
 }) => {
     const cellPad = density === 'comfortable' ? 'p-2' : 'p-1';
     const borderCellClass = borderStyle === 'thick' ? 'border-l-2 border-gray-400' : borderStyle === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
@@ -373,7 +375,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             );
         }
         if (isLongField(h.key as string)) {
-            if (readOnly) {
+            if (readOnly && wrapCells) {
                 const isEmpty = !row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true);
                 return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words whitespace-normal w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
             }
@@ -387,7 +389,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 />
             );
         }
-        if (readOnly) {
+        if (readOnly && wrapCells) {
             const isEmpty = !row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true);
             return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words whitespace-normal w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
         }

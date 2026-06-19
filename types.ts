@@ -79,6 +79,7 @@ export interface DisplaySettings {
   borderStyle: 'thin' | 'medium' | 'thick'; // default 'thin'
   noteHighlightEnabled: boolean;             // default true
   noteHighlightColor: NoteHighlightColor;   // default 'amber'
+  wrapCells: boolean;                        // default true
 }
 
 declare global {

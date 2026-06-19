@@ -6,7 +6,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
   History as HistoryIcon, StickyNote
 } from 'lucide-react';
-import { LogisticsRow, TripStatus, LogisticsTemplate } from '../types';
+import { LogisticsRow, TripStatus, LogisticsTemplate, DEFAULT_COLUMN_ORDER, COLUMN_LABELS } from '../types';
 import { parseDateTime } from '../utils/parser';
 
 interface TableEditorProps {
@@ -32,6 +32,8 @@ interface TableEditorProps {
   noteHighlightEnabled?: boolean;
   noteHighlightColor?: 'amber' | 'yellow' | 'blue' | 'green' | 'pink' | 'purple';
   wrapCells?: boolean;
+  columnOrder?: string[];
+  hiddenColumns?: string[];
 }
 
 const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
@@ -68,6 +70,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   noteHighlightEnabled = true,
   noteHighlightColor = 'amber',
   wrapCells = true,
+  columnOrder,
+  hiddenColumns,
 }) => {
     const cellPad = density === 'comfortable' ? 'p-2' : 'p-1';
     const borderCellClass = borderStyle === 'thick' ? 'border-l-2 border-gray-400' : borderStyle === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
@@ -109,22 +113,18 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     const isLongField = (key: string) => ['groupName', 'from', 'to'].includes(key);
 
-    const headers: { key: keyof LogisticsRow | 'actions'; label: string }[] = [
-        { key: "status", label: "الحالة" },
-        { key: "groupNo", label: "رقم م" },
-        { key: "groupName", label: "اسم المجموعة" },
-        { key: "Column1", label: "الحركة" },
-        { key: "tafweej", label: "التفويج" },
-        { key: "carType", label: "السيارة" },
-        { key: "from", label: "من" },
-        { key: "to", label: "إلى" },
-        { key: "time", label: "وقت" },
-        { key: "flight", label: "رحلة" },
-        { key: "date", label: "تاريخ" },
-        { key: "count", label: "عدد" },
-        ...(isPreview ? [] : [{ key: "notes" as const, label: "" }]),
-        ...(isPreview || readOnly ? [] : [{ key: "actions" as const, label: "إجراءات" }])
-    ];
+    const headers = useMemo(() => {
+      const order = columnOrder ?? DEFAULT_COLUMN_ORDER;
+      const hidden = new Set(hiddenColumns ?? []);
+      return order
+        .filter(key => !hidden.has(key))
+        .filter(key => !(key === 'notes' && isPreview))
+        .filter(key => !(key === 'actions' && (isPreview || readOnly)))
+        .map(key => ({
+          key: key as keyof LogisticsRow | 'actions',
+          label: key === 'notes' ? '' : (COLUMN_LABELS[key] ?? key),
+        }));
+    }, [columnOrder, hiddenColumns, isPreview, readOnly]);
 
     const dateCounts = useMemo(() => {
         const counts: Record<string, number> = {};

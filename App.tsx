@@ -194,8 +194,10 @@ export default function App() {
 
   const tgConfigRef = useRef(tgConfig);
   const allRowsRef = useRef(allRows);
+  const alertSettingsRef = useRef(alertSettings);
   useEffect(() => { tgConfigRef.current = tgConfig; }, [tgConfig]);
   useEffect(() => { allRowsRef.current = allRows; }, [allRows]);
+  useEffect(() => { alertSettingsRef.current = alertSettings; }, [alertSettings]);
 
   const requestNotificationPermission = async () => {
     if (typeof Notification !== 'undefined') {
@@ -326,10 +328,10 @@ export default function App() {
         const isArrival = row.Column1?.includes('وصول');
         const isDeparture = row.Column1?.includes('مغادرة');
         const windowMinutes = isArrival
-          ? alertSettings.arrivalMinutes
+          ? alertSettingsRef.current.arrivalMinutes
           : isDeparture
-          ? alertSettings.departureMinutes
-          : Math.max(alertSettings.arrivalMinutes, alertSettings.departureMinutes);
+          ? alertSettingsRef.current.departureMinutes
+          : Math.max(alertSettingsRef.current.arrivalMinutes, alertSettingsRef.current.departureMinutes);
 
         if (diffMinutes > 0 && diffMinutes <= windowMinutes) {
           if (typeof Notification !== 'undefined' && Notification.permission === "granted") {
@@ -343,7 +345,7 @@ export default function App() {
           }
 
           if (tgConfigRef.current.enabled) {
-            const mf = alertSettings.messageFields;
+            const mf = alertSettingsRef.current.messageFields;
             const movementLabel = isArrival ? 'الوصول' : isDeparture ? 'المغادرة' : 'الحركة';
             const flightLine = mf.flight && row.flight && row.flight !== '-' ? `✈️ <b>الرحلة:</b> <code>${escapeHTML(row.flight)}</code>\n` : '';
             const carLine = mf.carType && row.carType ? `🚗 <b>السيارة:</b> ${escapeHTML(row.carType)}\n` : '';
@@ -366,7 +368,7 @@ export default function App() {
     checkAlerts();
     const interval = setInterval(checkAlerts, 30000);
     return () => clearInterval(interval);
-  }, [tgConfig.enabled, alertSettings]);
+  }, [tgConfig.enabled]);
 
   // --- Persistence ---
   // Removed local storage persistence in favor of backend sync
@@ -754,7 +756,7 @@ export default function App() {
                     <button onClick={() => { setAllRows([...previewRows, ...allRows]); setShowPreview(false); setInputs({ ...inputs, text: '' }); showNotification("تم اعتماد الرحلات", "success"); }} className="bg-white text-blue-600 px-6 py-1.5 rounded-lg font-bold">حفظ واعتماد</button>
                   </div>
                 </div>
-                <div className="p-4"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))} isPreview={true} /></div>
+                <div className="p-4"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))} isPreview={true} requiredFields={previewSettings.requiredFields} /></div>
               </section>
             )}
 

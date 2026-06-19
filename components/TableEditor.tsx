@@ -373,25 +373,31 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             );
         }
         if (isLongField(h.key as string)) {
+            if (readOnly) {
+                const isEmpty = !row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true);
+                return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words whitespace-normal w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
+            }
             return (
                 <textarea 
                    value={String(row[h.key] || '')} 
                    onChange={(e) => onChange(row.id, h.key, e.target.value)}
-                   readOnly={readOnly}
                    rows={2} 
-                   className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] ${readOnly ? 'focus:outline-none cursor-default resize-none' : 'focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none'} ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
-                   placeholder={readOnly ? "" : "-"}
+                   className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
+                   placeholder="-"
                 />
             );
+        }
+        if (readOnly) {
+            const isEmpty = !row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true);
+            return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words whitespace-normal w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
         }
         return (
             <input 
                 type="text" 
                 value={String(row[h.key] || '')} 
                 onChange={(e) => onChange(row.id, h.key as keyof LogisticsRow, e.target.value)}
-                readOnly={readOnly}
-                className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs ${readOnly ? 'focus:outline-none cursor-default' : 'focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none'} ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
-                placeholder={readOnly ? "" : "-"}
+                className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
+                placeholder="-"
             />
         );
     };

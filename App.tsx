@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users,
+  Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users, ChevronDown,
   ClipboardList, Upload, Trash2, History, RotateCcw, XCircle,
   Eraser, Calendar, Clock, Check, FileJson, Database, AlertTriangle,
   LayoutDashboard, Settings as SettingsIcon, Plus, Copy, Share2, Bookmark,
@@ -73,6 +73,7 @@ export default function App() {
   const [previewRows, setPreviewRows] = useState<LogisticsRow[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [inputSectionOpen, setInputSectionOpen] = useState(false);
   const [notification, setNotification] = useState<NotificationState | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -644,12 +645,19 @@ export default function App() {
           <OperationsIntelligence rows={allRows} onNavigateToTable={() => setView('operational')} />
         ) : (
           <>
-            <section className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 sm:p-8 overflow-hidden">
-              <div className="p-1 bg-gradient-to-r from-blue-500 to-indigo-500 -mt-4 sm:-mt-8 -mx-4 sm:-mx-8 mb-4 sm:mb-8"></div>
-              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
-                <span className="bg-blue-100 text-blue-700 p-2 rounded-lg"><Edit3 size={20} /></span>
-                إدخال بيانات الرحلة
-              </h2>
+            <section className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              <div className="p-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+              <button
+                onClick={() => setInputSectionOpen(o => !o)}
+                className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
+              >
+                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                  <span className="bg-blue-100 text-blue-700 p-2 rounded-lg"><Edit3 size={20} /></span>
+                  إدخال بيانات الرحلة
+                </h2>
+                <ChevronDown size={20} className={`text-gray-400 transition-transform duration-200 ${inputSectionOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {inputSectionOpen && <div className="px-4 pb-4 sm:px-8 sm:pb-8">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8">
                 <div className="md:col-span-4 space-y-4">
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
@@ -665,6 +673,7 @@ export default function App() {
                   <textarea placeholder="الصق نص الرحلة هنا..." className="w-full h-[200px] sm:h-[250px] p-4 border rounded-xl font-mono text-sm bg-gray-50 focus:bg-white transition-colors" value={inputs.text} onChange={(e) => setInputs({ ...inputs, text: e.target.value })}></textarea>
                 </div>
               </div>
+              </div>}
             </section>
 
             {showPreview && (

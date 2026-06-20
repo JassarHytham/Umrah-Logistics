@@ -193,7 +193,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const arrivalTo = firstDest?.hotel
           ? `${firstDest.hotel} (${firstDest.city})`
           : (firstDest?.city || "مكة المكرمة");
-      const landArrival = isLandTransport(block);
+      const landArrival = isLandTransport(block) || /تاريخ الوصول[^(]*\(النقل البري\)/.test(text);
       const borderArrival = landArrival ? findBorderCrossing(block) : "";
       arrivalData = {
           Column1: "وصول",

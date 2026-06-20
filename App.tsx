@@ -14,12 +14,10 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
-import { LogisticsBot } from './components/LogisticsBot';
 import { Auth } from './components/Auth';
 import { Settings } from './components/Settings';
 import { api } from './services/api';
@@ -282,33 +280,6 @@ export default function App() {
           for (const update of data.result) {
             tgLastUpdateId.current = update.update_id;
 
-            if (update.message && update.message.text) {
-              // Ignore other bots to prevent "Forbidden: bots can't send messages to bots" errors
-              if (update.message.from.is_bot) continue;
-
-              const userQuery = update.message.text;
-              const senderChatId = update.message.chat.id;
-
-              const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-              const context = JSON.stringify(allRowsRef.current.map(r => ({
-                group: r.groupNo, name: r.groupName, type: r.Column1,
-                date: r.date, time: r.time, status: r.status, to: r.to
-              })));
-
-              const prompt = `أنت مساعد عمليات لوجستية لشركة عمرة. البيانات الحالية: ${context}. 
-              أجب على سؤال المستخدم بشكل مباشر، بسيط، وواضح جداً باللغة العربية.
-              يجب أن يكون الرد عبارة عن رسالة واحدة فقط، مختصرة، وبدون تكرار.
-              سؤال المستخدم: ${userQuery}`;
-
-              const aiRes = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-              });
-
-              const replyText = aiRes.text?.trim() || "عذراً لم أفهم الطلب.";
-              // Always escape HTML for dynamic AI content
-              await sendTelegram(escapeHTML(replyText), String(senderChatId));
-            }
           }
         }
       } catch (e) {
@@ -804,8 +775,6 @@ export default function App() {
           </>
         )}
       </main>
-
-      <LogisticsBot rows={allRows} />
 
       {showRecycleBin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in text-right">

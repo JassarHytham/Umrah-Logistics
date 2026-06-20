@@ -341,7 +341,7 @@ describe('POST /api/settings', () => {
     expect(res.body.tgConfig.enabled).toBe(true);
     expect(res.body.templates).toHaveLength(1);
     expect(res.body.templates[0].name).toBe('Template 1');
-    expect(res.body.notifiedIds).toEqual(['id1', 'id2']);
+    expect(res.body.notifiedIds).toEqual([]); // server-managed; client writes are ignored
   });
 
   it('upserts settings (updates on second call)', async () => {
@@ -387,5 +387,17 @@ describe('POST /api/settings', () => {
       .set('Authorization', `Bearer ${freshToken}`);
     expect(res.body.tgConfig).toBeNull();
     expect(res.body.fontSize).toBe(100);
+  });
+
+  it('client notifiedIds do not overwrite server-managed notified_ids', async () => {
+    // Simulate the server alert worker writing notified_ids directly to the DB.
+    // We test via the settings API: save with server-side notifiedIds via a
+    // direct DB manipulation. Since we can't call the worker from tests,
+    // we verify the inverse: client-sent notifiedIds are silently dropped,
+    // and the field comes back as whatever the server set (empty for new user).
+    await authPost('/api/settings').send({ ...sampleSettings, notifiedIds: ['server-managed-id'] });
+    const res = await authGet('/api/settings');
+    // notifiedIds from the client payload must be ignored — server starts fresh for this test user
+    expect(res.body.notifiedIds).toEqual([]);
   });
 });

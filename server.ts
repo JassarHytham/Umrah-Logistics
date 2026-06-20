@@ -177,8 +177,7 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
       : (existing?.templates ?? null),
     deleted_rows: deletedRows !== undefined ? (deletedRows ? JSON.stringify(deletedRows) : null)
       : (existing?.deleted_rows ?? null),
-    notified_ids: notifiedIds !== undefined ? JSON.stringify(notifiedIds)
-      : (existing?.notified_ids ?? null),
+    notified_ids: existing?.notified_ids ?? null,
     font_size: fontSize !== undefined ? fontSize : (existing?.font_size ?? 100),
     extra_settings: JSON.stringify({
       alertSettings: alertSettings !== undefined ? alertSettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).alertSettings : undefined),

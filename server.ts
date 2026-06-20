@@ -215,6 +215,12 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
   const settings: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
 
   const tgConfig = settings?.tg_config ? JSON.parse(settings.tg_config) : null;
+  const extraSettings = settings?.extra_settings ? JSON.parse(settings.extra_settings) : {};
+  const alertSettings = extraSettings.alertSettings ?? {
+    arrivalMinutes: 120,
+    departureMinutes: 60,
+    messageFields: { flight: true, carType: true, count: false, tafweej: false },
+  };
   const notifiedIds: string[] = settings?.notified_ids ? JSON.parse(settings.notified_ids) : [];
   const notifiedSet = new Set(notifiedIds);
 
@@ -227,7 +233,14 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
     const tripDate = parseDateTime(row.date, row.time);
     const diffMinutes = tripDate ? (tripDate.getTime() - now.getTime()) / (1000 * 60) : null;
     const alreadyNotified = notifiedSet.has(row.id);
-    const wouldSend = !alreadyNotified && diffMinutes !== null && diffMinutes > 0 && diffMinutes <= 130;
+    const isArrival = row.Column1?.includes('وصول');
+    const isDeparture = row.Column1?.includes('مغادرة');
+    const windowMinutes = isArrival
+      ? alertSettings.arrivalMinutes
+      : isDeparture
+      ? alertSettings.departureMinutes
+      : Math.max(alertSettings.arrivalMinutes, alertSettings.departureMinutes);
+    const wouldSend = !alreadyNotified && diffMinutes !== null && diffMinutes > 0 && diffMinutes <= windowMinutes;
     const skipReason = alreadyNotified
       ? 'already notified'
       : !row.date || !row.time
@@ -236,8 +249,8 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
           ? 'date failed to parse'
           : diffMinutes !== null && diffMinutes <= 0
             ? `trip is in the past (${Math.abs(diffMinutes!).toFixed(0)} min ago)`
-            : diffMinutes !== null && diffMinutes > 130
-              ? `too far away (${diffMinutes.toFixed(0)} min from now)`
+            : diffMinutes !== null && diffMinutes > windowMinutes
+              ? `too far away (${diffMinutes.toFixed(0)} min from now, window is ${windowMinutes} min)`
               : null;
 
     return {
@@ -260,6 +273,7 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
     serverTime: now.toISOString(),
     telegramEnabled: tgConfig?.enabled ?? false,
     telegramConfigured: !!(tgConfig?.token && tgConfig?.chatId),
+    alertWindowMinutes: { arrival: alertSettings.arrivalMinutes, departure: alertSettings.departureMinutes },
     notifiedIdsCount: notifiedIds.length,
     totalTrips: rawRows.length,
     tripsToSend: tripDiagnostics.filter(t => t.wouldSend).length,
@@ -389,6 +403,13 @@ async function checkAndSendAlerts() {
       const tgConfig = settings.tg_config ? JSON.parse(settings.tg_config) : null;
       if (!tgConfig?.enabled || !tgConfig.token || !tgConfig.chatId) continue;
 
+      const extraSettings = settings.extra_settings ? JSON.parse(settings.extra_settings) : {};
+      const alertSettings = extraSettings.alertSettings ?? {
+        arrivalMinutes: 120,
+        departureMinutes: 60,
+        messageFields: { flight: true, carType: true, count: false, tafweej: false },
+      };
+
       const notifiedSet = new Set<string>(
         settings.notified_ids ? JSON.parse(settings.notified_ids) : []
       );
@@ -407,33 +428,53 @@ async function checkAndSendAlerts() {
         if (!tripDate) continue;
 
         const diffMinutes = (tripDate.getTime() - now.getTime()) / (1000 * 60);
-        if (diffMinutes <= 0 || diffMinutes > 130) continue;
 
-        const flightStr =
-          row.flight && row.flight !== '-'
-            ? `✈️ <b>الرحلة:</b> <code>${escapeHTML(row.flight)}</code>\n`
-            : '';
+        const isArrival = row.Column1?.includes('وصول');
+        const isDeparture = row.Column1?.includes('مغادرة');
+        const windowMinutes = isArrival
+          ? alertSettings.arrivalMinutes
+          : isDeparture
+          ? alertSettings.departureMinutes
+          : Math.max(alertSettings.arrivalMinutes, alertSettings.departureMinutes);
+
+        if (diffMinutes <= 0 || diffMinutes > windowMinutes) continue;
+
+        const mf = alertSettings.messageFields;
+        const movementLabel = isArrival ? 'الوصول' : isDeparture ? 'المغادرة' : 'الحركة';
+        const flightStr = mf.flight && row.flight && row.flight !== '-'
+          ? `✈️ <b>الرحلة:</b> <code>${escapeHTML(row.flight)}</code>\n` : '';
+        const carLine = mf.carType && row.carType
+          ? `🚗 <b>نوع السيارة:</b> ${escapeHTML(row.carType)}\n` : '';
+        const countLine = mf.count && row.count
+          ? `👥 <b>العدد:</b> ${escapeHTML(row.count)}\n` : '';
+        const tafweejLine = mf.tafweej && row.tafweej
+          ? `📋 <b>التفويج:</b> ${escapeHTML(row.tafweej)}\n` : '';
         const msg =
-          `<b>🔔 تنبيه: رحلة قادمة خلال ساعتين</b>\n\n` +
+          `<b>🔔 تنبيه: ${movementLabel} قادم خلال ${windowMinutes} دقيقة</b>\n\n` +
           `📦 <b>المجموعة:</b> ${escapeHTML(row.groupName)}\n` +
           `🔢 <b>رقم م:</b> ${escapeHTML(row.groupNo)}\n` +
-          `${flightStr}` +
+          flightStr +
           `🕒 <b>الوقت:</b> ${escapeHTML(row.time)}\n` +
           `📍 <b>من:</b> ${escapeHTML(row.from)}\n` +
           `📍 <b>إلى:</b> ${escapeHTML(row.to)}\n` +
-          `🚗 <b>نوع السيارة:</b> ${escapeHTML(row.carType)}\n` +
+          carLine + countLine + tafweejLine +
           `📊 <b>الحالة:</b> ${STATUS_LABELS[row.status] || row.status}`;
 
         try {
-          await fetch(`https://api.telegram.org/bot${tgConfig.token}/sendMessage`, {
+          const tgRes = await fetch(`https://api.telegram.org/bot${tgConfig.token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chat_id: tgConfig.chatId, text: msg, parse_mode: 'HTML' }),
           });
+          const tgData = await tgRes.json();
+          if (!tgData.ok) {
+            console.error(`[Alerts] Telegram API error for user ${userId}: ${tgData.description}`);
+            continue; // Don't mark as notified — will retry next cycle
+          }
           console.log(`[Alerts] Sent notification for trip ${row.id} (user ${userId})`);
         } catch (fetchErr) {
           console.error(`[Alerts] Telegram send failed for user ${userId}:`, fetchErr);
-          continue; // Don't mark as notified if send failed
+          continue;
         }
 
         notifiedSet.add(row.id);

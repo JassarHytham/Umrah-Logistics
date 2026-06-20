@@ -111,6 +111,9 @@ export const Settings: React.FC<SettingsProps> = ({
     });
   };
 
+  const fmtMin = (m: number) =>
+    m < 60 ? `${m} د` : m % 60 === 0 ? `${Math.floor(m / 60)} س` : `${Math.floor(m / 60)}س ${m % 60}د`;
+
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden animate-fade-in" dir="rtl">
       <div className="flex flex-col sm:flex-row sm:min-h-[600px]">
@@ -216,12 +219,12 @@ export const Settings: React.FC<SettingsProps> = ({
                   <label className="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">قبل رحلة الوصول بـ</label>
                   <div className="flex items-center gap-4">
                     <input
-                      type="range" min={10} max={300} step={5}
+                      type="range" min={10} max={1440} step={15}
                       value={alertSettings.arrivalMinutes}
                       onChange={(e) => onAlertSettingsChange({ ...alertSettings, arrivalMinutes: Number(e.target.value) })}
                       className="flex-1 accent-blue-600"
                     />
-                    <span className="text-xl font-black text-blue-700 w-16 text-center">{alertSettings.arrivalMinutes}<span className="text-xs font-bold"> د</span></span>
+                    <span className="text-xl font-black text-blue-700 w-20 text-center">{fmtMin(alertSettings.arrivalMinutes)}</span>
                   </div>
                 </div>
 
@@ -229,12 +232,12 @@ export const Settings: React.FC<SettingsProps> = ({
                   <label className="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">قبل رحلة المغادرة بـ</label>
                   <div className="flex items-center gap-4">
                     <input
-                      type="range" min={10} max={300} step={5}
+                      type="range" min={10} max={1440} step={15}
                       value={alertSettings.departureMinutes}
                       onChange={(e) => onAlertSettingsChange({ ...alertSettings, departureMinutes: Number(e.target.value) })}
                       className="flex-1 accent-indigo-600"
                     />
-                    <span className="text-xl font-black text-indigo-700 w-16 text-center">{alertSettings.departureMinutes}<span className="text-xs font-bold"> د</span></span>
+                    <span className="text-xl font-black text-indigo-700 w-20 text-center">{fmtMin(alertSettings.departureMinutes)}</span>
                   </div>
                 </div>
               </div>

@@ -124,7 +124,7 @@ export const Settings: React.FC<SettingsProps> = ({
               <button
                 key={id}
                 onClick={() => setActivePage(id)}
-                className={`flex-1 sm:w-full flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-3 px-2 sm:px-4 py-3 text-center sm:text-right transition-all border-b-2 sm:border-b-0 sm:border-l-2 ${
+                className={`flex-1 sm:flex-none sm:w-full flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-3 px-2 sm:px-4 py-3 text-center sm:text-right transition-all border-b-2 sm:border-b-0 sm:border-l-2 ${
                   active
                     ? 'bg-blue-50 border-blue-600 text-blue-700'
                     : 'border-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800'
@@ -132,7 +132,7 @@ export const Settings: React.FC<SettingsProps> = ({
               >
                 <Icon size={18} className={active ? 'text-blue-600' : 'text-gray-400'} />
                 <div className="min-w-0">
-                  <p className={`text-sm font-bold truncate ${active ? 'text-blue-700' : 'text-gray-700'}`}>{label}</p>
+                  <p className={`hidden sm:block text-sm font-bold truncate ${active ? 'text-blue-700' : 'text-gray-700'}`}>{label}</p>
                   <p className="hidden sm:block text-[10px] text-gray-400 truncate">{sublabel}</p>
                 </div>
               </button>

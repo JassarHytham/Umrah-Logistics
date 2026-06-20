@@ -113,18 +113,18 @@ export const Settings: React.FC<SettingsProps> = ({
 
   return (
     <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden animate-fade-in" dir="rtl">
-      <div className="flex min-h-[600px]">
+      <div className="flex flex-col sm:flex-row sm:min-h-[600px]">
 
         {/* ── Sidebar ── */}
-        <div className="w-56 shrink-0 bg-gray-50 border-l border-gray-100 flex flex-col py-3">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-4 py-3">الإعدادات</p>
+        <div className="w-full sm:w-56 sm:shrink-0 bg-gray-50 border-b sm:border-b-0 sm:border-l border-gray-100 flex flex-row sm:flex-col py-0 sm:py-3">
+          <p className="hidden sm:block text-[10px] font-black text-gray-400 uppercase tracking-widest px-4 py-3">الإعدادات</p>
           {NAV_ITEMS.map(({ id, label, sublabel, Icon }) => {
             const active = activePage === id;
             return (
               <button
                 key={id}
                 onClick={() => setActivePage(id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-right transition-all border-l-2 ${
+                className={`flex-1 sm:w-full flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-3 px-2 sm:px-4 py-3 text-center sm:text-right transition-all border-b-2 sm:border-b-0 sm:border-l-2 ${
                   active
                     ? 'bg-blue-50 border-blue-600 text-blue-700'
                     : 'border-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800'
@@ -133,7 +133,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 <Icon size={18} className={active ? 'text-blue-600' : 'text-gray-400'} />
                 <div className="min-w-0">
                   <p className={`text-sm font-bold truncate ${active ? 'text-blue-700' : 'text-gray-700'}`}>{label}</p>
-                  <p className="text-[10px] text-gray-400 truncate">{sublabel}</p>
+                  <p className="hidden sm:block text-[10px] text-gray-400 truncate">{sublabel}</p>
                 </div>
               </button>
             );
@@ -141,7 +141,7 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
 
         {/* ── Content area ── */}
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
 
           {/* ── Telegram page ── */}
           {activePage === 'telegram' && (

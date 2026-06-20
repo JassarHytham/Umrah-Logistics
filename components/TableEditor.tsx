@@ -6,7 +6,7 @@ import {
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
   History as HistoryIcon, StickyNote
 } from 'lucide-react';
-import { LogisticsRow, TripStatus, LogisticsTemplate } from '../types';
+import { LogisticsRow, TripStatus, LogisticsTemplate, DEFAULT_COLUMN_ORDER, COLUMN_LABELS } from '../types';
 import { parseDateTime } from '../utils/parser';
 
 interface TableEditorProps {
@@ -25,6 +25,15 @@ interface TableEditorProps {
   onShareRow?: (row: LogisticsRow) => void;
   onDeleteTemplate?: (templateId: string) => void;
   onFilteredRowsChange?: (rows: LogisticsRow[]) => void;
+  density?: 'compact' | 'comfortable';
+  requiredFields?: string[];
+  tableFontSize?: number;
+  borderStyle?: 'thin' | 'medium' | 'thick';
+  noteHighlightEnabled?: boolean;
+  noteHighlightColor?: 'amber' | 'yellow' | 'blue' | 'green' | 'pink' | 'purple';
+  wrapCells?: boolean;
+  columnOrder?: string[];
+  hiddenColumns?: string[];
 }
 
 const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
@@ -53,8 +62,22 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onApplyTemplate,
   onShareRow,
   onDeleteTemplate,
-  onFilteredRowsChange
+  onFilteredRowsChange,
+  density = 'compact',
+  requiredFields,
+  tableFontSize = 100,
+  borderStyle = 'thin',
+  noteHighlightEnabled = true,
+  noteHighlightColor = 'amber',
+  wrapCells = true,
+  columnOrder,
+  hiddenColumns,
 }) => {
+    const cellPad = density === 'comfortable' ? 'p-2' : 'p-1';
+    const borderCellClass = borderStyle === 'thick' ? 'border-l-2 border-gray-400' : borderStyle === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
+    const borderHeaderClass = borderStyle === 'thick' ? 'border-b-2 border-gray-500' : borderStyle === 'medium' ? 'border-b-2 border-gray-300' : 'border-b border-gray-200';
+    const NOTE_ROW_BG: Record<string, string> = { amber: 'bg-amber-50', yellow: 'bg-yellow-50', blue: 'bg-blue-50', green: 'bg-green-50', pink: 'bg-pink-50', purple: 'bg-purple-50' };
+    const NOTE_BTN: Record<string, string> = { amber: 'text-amber-500 hover:bg-amber-50', yellow: 'text-yellow-500 hover:bg-yellow-50', blue: 'text-blue-500 hover:bg-blue-50', green: 'text-green-500 hover:bg-green-50', pink: 'text-pink-500 hover:bg-pink-50', purple: 'text-purple-500 hover:bg-purple-50' };
     const [filters, setFilters] = useState<Record<string, string[]>>({});
     const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
     const [filterSearch, setFilterSearch] = useState("");
@@ -66,6 +89,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const templateDropdownRef = useRef<HTMLDivElement>(null);
+    const tbodyId = useRef(`tbl-${Math.random().toString(36).slice(2)}`).current;
 
     useEffect(() => {
         if (externalFilters) {
@@ -89,22 +113,18 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     const isLongField = (key: string) => ['groupName', 'from', 'to'].includes(key);
 
-    const headers: { key: keyof LogisticsRow | 'actions'; label: string }[] = [
-        { key: "status", label: "الحالة" },
-        { key: "groupNo", label: "رقم م" },
-        { key: "groupName", label: "اسم المجموعة" },
-        { key: "Column1", label: "الحركة" },
-        { key: "tafweej", label: "التفويج" },
-        { key: "carType", label: "السيارة" },
-        { key: "from", label: "من" },
-        { key: "to", label: "إلى" },
-        { key: "time", label: "وقت" },
-        { key: "flight", label: "رحلة" },
-        { key: "date", label: "تاريخ" },
-        { key: "count", label: "عدد" },
-        ...(isPreview ? [] : [{ key: "notes" as const, label: "" }]),
-        ...(isPreview || readOnly ? [] : [{ key: "actions" as const, label: "إجراءات" }])
-    ];
+    const headers = useMemo(() => {
+      const order = columnOrder ?? DEFAULT_COLUMN_ORDER;
+      const hidden = new Set(hiddenColumns ?? []);
+      return order
+        .filter(key => !hidden.has(key))
+        .filter(key => !(key === 'notes' && isPreview))
+        .filter(key => !(key === 'actions' && (isPreview || readOnly)))
+        .map(key => ({
+          key: key as keyof LogisticsRow | 'actions',
+          label: key === 'notes' ? '' : (COLUMN_LABELS[key] ?? key),
+        }));
+    }, [columnOrder, hiddenColumns, isPreview, readOnly]);
 
     const dateCounts = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -332,7 +352,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     <button
                         onClick={() => setExpandedNoteRowId(expandedNoteRowId === row.id ? null : row.id)}
                         title={hasNote ? row.notes : "إضافة ملاحظة"}
-                        className={`p-1.5 rounded-lg transition-colors ${hasNote ? 'text-amber-500 hover:bg-amber-50' : 'text-gray-300 hover:bg-gray-50 hover:text-gray-400'}`}
+                        className={`p-1.5 rounded-lg transition-colors ${hasNote ? NOTE_BTN[noteHighlightColor] : 'text-gray-300 hover:bg-gray-50 hover:text-gray-400'}`}
                     >
                         <StickyNote size={14} />
                     </button>
@@ -355,25 +375,31 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             );
         }
         if (isLongField(h.key as string)) {
+            if (readOnly && wrapCells) {
+                const isEmpty = !row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true);
+                return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words whitespace-normal w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
+            }
             return (
                 <textarea 
                    value={String(row[h.key] || '')} 
                    onChange={(e) => onChange(row.id, h.key, e.target.value)}
-                   readOnly={readOnly}
                    rows={2} 
-                   className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] ${readOnly ? 'focus:outline-none cursor-default resize-none' : 'focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none'} ${!row[h.key] && isPreview ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
-                   placeholder={readOnly ? "" : "-"}
+                   className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
+                   placeholder="-"
                 />
             );
+        }
+        if (readOnly && wrapCells) {
+            const isEmpty = !row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true);
+            return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words whitespace-normal w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
         }
         return (
             <input 
                 type="text" 
                 value={String(row[h.key] || '')} 
                 onChange={(e) => onChange(row.id, h.key as keyof LogisticsRow, e.target.value)}
-                readOnly={readOnly}
-                className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs ${readOnly ? 'focus:outline-none cursor-default' : 'focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none'} ${!row[h.key] && isPreview ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
-                placeholder={readOnly ? "" : "-"}
+                className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
+                placeholder="-"
             />
         );
     };
@@ -432,6 +458,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 </div>
             )}
 
+            <style>{`#${tbodyId}{font-size:${tableFontSize}%}#${tbodyId} *{font-size:inherit!important}`}</style>
             <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
                 <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
@@ -457,7 +484,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 const dropdownAlignment = isEndColumn ? 'left-0' : 'right-0';
                                 
                                 return (
-                                    <th key={h.key} className={`px-2 py-3 border-b border-gray-200 relative align-top ${widthClass}`} style={{ width: widthClass }}>
+                                    <th key={h.key} className={`px-2 py-3 ${borderHeaderClass} relative align-top ${widthClass}`} style={{ width: widthClass }}>
                                         <div className="flex items-start justify-between gap-1">
                                             <div 
                                                 className={`flex items-center gap-1 flex-wrap cursor-pointer hover:text-blue-600 transition-colors`}
@@ -530,7 +557,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             })}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody id={tbodyId} className="divide-y divide-gray-100">
                         {pastRows.length > 0 && (
                             <>
                                 <tr className="bg-gray-50 border-y border-gray-200">
@@ -550,7 +577,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 {showPastTrips && pastRows.map((row) => (
                                     <React.Fragment key={row.id}>
                                         <tr className="transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50">
-                                            {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0 opacity-70">{renderCellContent(row, h)}</td>)}
+                                            {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0 opacity-70`}>{renderCellContent(row, h)}</td>)}
                                         </tr>
                                         {expandedNoteRowId === row.id && (
                                             <tr>
@@ -583,8 +610,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             const upcoming = isUpcoming(row);
                             return (
                                 <React.Fragment key={row.id}>
-                                    <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : ''}`}>
-                                        {headers.map(h => <td key={h.key} className="p-1 border-l border-gray-100 last:border-l-0">{renderCellContent(row, h)}</td>)}
+                                    <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}>
+                                        {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0`}>{renderCellContent(row, h)}</td>)}
                                     </tr>
                                     {expandedNoteRowId === row.id && (
                                         <tr className="bg-amber-50/60">

@@ -147,6 +147,26 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       destBlocks.push({ city, startDate, hotel, index: match.index });
   }
 
+  const isLandTransport = (block: string): boolean =>
+    /النقل البري/.test(block) || /Land transport/.test(block);
+
+  const findBorderCrossing = (block: string): string => {
+    const lines = block.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      if (/المنفذ/.test(lines[i])) {
+        for (let j = i + 1; j < lines.length && j < i + 4; j++) {
+          const t = lines[j].trim().replace(/\s*\*\s*$/, "").trim();
+          if (!t) continue;
+          if (/^(وقت|نوع|شركة|ناقل|قادم|ذاهب|Air|Sea|Land|السفر|رحلة)/.test(t)) break;
+          if (t.endsWith("*")) continue;
+          return t;
+        }
+        break;
+      }
+    }
+    return "";
+  };
+
   const findFlight = (block: string) => {
     // Priority 1: Labeled flight number - more flexible regex to include hyphens and various formats
     const labeledMatch = block.match(/رقم الرحلة\s*[\r\n:]*\s*([A-Z]{1,3}[- ]?\d{1,5})/i);
@@ -173,12 +193,16 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const arrivalTo = firstDest?.hotel
           ? `${firstDest.hotel} (${firstDest.city})`
           : (firstDest?.city || "مكة المكرمة");
+      const landArrival = isLandTransport(block) || /تاريخ الوصول[^(]*\(النقل البري\)/.test(text);
+      const borderArrival = landArrival ? findBorderCrossing(block) : "";
       arrivalData = {
           Column1: "وصول",
           date: dateMatch ? formatDate(dateMatch[0]) : (firstDest?.startDate || ""),
           time: timeMatch ? timeMatch[1] : "",
-          flight: findFlight(block),
-          from: airportMatch ? formatAirportLabel(airportMatch[1]) : "جدة",
+          flight: landArrival ? "النقل البري" : findFlight(block),
+          from: landArrival
+              ? borderArrival
+              : (airportMatch ? formatAirportLabel(airportMatch[1]) : "جدة"),
           to: arrivalTo
       };
   }
@@ -196,12 +220,16 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const departureFrom = lastDest?.hotel
           ? `${lastDest.hotel} (${lastDest.city})`
           : (lastDest?.city || "مكة المكرمة");
+      const landDeparture = isLandTransport(block);
+      const borderDeparture = landDeparture ? findBorderCrossing(block) : "";
       departureData = {
           Column1: "مغادرة",
           date: dateMatch ? formatDate(dateMatch[0]) : "",
           time: timeMatch ? timeMatch[1] : "",
-          flight: findFlight(block),
-          to: airportMatch ? formatAirportLabel(airportMatch[1]) : "جدة",
+          flight: landDeparture ? "النقل البري" : findFlight(block),
+          to: landDeparture
+              ? borderDeparture
+              : (airportMatch ? formatAirportLabel(airportMatch[1]) : "جدة"),
           from: departureFrom
       };
   }

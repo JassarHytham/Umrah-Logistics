@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users,
+  Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users, ChevronDown,
   ClipboardList, Upload, Trash2, History, RotateCcw, XCircle,
   Eraser, Calendar, Clock, Check, FileJson, Database, AlertTriangle,
-  LayoutDashboard, Settings, Plus, Copy, Share2, Bookmark,
-  CheckSquare, Square, Type, Minus, PlusCircle, RotateCw, Bell, BellRing, Smartphone, Bot, Send, ShieldCheck,
+  LayoutDashboard, Settings as SettingsIcon, Plus, Copy, Share2, Bookmark,
+  CheckSquare, Square, Type, Minus, PlusCircle, RotateCw, Bell, BellRing, Smartphone, Bot, Send, ShieldCheck, SlidersHorizontal,
   Info,
   ExternalLink,
   Zap,
@@ -14,13 +14,12 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
-import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig } from './types';
+import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
-import { LogisticsBot } from './components/LogisticsBot';
 import { Auth } from './components/Auth';
+import { Settings } from './components/Settings';
 import { api } from './services/api';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
@@ -63,7 +62,7 @@ const STATUS_LABELS: Record<TripStatus, string> = {
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'operational' | 'analytics' | 'automation'>('operational');
+  const [view, setView] = useState<'operational' | 'analytics' | 'settings'>('operational');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [allRows, setAllRows] = useState<LogisticsRow[]>([]);
   const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
@@ -74,11 +73,31 @@ export default function App() {
   const [previewRows, setPreviewRows] = useState<LogisticsRow[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [inputSectionOpen, setInputSectionOpen] = useState(false);
   const [notification, setNotification] = useState<NotificationState | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [filteredRows, setFilteredRows] = useState<LogisticsRow[]>([]);
   const [fontSize, setFontSize] = useState<number>(100);
+  const [alertSettings, setAlertSettings] = useState<AlertSettings>({
+    arrivalMinutes: 120,
+    departureMinutes: 60,
+    messageFields: { flight: true, carType: true, count: false, tafweej: false },
+  });
+  const [previewSettings, setPreviewSettings] = useState<PreviewSettings>({
+    requiredFields: ['groupName', 'groupNo', 'flight', 'date', 'time', 'from', 'to'],
+    defaultStatus: 'Planned',
+  });
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>({
+    density: 'compact',
+    tableFontSize: 100,
+    borderStyle: 'thin',
+    noteHighlightEnabled: true,
+    noteHighlightColor: 'amber',
+    wrapCells: true,
+    columnOrder: DEFAULT_COLUMN_ORDER,
+    hiddenColumns: [],
+  });
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [isTestingTg, setIsTestingTg] = useState(false);
 
@@ -90,6 +109,10 @@ export default function App() {
     notifiedIdsRef.current = new Set(notifiedIds);
     setNotifiedCount(notifiedIds.length);
   }, [notifiedIds]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [view]);
 
   // Initial Load
   useEffect(() => {
@@ -118,6 +141,16 @@ export default function App() {
       setTgConfig(settings.tgConfig || { token: '', chatId: '', enabled: false });
       setTemplates(settings.templates || []);
       setFontSize(settings.fontSize || 100);
+      setAlertSettings(settings.alertSettings || {
+        arrivalMinutes: 120,
+        departureMinutes: 60,
+        messageFields: { flight: true, carType: true, count: false, tafweej: false },
+      });
+      setPreviewSettings(settings.previewSettings || {
+        requiredFields: ['groupName', 'groupNo', 'flight', 'date', 'time', 'from', 'to'],
+        defaultStatus: 'Planned',
+      });
+      setDisplaySettings(settings.displaySettings ? { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', wrapCells: true, columnOrder: DEFAULT_COLUMN_ORDER, hiddenColumns: [], ...settings.displaySettings } : { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', wrapCells: true, columnOrder: DEFAULT_COLUMN_ORDER, hiddenColumns: [] });
 
       // Legacy Migration: If backend is empty but local storage has data, offer to import
       if (rows.length === 0) {
@@ -147,7 +180,7 @@ export default function App() {
     try {
       await Promise.all([
         api.data.syncRows(allRows),
-        api.settings.save({ tgConfig, templates, deletedRows, notifiedIds, fontSize })
+        api.settings.save({ tgConfig, templates, deletedRows, notifiedIds, fontSize, alertSettings, previewSettings, displaySettings })
       ]);
     } catch (err) {
       console.error("Sync failed", err);
@@ -163,16 +196,16 @@ export default function App() {
       const timer = setTimeout(syncAllData, 2000);
       return () => clearTimeout(timer);
     }
-  }, [allRows, deletedRows, tgConfig, templates, fontSize, notifiedIds, user, loading]);
+  }, [allRows, deletedRows, tgConfig, templates, fontSize, notifiedIds, alertSettings, previewSettings, displaySettings, user, loading]);
 
-  const tgLastUpdateId = useRef<number>(0);
-  const isPollingRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const tgConfigRef = useRef(tgConfig);
   const allRowsRef = useRef(allRows);
+  const alertSettingsRef = useRef(alertSettings);
   useEffect(() => { tgConfigRef.current = tgConfig; }, [tgConfig]);
   useEffect(() => { allRowsRef.current = allRows; }, [allRows]);
+  useEffect(() => { alertSettingsRef.current = alertSettings; }, [alertSettings]);
 
   const requestNotificationPermission = async () => {
     if (typeof Notification !== 'undefined') {
@@ -228,64 +261,6 @@ export default function App() {
     setIsTestingTg(false);
   };
 
-  // --- Telegram Listener (Polling) ---
-  useEffect(() => {
-    if (!tgConfig.enabled) return;
-
-    const pollTelegram = async () => {
-      const { token, enabled } = tgConfigRef.current;
-      if (!enabled || !token) return;
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
-
-      try {
-        const response = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${tgLastUpdateId.current + 1}&timeout=10`);
-        const data = await response.json();
-
-        if (data.ok && data.result.length > 0) {
-          for (const update of data.result) {
-            tgLastUpdateId.current = update.update_id;
-
-            if (update.message && update.message.text) {
-              // Ignore other bots to prevent "Forbidden: bots can't send messages to bots" errors
-              if (update.message.from.is_bot) continue;
-
-              const userQuery = update.message.text;
-              const senderChatId = update.message.chat.id;
-
-              const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-              const context = JSON.stringify(allRowsRef.current.map(r => ({
-                group: r.groupNo, name: r.groupName, type: r.Column1,
-                date: r.date, time: r.time, status: r.status, to: r.to
-              })));
-
-              const prompt = `أنت مساعد عمليات لوجستية لشركة عمرة. البيانات الحالية: ${context}. 
-              أجب على سؤال المستخدم بشكل مباشر، بسيط، وواضح جداً باللغة العربية.
-              يجب أن يكون الرد عبارة عن رسالة واحدة فقط، مختصرة، وبدون تكرار.
-              سؤال المستخدم: ${userQuery}`;
-
-              const aiRes = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-              });
-
-              const replyText = aiRes.text?.trim() || "عذراً لم أفهم الطلب.";
-              // Always escape HTML for dynamic AI content
-              await sendTelegram(escapeHTML(replyText), String(senderChatId));
-            }
-          }
-        }
-      } catch (e) {
-        console.error("Telegram Polling Error:", e);
-      } finally {
-        isPollingRef.current = false;
-      }
-    };
-
-    const interval = setInterval(pollTelegram, 5000);
-    return () => clearInterval(interval);
-  }, [tgConfig.enabled]);
-
   // --- Proximity Alerts (Browser + Telegram) ---
   useEffect(() => {
     const checkAlerts = () => {
@@ -300,7 +275,15 @@ export default function App() {
 
         const diffMinutes = (tripDate.getTime() - now.getTime()) / (1000 * 60);
 
-        if (diffMinutes > 0 && diffMinutes <= 130) {
+        const isArrival = row.Column1?.includes('وصول');
+        const isDeparture = row.Column1?.includes('مغادرة');
+        const windowMinutes = isArrival
+          ? alertSettingsRef.current.arrivalMinutes
+          : isDeparture
+          ? alertSettingsRef.current.departureMinutes
+          : Math.max(alertSettingsRef.current.arrivalMinutes, alertSettingsRef.current.departureMinutes);
+
+        if (diffMinutes > 0 && diffMinutes <= windowMinutes) {
           if (typeof Notification !== 'undefined' && Notification.permission === "granted") {
             try {
               new Notification(`🔔 رحلة قادمة: ${row.flight || row.Column1}`, {
@@ -309,12 +292,6 @@ export default function App() {
                 tag: row.id
               });
             } catch (e) { console.error("Native Notif Error", e); }
-          }
-
-          if (tgConfigRef.current.enabled) {
-            const flightStr = row.flight && row.flight !== '-' ? `✈️ <b>الرحلة:</b> <code>${escapeHTML(row.flight)}</code>\n` : '';
-            const msg = `<b>🔔 تنبيه: رحلة قادمة خلال ساعتين</b>\n\n📦 <b>المجموعة:</b> ${escapeHTML(row.groupName)}\n🔢 <b>رقم م:</b> ${escapeHTML(row.groupNo)}\n${flightStr}🕒 <b>الوقت:</b> ${escapeHTML(row.time)}\n📍 <b>من:</b> ${escapeHTML(row.from)}\n📍 <b>إلى:</b> ${escapeHTML(row.to)}\n🚗 <b>نوع السيارة:</b> ${escapeHTML(row.carType)}\n📊 <b>الحالة:</b> ${STATUS_LABELS[row.status as TripStatus] || row.status}`;
-            sendTelegram(msg);
           }
 
           notifiedIdsRef.current.add(row.id);
@@ -518,7 +495,7 @@ export default function App() {
       to: '',
       carType: '',
       tafweej: '',
-      status: 'Planned'
+      status: previewSettings.defaultStatus
     }, ...allRows]);
   };
 
@@ -598,16 +575,6 @@ export default function App() {
               <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
                 <Users size={16} className="text-blue-200" />
                 <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
-                <a
-                  href="/api/download/extension"
-                  download="umrah-extension.zip"
-                  title="تحميل إضافة Chrome"
-                  className="text-xs bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 px-3 py-2 rounded-lg transition-all flex items-center gap-1"
-                  style={{ minHeight: '44px' }}
-                >
-                  <Download size={14} />
-                  الإضافة
-                </a>
                 <button
                   onClick={() => api.auth.logout()}
                   className="mr-2 text-xs bg-red-500/20 hover:bg-red-500/40 text-red-200 px-3 py-2 rounded-lg transition-all"
@@ -617,14 +584,9 @@ export default function App() {
                 </button>
               </div>
               <div className="flex bg-white/10 p-1 rounded-xl">
-                <button onClick={() => setView('operational')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Settings size={16} className="inline ml-1" />العمليات</button>
+                <button onClick={() => setView('operational')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SettingsIcon size={16} className="inline ml-1" />العمليات</button>
                 <button onClick={() => setView('analytics')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />الذكاء</button>
-                <button onClick={() => setView('automation')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'automation' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Bell size={16} className="inline ml-1" />الأتمتة</button>
-              </div>
-              <div className="flex items-center gap-1 bg-white/10 p-1 rounded-xl border border-white/5">
-                <button onClick={() => changeFontSize(-5)} className="p-2 hover:bg-white/10 rounded-lg" style={{ minHeight: '44px', minWidth: '44px' }}><Minus size={16} /></button>
-                <span className="text-xs font-black px-1 min-w-[36px] text-center">{fontSize}%</span>
-                <button onClick={() => changeFontSize(5)} className="p-2 hover:bg-white/10 rounded-lg" style={{ minHeight: '44px', minWidth: '44px' }}><PlusCircle size={16} /></button>
+                <button onClick={() => setView('settings')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'settings' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={16} className="inline ml-1" />الإعدادات</button>
               </div>
             </div>
           </div>
@@ -633,9 +595,9 @@ export default function App() {
           {isMobileMenuOpen && (
             <div className="xl:hidden mt-4 flex flex-col gap-3 animate-fade-in pb-2">
               <div className="flex flex-col sm:flex-row gap-2 bg-white/5 p-2 rounded-xl">
-                <button onClick={() => { setView('operational'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Settings size={18} /> العمليات</button>
+                <button onClick={() => { setView('operational'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SettingsIcon size={18} /> العمليات</button>
                 <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={18} /> الذكاء</button>
-                <button onClick={() => { setView('automation'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'automation' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><Bell size={18} /> الأتمتة</button>
+                <button onClick={() => { setView('settings'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'settings' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={18} /> الإعدادات</button>
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white/5 px-4 py-3 rounded-xl">
@@ -645,14 +607,6 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full">
-                  <a
-                    href="/api/download/extension"
-                    download="umrah-extension.zip"
-                    className="flex-1 min-w-[100px] flex items-center justify-center gap-2 text-sm bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 px-3 py-2.5 rounded-lg transition-all"
-                    style={{ minHeight: '44px' }}
-                  >
-                    <Download size={16} /> الإضافة
-                  </a>
                   <button
                     onClick={() => api.auth.logout()}
                     className="flex-1 min-w-[100px] flex items-center justify-center gap-2 text-sm bg-red-500/20 hover:bg-red-500/40 text-red-200 px-3 py-2.5 rounded-lg transition-all"
@@ -662,166 +616,48 @@ export default function App() {
                   </button>
                 </div>
               </div>
-
-              <div className="flex items-center justify-center gap-4 bg-white/5 p-2 rounded-xl mt-1">
-                <span className="text-sm font-medium text-blue-200">حجم الخط:</span>
-                <div className="flex items-center bg-black/20 rounded-lg overflow-hidden">
-                  <button onClick={() => changeFontSize(-5)} className="p-3 hover:bg-white/10 transition-colors" style={{ minHeight: '44px', minWidth: '44px' }}><Minus size={16} /></button>
-                  <span className="text-sm font-black px-4 w-[60px] text-center bg-white/10 py-3">{fontSize}%</span>
-                  <button onClick={() => changeFontSize(5)} className="p-3 hover:bg-white/10 transition-colors" style={{ minHeight: '44px', minWidth: '44px' }}><PlusCircle size={16} /></button>
-                </div>
-              </div>
             </div>
           )}
         </div>
       </div>
 
       <main className="max-w-[1600px] mx-auto px-6 mt-8 space-y-8">
-        {view === 'automation' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in text-right">
-            <section className="bg-white rounded-3xl shadow-xl border border-blue-50 overflow-hidden text-right" dir="rtl">
-              <div className="bg-blue-600 p-8 text-white relative">
-                <div className="relative z-10">
-                  <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-                    <Send size={28} /> ربط بوت تيليجرام
-                  </h2>
-                  <p className="text-blue-100 text-sm">تنبيهات تلقائية ومساعد ذكي للرد على الاستفسارات</p>
-                </div>
-                <Zap size={120} className="absolute -bottom-10 -left-10 text-white/10 rotate-12" />
-              </div>
-
-              <div className="p-8 space-y-6">
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">توكن البوت (Bot Token)</label>
-                  <input
-                    type="password"
-                    value={tgConfig.token}
-                    onChange={(e) => setTgConfig({ ...tgConfig, token: e.target.value })}
-                    placeholder="7483XXXXXX:AAHyXXXXXX..."
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none text-left"
-                    dir="ltr"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">معرف الدردشة (Chat ID)</label>
-                  <input
-                    type="text"
-                    value={tgConfig.chatId}
-                    onChange={(e) => setTgConfig({ ...tgConfig, chatId: e.target.value })}
-                    placeholder="مثال: 123456789"
-                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none text-left"
-                    dir="ltr"
-                  />
-                </div>
-
-                <div className="pt-4 border-t border-gray-100 flex flex-col gap-4">
-                  <div className="flex items-center justify-between bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${tgConfig.enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-gray-300'}`}></div>
-                      <span className="text-sm font-bold text-blue-900">وضع التنبيهات التلقائية</span>
-                    </div>
-                    <button
-                      onClick={() => setTgConfig({ ...tgConfig, enabled: !tgConfig.enabled })}
-                      className={`px-6 py-2 rounded-xl text-xs font-bold transition-all ${tgConfig.enabled ? 'bg-red-500 text-white shadow-lg hover:bg-red-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                    >
-                      {tgConfig.enabled ? 'إيقاف الخدمة' : 'تشغيل الخدمة'}
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={handleTestTelegram}
-                    disabled={!tgConfig.token || !tgConfig.chatId || isTestingTg}
-                    className="w-full flex items-center justify-center gap-3 p-4 bg-white border-2 border-blue-600 text-blue-600 rounded-2xl font-black text-sm hover:bg-blue-50 transition-all active:scale-95 disabled:opacity-50 disabled:border-gray-300 disabled:text-gray-400"
-                  >
-                    {isTestingTg ? (
-                      <Loader2 size={20} className="animate-spin" />
-                    ) : (
-                      <Zap size={20} className="fill-current" />
-                    )}
-                    اختبار اتصال البوت الآن (إرسال رسالة تجريبية)
-                  </button>
-                </div>
-
-                <div className="bg-gray-50 p-6 rounded-2xl text-[11px] text-gray-500 leading-relaxed border border-gray-100">
-                  <p className="font-bold text-gray-700 mb-2 flex items-center gap-2">
-                    <Info size={14} className="text-blue-500" /> كيف تحصل على المعرف الصحيح؟
-                  </p>
-                  <ol className="list-decimal mr-4 space-y-2 text-xs">
-                    <li>ابحث عن البوت <b>@userinfobot</b> في تيليجرام.</li>
-                    <li>أرسل له أي رسالة، سيعطيك رقم (ID) خاص بك.</li>
-                    <li>انسخ هذا الرقم وضعه في حقل "معرف الدردشة" أعلاه.</li>
-                    <li><b>تنبيه:</b> إذا وضعت رقم البوت نفسه (الذي يبدأ به التوكن)، فسيظهر خطأ "Forbidden: bots can't send messages to bots".</li>
-                  </ol>
-                </div>
-              </div>
-            </section>
-
-            <section className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="bg-emerald-600 p-8 text-white text-right">
-                <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-                  <BellRing size={28} /> نظام المراقبة
-                </h2>
-                <p className="text-emerald-100 text-sm">إشعارات المتصفح والنظام الاستباقي</p>
-              </div>
-
-              <div className="p-8 space-y-6 text-right">
-                <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <Smartphone size={24} className="text-emerald-600" />
-                      <h4 className="text-base font-bold text-emerald-900">إشعارات سطح المكتب</h4>
-                    </div>
-                    {notifPermission === 'granted' ? (
-                      <span className="flex items-center gap-1.5 text-xs font-black text-emerald-700 bg-white px-3 py-1.5 rounded-full border border-emerald-200">
-                        <CheckCircle2 size={16} /> مفعّل
-                      </span>
-                    ) : (
-                      <button
-                        onClick={requestNotificationPermission}
-                        className="text-xs font-bold bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-700 transition-all shadow-md"
-                      >
-                        تفعيل الإشعارات
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-xs text-emerald-700/80 leading-relaxed">
-                    سيقوم النظام بإظهار تنبيه منبثق قبل 120 دقيقة من موعد أي حركة مجدولة، حتى وإن كانت الصفحة مصغرة أو في الخلفية.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 group hover:border-blue-200 transition-all">
-                    <p className="text-4xl font-black text-blue-900 mb-1">{allRows.length}</p>
-                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest">رحلة مسجلة</p>
-                  </div>
-                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 group hover:border-emerald-200 transition-all">
-                    <p className="text-4xl font-black text-emerald-600 mb-1">{notifiedCount}</p>
-                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-widest">إشعار تم إرساله</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4 p-5 bg-blue-50 rounded-2xl border border-blue-100">
-                  <div className="text-blue-500 shrink-0 mt-0.5"><Info size={24} /></div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-bold text-blue-900">كيف يعمل نظام التنبيه التلقائي؟</p>
-                    <p className="text-[11px] text-blue-700/70 leading-relaxed">
-                      الماسح الذكي يعمل كل 30 ثانية للبحث عن أي رحلة يقترب موعدها (أقل من ساعتين). عند الاكتشاف، يرسل إشعاراً فورياً للتيليجرام والمتصفح معاً لضمان عدم تفويت أي حركة.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
+        {view === 'settings' ? (
+          <Settings
+            tgConfig={tgConfig}
+            onTgConfigChange={setTgConfig}
+            onTestTelegram={handleTestTelegram}
+            isTestingTg={isTestingTg}
+            alertSettings={alertSettings}
+            onAlertSettingsChange={setAlertSettings}
+            previewSettings={previewSettings}
+            onPreviewSettingsChange={setPreviewSettings}
+            displaySettings={displaySettings}
+            onDisplaySettingsChange={setDisplaySettings}
+            fontSize={fontSize}
+            onFontSizeChange={changeFontSize}
+            notifPermission={notifPermission}
+            onRequestNotifPermission={requestNotificationPermission}
+            notifiedCount={notifiedCount}
+            allRowsCount={allRows.length}
+          />
         ) : view === 'analytics' ? (
           <OperationsIntelligence rows={allRows} onNavigateToTable={() => setView('operational')} />
         ) : (
           <>
-            <section className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 sm:p-8 overflow-hidden">
-              <div className="p-1 bg-gradient-to-r from-blue-500 to-indigo-500 -mt-4 sm:-mt-8 -mx-4 sm:-mx-8 mb-4 sm:mb-8"></div>
-              <h2 className="text-lg sm:text-xl font-bold mb-4 sm:mb-6 flex items-center gap-2">
-                <span className="bg-blue-100 text-blue-700 p-2 rounded-lg"><Edit3 size={20} /></span>
-                إدخال بيانات الرحلة
-              </h2>
+            <section className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              <div className="p-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+              <button
+                onClick={() => setInputSectionOpen(o => !o)}
+                className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
+              >
+                <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
+                  <span className="bg-blue-100 text-blue-700 p-2 rounded-lg"><Edit3 size={20} /></span>
+                  إدخال بيانات الرحلة
+                </h2>
+                <ChevronDown size={20} className={`text-gray-400 transition-transform duration-200 ${inputSectionOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {inputSectionOpen && <div className="px-4 pb-4 sm:px-8 sm:pb-8">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8">
                 <div className="md:col-span-4 space-y-4">
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
@@ -837,6 +673,7 @@ export default function App() {
                   <textarea placeholder="الصق نص الرحلة هنا..." className="w-full h-[200px] sm:h-[250px] p-4 border rounded-xl font-mono text-sm bg-gray-50 focus:bg-white transition-colors" value={inputs.text} onChange={(e) => setInputs({ ...inputs, text: e.target.value })}></textarea>
                 </div>
               </div>
+              </div>}
             </section>
 
             {showPreview && (
@@ -848,7 +685,7 @@ export default function App() {
                     <button onClick={() => { setAllRows([...previewRows, ...allRows]); setShowPreview(false); setInputs({ ...inputs, text: '' }); showNotification("تم اعتماد الرحلات", "success"); }} className="bg-white text-blue-600 px-6 py-1.5 rounded-lg font-bold">حفظ واعتماد</button>
                   </div>
                 </div>
-                <div className="p-4"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))} isPreview={true} /></div>
+                <div className="p-4"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))} isPreview={true} requiredFields={previewSettings.requiredFields} /></div>
               </section>
             )}
 
@@ -876,6 +713,15 @@ export default function App() {
                   onDelete={softDeleteRow}
                   isPreview={false}
                   readOnly={!isEditing}
+                  density={displaySettings.density}
+                  requiredFields={previewSettings.requiredFields}
+                  tableFontSize={displaySettings.tableFontSize}
+                  borderStyle={displaySettings.borderStyle}
+                  noteHighlightEnabled={displaySettings.noteHighlightEnabled}
+                  noteHighlightColor={displaySettings.noteHighlightColor}
+                  wrapCells={displaySettings.wrapCells}
+                  columnOrder={displaySettings.columnOrder}
+                  hiddenColumns={displaySettings.hiddenColumns}
                   enableFiltering={true}
                   templates={templates}
                   onAddNewRow={addNewEmptyRow}
@@ -895,8 +741,6 @@ export default function App() {
         )}
       </main>
 
-      <LogisticsBot rows={allRows} />
-
       {showRecycleBin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in text-right">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
@@ -904,12 +748,20 @@ export default function App() {
               <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
                 <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-red-700"><Trash2 /> سلة المحذوفات</h3>
                 {deletedRows.length > 0 && (
-                  <button
-                    onClick={restoreAllRows}
-                    className="text-xs bg-green-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-green-700 transition-all flex items-center gap-1 shadow-sm min-h-[44px]"
-                  >
-                    <RotateCcw size={16} /> استعادة الكل
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={restoreAllRows}
+                      className="text-xs bg-green-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-green-700 transition-all flex items-center gap-1 shadow-sm min-h-[44px]"
+                    >
+                      <RotateCcw size={16} /> استعادة الكل
+                    </button>
+                    <button
+                      onClick={() => { if (window.confirm("هل أنت متأكد من الحذف النهائي لجميع العناصر؟ لا يمكن التراجع عن هذا الإجراء.")) setDeletedRows([]); }}
+                      className="text-xs bg-red-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-red-700 transition-all flex items-center gap-1 shadow-sm min-h-[44px]"
+                    >
+                      <Trash2 size={16} /> حذف الكل
+                    </button>
+                  </div>
                 )}
               </div>
               <button onClick={() => setShowRecycleBin(false)} className="p-2 sm:p-2 hover:bg-white rounded-full transition-colors self-end sm:self-auto min-h-[44px] min-w-[44px] flex items-center justify-center -mt-12 sm:mt-0"><XCircle size={24} /></button>
@@ -926,6 +778,7 @@ export default function App() {
                           <td className="p-4">{row.Column1} - {row.to}</td>
                           <td className="p-4 flex gap-2">
                             <button onClick={() => { setAllRows([row, ...allRows]); setDeletedRows(p => p.filter(x => x.id !== row.id)); }} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded-lg border border-green-100 flex items-center gap-1 text-xs"><RotateCcw size={14} /> استعادة</button>
+                            <button onClick={() => setDeletedRows(p => p.filter(x => x.id !== row.id))} className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg border border-red-100 flex items-center gap-1 text-xs"><Trash2 size={14} /> حذف نهائي</button>
                           </td>
                         </tr>
                       ))}

@@ -1,6 +1,8 @@
 
 export type TripStatus = 'Planned' | 'Confirmed' | 'Driver Assigned' | 'In Progress' | 'Completed' | 'Delayed' | 'Cancelled' | 'Uncompleted';
 
+export type NoteHighlightColor = 'amber' | 'yellow' | 'blue' | 'green' | 'pink' | 'purple';
+
 export interface LogisticsRow {
   id: string;
   groupNo: string;
@@ -53,6 +55,56 @@ export interface BotMessage {
   role: 'user' | 'model';
   text: string;
   timestamp: Date;
+}
+
+export interface AlertSettings {
+  arrivalMinutes: number;       // default 120
+  departureMinutes: number;     // default 60
+  messageFields: {
+    flight: boolean;
+    carType: boolean;
+    count: boolean;
+    tafweej: boolean;
+  };
+}
+
+export interface PreviewSettings {
+  requiredFields: string[];     // field keys that highlight red in preview
+  defaultStatus: TripStatus;   // status assigned to new empty rows
+}
+
+export const DEFAULT_COLUMN_ORDER: string[] = [
+  'status', 'groupNo', 'groupName', 'Column1', 'tafweej',
+  'carType', 'from', 'to', 'time', 'flight', 'date', 'count',
+  'notes', 'actions',
+];
+
+export const COLUMN_LABELS: Record<string, string> = {
+  status:    'الحالة',
+  groupNo:   'رقم م',
+  groupName: 'اسم المجموعة',
+  Column1:   'الحركة',
+  tafweej:   'التفويج',
+  carType:   'السيارة',
+  from:      'من',
+  to:        'إلى',
+  time:      'وقت',
+  flight:    'رحلة',
+  date:      'تاريخ',
+  count:     'عدد',
+  notes:     'الملاحظات',
+  actions:   'إجراءات',
+};
+
+export interface DisplaySettings {
+  density: 'compact' | 'comfortable';
+  tableFontSize: number;                     // default 100 (percent)
+  borderStyle: 'thin' | 'medium' | 'thick'; // default 'thin'
+  noteHighlightEnabled: boolean;             // default true
+  noteHighlightColor: NoteHighlightColor;   // default 'amber'
+  wrapCells: boolean;                        // default true
+  columnOrder: string[];                    // ordered array of column keys
+  hiddenColumns: string[];                  // keys of columns to hide
 }
 
 declare global {

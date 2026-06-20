@@ -62,6 +62,17 @@ try {
   }
 }
 
+// Migration: Add extra_settings if missing
+try {
+  db.prepare("SELECT extra_settings FROM settings LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE settings ADD COLUMN extra_settings TEXT");
+  } catch (err) {
+    console.error("Migration extra_settings failed", err);
+  }
+}
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -148,12 +159,13 @@ app.get("/api/settings", authenticateToken, (req: any, res) => {
     templates: settings.templates ? JSON.parse(settings.templates) : [],
     deletedRows: settings.deleted_rows ? JSON.parse(settings.deleted_rows) : [],
     notifiedIds: settings.notified_ids ? JSON.parse(settings.notified_ids) : [],
-    fontSize: settings.font_size || 100
+    fontSize: settings.font_size || 100,
+    ...(settings.extra_settings ? JSON.parse(settings.extra_settings) : {})
   });
 });
 
 app.post("/api/settings", authenticateToken, (req: any, res) => {
-  const { tgConfig, templates, deletedRows, notifiedIds, fontSize } = req.body;
+  const { tgConfig, templates, deletedRows, notifiedIds, fontSize, alertSettings, previewSettings, displaySettings } = req.body;
 
   // Merge with existing settings so partial saves never wipe unrelated fields
   const existing: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
@@ -165,27 +177,33 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
       : (existing?.templates ?? null),
     deleted_rows: deletedRows !== undefined ? (deletedRows ? JSON.stringify(deletedRows) : null)
       : (existing?.deleted_rows ?? null),
-    notified_ids: notifiedIds !== undefined ? JSON.stringify(notifiedIds)
-      : (existing?.notified_ids ?? null),
+    notified_ids: existing?.notified_ids ?? null,
     font_size: fontSize !== undefined ? fontSize : (existing?.font_size ?? 100),
+    extra_settings: JSON.stringify({
+      alertSettings: alertSettings !== undefined ? alertSettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).alertSettings : undefined),
+      previewSettings: previewSettings !== undefined ? previewSettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).previewSettings : undefined),
+      displaySettings: displaySettings !== undefined ? displaySettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).displaySettings : undefined),
+    }),
   };
 
   db.prepare(`
-    INSERT INTO settings (user_id, tg_config, templates, deleted_rows, notified_ids, font_size)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO settings (user_id, tg_config, templates, deleted_rows, notified_ids, font_size, extra_settings)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
-      tg_config    = excluded.tg_config,
-      templates    = excluded.templates,
-      deleted_rows = excluded.deleted_rows,
-      notified_ids = excluded.notified_ids,
-      font_size    = excluded.font_size
+      tg_config     = excluded.tg_config,
+      templates     = excluded.templates,
+      deleted_rows  = excluded.deleted_rows,
+      notified_ids  = excluded.notified_ids,
+      font_size     = excluded.font_size,
+      extra_settings = excluded.extra_settings
   `).run(
     req.user.id,
     merged.tg_config,
     merged.templates,
     merged.deleted_rows,
     merged.notified_ids,
-    merged.font_size
+    merged.font_size,
+    merged.extra_settings
   );
 
   res.json({ success: true });
@@ -197,6 +215,12 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
   const settings: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
 
   const tgConfig = settings?.tg_config ? JSON.parse(settings.tg_config) : null;
+  const extraSettings = settings?.extra_settings ? JSON.parse(settings.extra_settings) : {};
+  const alertSettings = extraSettings.alertSettings ?? {
+    arrivalMinutes: 120,
+    departureMinutes: 60,
+    messageFields: { flight: true, carType: true, count: false, tafweej: false },
+  };
   const notifiedIds: string[] = settings?.notified_ids ? JSON.parse(settings.notified_ids) : [];
   const notifiedSet = new Set(notifiedIds);
 
@@ -209,7 +233,14 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
     const tripDate = parseDateTime(row.date, row.time);
     const diffMinutes = tripDate ? (tripDate.getTime() - now.getTime()) / (1000 * 60) : null;
     const alreadyNotified = notifiedSet.has(row.id);
-    const wouldSend = !alreadyNotified && diffMinutes !== null && diffMinutes > 0 && diffMinutes <= 130;
+    const isArrival = row.Column1?.includes('وصول');
+    const isDeparture = row.Column1?.includes('مغادرة');
+    const windowMinutes = isArrival
+      ? alertSettings.arrivalMinutes
+      : isDeparture
+      ? alertSettings.departureMinutes
+      : Math.max(alertSettings.arrivalMinutes, alertSettings.departureMinutes);
+    const wouldSend = !alreadyNotified && diffMinutes !== null && diffMinutes > 0 && diffMinutes <= windowMinutes;
     const skipReason = alreadyNotified
       ? 'already notified'
       : !row.date || !row.time
@@ -218,8 +249,8 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
           ? 'date failed to parse'
           : diffMinutes !== null && diffMinutes <= 0
             ? `trip is in the past (${Math.abs(diffMinutes!).toFixed(0)} min ago)`
-            : diffMinutes !== null && diffMinutes > 130
-              ? `too far away (${diffMinutes.toFixed(0)} min from now)`
+            : diffMinutes !== null && diffMinutes > windowMinutes
+              ? `too far away (${diffMinutes.toFixed(0)} min from now, window is ${windowMinutes} min)`
               : null;
 
     return {
@@ -242,6 +273,7 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
     serverTime: now.toISOString(),
     telegramEnabled: tgConfig?.enabled ?? false,
     telegramConfigured: !!(tgConfig?.token && tgConfig?.chatId),
+    alertWindowMinutes: { arrival: alertSettings.arrivalMinutes, departure: alertSettings.departureMinutes },
     notifiedIdsCount: notifiedIds.length,
     totalTrips: rawRows.length,
     tripsToSend: tripDiagnostics.filter(t => t.wouldSend).length,
@@ -371,6 +403,13 @@ async function checkAndSendAlerts() {
       const tgConfig = settings.tg_config ? JSON.parse(settings.tg_config) : null;
       if (!tgConfig?.enabled || !tgConfig.token || !tgConfig.chatId) continue;
 
+      const extraSettings = settings.extra_settings ? JSON.parse(settings.extra_settings) : {};
+      const alertSettings = extraSettings.alertSettings ?? {
+        arrivalMinutes: 120,
+        departureMinutes: 60,
+        messageFields: { flight: true, carType: true, count: false, tafweej: false },
+      };
+
       const notifiedSet = new Set<string>(
         settings.notified_ids ? JSON.parse(settings.notified_ids) : []
       );
@@ -389,33 +428,53 @@ async function checkAndSendAlerts() {
         if (!tripDate) continue;
 
         const diffMinutes = (tripDate.getTime() - now.getTime()) / (1000 * 60);
-        if (diffMinutes <= 0 || diffMinutes > 130) continue;
 
-        const flightStr =
-          row.flight && row.flight !== '-'
-            ? `✈️ <b>الرحلة:</b> <code>${escapeHTML(row.flight)}</code>\n`
-            : '';
+        const isArrival = row.Column1?.includes('وصول');
+        const isDeparture = row.Column1?.includes('مغادرة');
+        const windowMinutes = isArrival
+          ? alertSettings.arrivalMinutes
+          : isDeparture
+          ? alertSettings.departureMinutes
+          : Math.max(alertSettings.arrivalMinutes, alertSettings.departureMinutes);
+
+        if (diffMinutes <= 0 || diffMinutes > windowMinutes) continue;
+
+        const mf = alertSettings.messageFields;
+        const movementLabel = isArrival ? 'الوصول' : isDeparture ? 'المغادرة' : 'الحركة';
+        const flightStr = mf.flight && row.flight && row.flight !== '-'
+          ? `✈️ <b>الرحلة:</b> <code>${escapeHTML(row.flight)}</code>\n` : '';
+        const carLine = mf.carType && row.carType
+          ? `🚗 <b>نوع السيارة:</b> ${escapeHTML(row.carType)}\n` : '';
+        const countLine = mf.count && row.count
+          ? `👥 <b>العدد:</b> ${escapeHTML(row.count)}\n` : '';
+        const tafweejLine = mf.tafweej && row.tafweej
+          ? `📋 <b>التفويج:</b> ${escapeHTML(row.tafweej)}\n` : '';
         const msg =
-          `<b>🔔 تنبيه: رحلة قادمة خلال ساعتين</b>\n\n` +
+          `<b>🔔 تنبيه: ${movementLabel} قادم خلال ${windowMinutes} دقيقة</b>\n\n` +
           `📦 <b>المجموعة:</b> ${escapeHTML(row.groupName)}\n` +
           `🔢 <b>رقم م:</b> ${escapeHTML(row.groupNo)}\n` +
-          `${flightStr}` +
+          flightStr +
           `🕒 <b>الوقت:</b> ${escapeHTML(row.time)}\n` +
           `📍 <b>من:</b> ${escapeHTML(row.from)}\n` +
           `📍 <b>إلى:</b> ${escapeHTML(row.to)}\n` +
-          `🚗 <b>نوع السيارة:</b> ${escapeHTML(row.carType)}\n` +
+          carLine + countLine + tafweejLine +
           `📊 <b>الحالة:</b> ${STATUS_LABELS[row.status] || row.status}`;
 
         try {
-          await fetch(`https://api.telegram.org/bot${tgConfig.token}/sendMessage`, {
+          const tgRes = await fetch(`https://api.telegram.org/bot${tgConfig.token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chat_id: tgConfig.chatId, text: msg, parse_mode: 'HTML' }),
           });
+          const tgData = await tgRes.json();
+          if (!tgData.ok) {
+            console.error(`[Alerts] Telegram API error for user ${userId}: ${tgData.description}`);
+            continue; // Don't mark as notified — will retry next cycle
+          }
           console.log(`[Alerts] Sent notification for trip ${row.id} (user ${userId})`);
         } catch (fetchErr) {
           console.error(`[Alerts] Telegram send failed for user ${userId}:`, fetchErr);
-          continue; // Don't mark as notified if send failed
+          continue;
         }
 
         notifiedSet.add(row.id);

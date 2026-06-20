@@ -441,3 +441,66 @@ describe('parseItineraryText — hotel name extraction layouts', () => {
     expect(arrival?.to).toBe('شركة فجر النسك لتشغيل الفنادق (مكة المكرمة)');
   });
 });
+
+describe('parseItineraryText — land transport', () => {
+  const groupInfo = { groupNo: 'G002', groupName: 'مجموعة برية', count: '4' };
+
+  const landText = `
+رحلة الوصول
+طريقة السفر
+وسيلة السفر
+Land transport
+النقل البري
+قادم من (الدولة) *
+قادم من (المدينة) *
+ذاهب الى (الدولة) *
+ذاهب الى (المدينة) *
+المنفذ *
+منفذ الوديعة
+وقت الوصول *
+10:30
+نوع الناقل *
+شركة النقل *
+الوجهة (مكة المكرمة)
+(2026-06-25 - 2026-06-28)
+الفنادق
+اسم الفندق/ المستضيف    تاريخ الدخول    تاريخ المغادرة    مدة الاقامة
+شركة فجر النسك لتشغيل الفنادق    06/25/2026    06/28/2026    3
+
+رحلة المغادرة
+طريقة السفر
+وسيلة السفر
+Land transport
+النقل البري
+المنفذ *
+منفذ الوديعة
+وقت المغادرة *
+14:00
+تاريخ المغادرة
+2026-09-22
+`;
+
+  it('sets flight to النقل البري for arrival', () => {
+    const rows = parseItineraryText(landText, groupInfo);
+    const arrival = rows.find(r => r.Column1 === 'وصول');
+    expect(arrival?.flight).toBe('النقل البري');
+  });
+
+  it('sets from to منفذ الوديعة for arrival', () => {
+    const rows = parseItineraryText(landText, groupInfo);
+    const arrival = rows.find(r => r.Column1 === 'وصول');
+    expect(arrival?.from).toBe('منفذ الوديعة');
+  });
+
+  it('sets flight to النقل البري for departure', () => {
+    const rows = parseItineraryText(landText, groupInfo);
+    const departure = rows.find(r => r.Column1 === 'مغادرة');
+    expect(departure?.flight).toBe('النقل البري');
+  });
+
+  it('sets to to منفذ الوديعة for departure', () => {
+    const rows = parseItineraryText(landText, groupInfo);
+    const departure = rows.find(r => r.Column1 === 'مغادرة');
+    expect(departure?.to).toBe('منفذ الوديعة');
+  });
+});

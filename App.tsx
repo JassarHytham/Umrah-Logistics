@@ -197,8 +197,6 @@ export default function App() {
     }
   }, [allRows, deletedRows, tgConfig, templates, fontSize, notifiedIds, alertSettings, previewSettings, displaySettings, user, loading]);
 
-  const tgLastUpdateId = useRef<number>(0);
-  const isPollingRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const tgConfigRef = useRef(tgConfig);
@@ -262,37 +260,6 @@ export default function App() {
     setIsTestingTg(false);
   };
 
-  // --- Telegram Listener (Polling) ---
-  useEffect(() => {
-    if (!tgConfig.enabled) return;
-
-    const pollTelegram = async () => {
-      const { token, enabled } = tgConfigRef.current;
-      if (!enabled || !token) return;
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
-
-      try {
-        const response = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=${tgLastUpdateId.current + 1}&timeout=10`);
-        const data = await response.json();
-
-        if (data.ok && data.result.length > 0) {
-          for (const update of data.result) {
-            tgLastUpdateId.current = update.update_id;
-
-          }
-        }
-      } catch (e) {
-        console.error("Telegram Polling Error:", e);
-      } finally {
-        isPollingRef.current = false;
-      }
-    };
-
-    const interval = setInterval(pollTelegram, 5000);
-    return () => clearInterval(interval);
-  }, [tgConfig.enabled]);
-
   // --- Proximity Alerts (Browser + Telegram) ---
   useEffect(() => {
     const checkAlerts = () => {
@@ -324,17 +291,6 @@ export default function App() {
                 tag: row.id
               });
             } catch (e) { console.error("Native Notif Error", e); }
-          }
-
-          if (tgConfigRef.current.enabled) {
-            const mf = alertSettingsRef.current.messageFields;
-            const movementLabel = isArrival ? 'الوصول' : isDeparture ? 'المغادرة' : 'الحركة';
-            const flightLine = mf.flight && row.flight && row.flight !== '-' ? `✈️ <b>الرحلة:</b> <code>${escapeHTML(row.flight)}</code>\n` : '';
-            const carLine = mf.carType && row.carType ? `🚗 <b>السيارة:</b> ${escapeHTML(row.carType)}\n` : '';
-            const countLine = mf.count && row.count ? `👥 <b>العدد:</b> ${escapeHTML(row.count)}\n` : '';
-            const tafweejLine = mf.tafweej && row.tafweej ? `📋 <b>التفويج:</b> ${escapeHTML(row.tafweej)}\n` : '';
-            const msg = `<b>🔔 تنبيه: ${movementLabel} قادم خلال ${windowMinutes} دقيقة</b>\n\n📦 <b>المجموعة:</b> ${escapeHTML(row.groupName)}\n🔢 <b>رقم م:</b> ${escapeHTML(row.groupNo)}\n${flightLine}🕒 <b>الوقت:</b> ${escapeHTML(row.time)}\n📍 <b>من:</b> ${escapeHTML(row.from)}\n📍 <b>إلى:</b> ${escapeHTML(row.to)}\n${carLine}${countLine}${tafweejLine}📊 <b>الحالة:</b> ${STATUS_LABELS[row.status as TripStatus] || row.status}`;
-            sendTelegram(msg);
           }
 
           notifiedIdsRef.current.add(row.id);

@@ -739,12 +739,20 @@ export default function App() {
               <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
                 <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-red-700"><Trash2 /> سلة المحذوفات</h3>
                 {deletedRows.length > 0 && (
-                  <button
-                    onClick={restoreAllRows}
-                    className="text-xs bg-green-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-green-700 transition-all flex items-center gap-1 shadow-sm min-h-[44px]"
-                  >
-                    <RotateCcw size={16} /> استعادة الكل
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={restoreAllRows}
+                      className="text-xs bg-green-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-green-700 transition-all flex items-center gap-1 shadow-sm min-h-[44px]"
+                    >
+                      <RotateCcw size={16} /> استعادة الكل
+                    </button>
+                    <button
+                      onClick={() => { if (window.confirm("هل أنت متأكد من الحذف النهائي لجميع العناصر؟ لا يمكن التراجع عن هذا الإجراء.")) setDeletedRows([]); }}
+                      className="text-xs bg-red-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-red-700 transition-all flex items-center gap-1 shadow-sm min-h-[44px]"
+                    >
+                      <Trash2 size={16} /> حذف الكل
+                    </button>
+                  </div>
                 )}
               </div>
               <button onClick={() => setShowRecycleBin(false)} className="p-2 sm:p-2 hover:bg-white rounded-full transition-colors self-end sm:self-auto min-h-[44px] min-w-[44px] flex items-center justify-center -mt-12 sm:mt-0"><XCircle size={24} /></button>
@@ -761,6 +769,7 @@ export default function App() {
                           <td className="p-4">{row.Column1} - {row.to}</td>
                           <td className="p-4 flex gap-2">
                             <button onClick={() => { setAllRows([row, ...allRows]); setDeletedRows(p => p.filter(x => x.id !== row.id)); }} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded-lg border border-green-100 flex items-center gap-1 text-xs"><RotateCcw size={14} /> استعادة</button>
+                            <button onClick={() => setDeletedRows(p => p.filter(x => x.id !== row.id))} className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg border border-red-100 flex items-center gap-1 text-xs"><Trash2 size={14} /> حذف نهائي</button>
                           </td>
                         </tr>
                       ))}

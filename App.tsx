@@ -554,8 +554,8 @@ export default function App() {
     showNotification("تم نسخ التفاصيل للحافظة", "success");
   };
 
-  const openShareDialog = (row: LogisticsRow, scope: 'row' | 'group') => {
-    setShareTarget({ row, scope });
+  const openShareDialog = (row: LogisticsRow) => {
+    setShareTarget({ row, scope: 'row' });
     setShareReceiverUsername('');
   };
 
@@ -834,8 +834,7 @@ export default function App() {
                     if (t) setAllRows([{ id: uid(), ...t.data, date: getLocalDateString(), status: 'Planned' } as any, ...allRows]);
                   }}
                   onCopyRowDetails={shareRowDetails}
-                  onShareTripRow={(row) => openShareDialog(row, 'row')}
-                  onShareTripGroup={(row) => openShareDialog(row, 'group')}
+                  onShareTrip={openShareDialog}
                   onDeleteTemplate={(tid) => setTemplates(templates.filter(x => x.id !== tid))}
                   onFilteredRowsChange={setFilteredRows}
                 />
@@ -893,7 +892,7 @@ export default function App() {
             <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-teal-50/60">
               <h3 className="text-lg font-bold flex items-center gap-2 text-teal-800">
                 <Share2 size={20} />
-                {shareTarget.scope === 'group' ? 'مشاركة المجموعة' : 'مشاركة الرحلة'}
+                مشاركة
               </h3>
               <button onClick={() => setShareTarget(null)} className="p-2 hover:bg-white rounded-full transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                 <XCircle size={22} />
@@ -903,6 +902,33 @@ export default function App() {
               <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 text-xs text-gray-600 space-y-1">
                 <p><b>المجموعة:</b> {shareTarget.row.groupName || '-'} ({shareTarget.row.groupNo || '-'})</p>
                 <p><b>النطاق:</b> {shareTarget.scope === 'group' ? 'كل رحلات هذا الرقم الحالية والمستقبلية' : 'هذه الرحلة فقط'}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-2">ماذا تريد مشاركة؟</label>
+                <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setShareTarget({ ...shareTarget, scope: 'row' })}
+                    className={`min-h-[44px] rounded-lg text-xs font-bold transition-all ${
+                      shareTarget.scope === 'row'
+                        ? 'bg-white text-teal-700 shadow-sm border border-teal-100'
+                        : 'text-gray-500 hover:bg-white/60'
+                    }`}
+                  >
+                    هذه الرحلة فقط
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShareTarget({ ...shareTarget, scope: 'group' })}
+                    className={`min-h-[44px] rounded-lg text-xs font-bold transition-all ${
+                      shareTarget.scope === 'group'
+                        ? 'bg-white text-teal-700 shadow-sm border border-teal-100'
+                        : 'text-gray-500 hover:bg-white/60'
+                    }`}
+                  >
+                    كل المجموعة
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-2">اسم حساب المستلم</label>

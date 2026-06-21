@@ -23,8 +23,7 @@ interface TableEditorProps {
   onSaveAsTemplate?: (row: LogisticsRow) => void;
   onApplyTemplate?: (templateId: string) => void;
   onCopyRowDetails?: (row: LogisticsRow) => void;
-  onShareTripRow?: (row: LogisticsRow) => void;
-  onShareTripGroup?: (row: LogisticsRow) => void;
+  onShareTrip?: (row: LogisticsRow) => void;
   onDeleteTemplate?: (templateId: string) => void;
   onFilteredRowsChange?: (rows: LogisticsRow[]) => void;
   density?: 'compact' | 'comfortable';
@@ -63,8 +62,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onSaveAsTemplate,
   onApplyTemplate,
   onCopyRowDetails,
-  onShareTripRow,
-  onShareTripGroup,
+  onShareTrip,
   onDeleteTemplate,
   onFilteredRowsChange,
   density = 'compact',
@@ -338,18 +336,11 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                         <Copy size={14} />
                     </button>
                     <button
-                        onClick={() => onShareTripRow?.(row)}
-                        title="مشاركة هذه الرحلة"
+                        onClick={() => onShareTrip?.(row)}
+                        title="مشاركة"
                         className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
                     >
                         <Share2 size={14} />
-                    </button>
-                    <button
-                        onClick={() => onShareTripGroup?.(row)}
-                        title="مشاركة المجموعة"
-                        className="p-1.5 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
-                    >
-                        <Users size={14} />
                     </button>
                     {onDelete && (
                         <button 
@@ -506,7 +497,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 else if (h.key === "date") widthClass = "w-[120px]";
                                 else if (h.key === "time") widthClass = "w-[90px]";
                                 else if (h.key === "notes") widthClass = "w-[40px]";
-                                else if (h.key === "actions") widthClass = "w-[170px]";
+                                else if (h.key === "actions") widthClass = "w-[150px]";
                                 else widthClass = "w-[100px]";
                                 
                                 const isEndColumn = ['date', 'time', 'flight', 'count', 'actions'].includes(h.key as string);

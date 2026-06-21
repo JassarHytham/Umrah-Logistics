@@ -919,6 +919,74 @@ describe('Row conflict protection', () => {
   });
 });
 
+describe('Extension text ingest with deleted rows', () => {
+  it('does not resurrect rows that were moved to the recycle bin', async () => {
+    const user = await registerSharedTestUser('ingest_deleted_user');
+    const deletedRows = [
+      makeSharedTripRow(`deleted-ingest-row-1-${Date.now()}`, `INGDEL${Date.now()}`),
+      makeSharedTripRow(`deleted-ingest-row-2-${Date.now()}`, `INGDEL${Date.now()}`),
+    ];
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows: deletedRows });
+
+    await Promise.all(deletedRows.map(row =>
+      request(app)
+        .post(`/api/data/${row.id}/delete`)
+        .set('Authorization', `Bearer ${user.token}`)
+        .send()
+    ));
+
+    const activeAfterDelete = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${user.token}`);
+    expect(activeAfterDelete.body).toHaveLength(0);
+
+    const ingestText = `
+رحلة الوصول
+تاريخ الوصول
+15/01/2026
+وقت الوصول
+14:30
+رقم الرحلة
+SV123
+المطار
+مطار الملك عبد العزيز
+
+رحلة المغادرة
+تاريخ المغادرة
+20/01/2026
+وقت المغادرة
+10:00
+رقم الرحلة
+SV456
+المطار
+مطار الأمير محمد
+`;
+
+    const ingest = await request(app)
+      .post('/api/ingest/text')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({
+        text: ingestText,
+        groupNo: `NEW${Date.now()}`,
+        groupName: 'New Group',
+        count: '4',
+      });
+    expect(ingest.status).toBe(200);
+
+    const activeAfterIngest = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${user.token}`);
+    const activeIds = activeAfterIngest.body.map((row: any) => row.id);
+    expect(activeIds).not.toContain(deletedRows[0].id);
+    expect(activeIds).not.toContain(deletedRows[1].id);
+    expect(activeAfterIngest.body).toHaveLength(ingest.body.rows.length);
+  });
+});
+
 describe('Live update websocket invalidation', () => {
   it('notifies a receiver when a share invitation is created', async () => {
     const { server, baseUrl, wsUrl } = await startLiveTestServer();

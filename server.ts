@@ -972,7 +972,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
       return res.status(422).json({ error: "لم يتم استخراج أي رحلات من النص", rows: [] });
 
     const existingRaw = db
-      .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
+      .prepare("SELECT data FROM logistics_rows WHERE user_id = ? AND deleted_at IS NULL")
       .all(req.user.id) as { data: string }[];
 
     let existingRows = existingRaw.map((r) => JSON.parse(r.data));
@@ -983,7 +983,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
 
     const mergedRows = [...newRows, ...existingRows];
 
-    const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ?");
+    const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ? AND deleted_at IS NULL");
     const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
 
     db.transaction((rows: any[]) => {

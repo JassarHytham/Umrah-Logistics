@@ -220,16 +220,16 @@ describe('POST /api/data/sync', () => {
     expect(res.body.success).toBe(true);
   });
 
-  it('can sync an empty array (clears all rows)', async () => {
+  it('can sync an empty array without deleting omitted rows', async () => {
     // First sync some rows
     await authPost('/api/data/sync').send({ rows: sampleRows });
-    // Then clear them
+    // Empty sync is conservative: deletion must use explicit delete endpoints
     const res = await authPost('/api/data/sync').send({ rows: [] });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
 
     const getRes = await authGet('/api/data');
-    expect(getRes.body).toHaveLength(0);
+    expect(getRes.body).toHaveLength(2);
   });
 
   it('GET /api/data returns synced rows', async () => {
@@ -243,7 +243,7 @@ describe('POST /api/data/sync', () => {
     expect(ids).toContain('row2');
   });
 
-  it('sync replaces existing rows (not appends)', async () => {
+  it('sync merges new rows without deleting omitted rows', async () => {
     // Sync 2 rows
     await authPost('/api/data/sync').send({ rows: sampleRows });
     // Sync 1 different row
@@ -251,8 +251,8 @@ describe('POST /api/data/sync', () => {
     await authPost('/api/data/sync').send({ rows: newRow });
 
     const res = await authGet('/api/data');
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].id).toBe('row_new');
+    expect(res.body).toHaveLength(3);
+    expect(res.body.map((r: any) => r.id)).toEqual(expect.arrayContaining(['row1', 'row2', 'row_new']));
   });
 
   it('preserves row data integrity through sync roundtrip', async () => {
@@ -366,9 +366,17 @@ describe('POST /api/settings', () => {
   });
 
   it('defaults fontSize to 100 when not provided', async () => {
+    const fresh = { username: `font_default_${Date.now()}`, password: 'pass' };
+    const reg = await request(app).post('/api/auth/register').send(fresh);
+    const token = reg.body.token;
     const { fontSize: _, ...noFontSize } = sampleSettings;
-    await authPost('/api/settings').send(noFontSize);
-    const res = await authGet('/api/settings');
+    await request(app)
+      .post('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send(noFontSize);
+    const res = await request(app)
+      .get('/api/settings')
+      .set('Authorization', `Bearer ${token}`);
     expect(res.body.fontSize).toBe(100);
   });
 
@@ -676,5 +684,50 @@ describe('Shared trip delete and restore', () => {
       .set('Authorization', `Bearer ${outsider.token}`)
       .send({ receiverUsername: owner.username, scopeType: 'row', rowId: row.id });
     expect(invite.status).toBe(404);
+  });
+});
+
+describe('Shared trip sync compatibility', () => {
+  it('updates visible shared rows during sync without taking ownership or deleting omitted rows', async () => {
+    const owner = await registerSharedTestUser('sync_owner');
+    const receiver = await registerSharedTestUser('sync_receiver');
+    const row = makeSharedTripRow(`sync-shared-row-${Date.now()}`, `SYNC${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id });
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const sync = await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send({ rows: [{ ...row, status: 'Confirmed' }] });
+    expect(sync.status).toBe(200);
+
+    const ownerRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(ownerRows.body.find((r: any) => r.id === row.id).status).toBe('Confirmed');
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send({ rows: [] });
+
+    const receiverRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(receiverRows.body.map((r: any) => r.id)).toContain(row.id);
   });
 });

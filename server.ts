@@ -263,13 +263,24 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
   const { rows } = req.body;
   if (!Array.isArray(rows)) return res.status(400).json({ error: "Invalid data" });
 
-  const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ?");
   const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
+  const updateStmt = db.prepare("UPDATE logistics_rows SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
 
   const sync = db.transaction((rows) => {
-    deleteStmt.run(req.user.id);
     for (const row of rows) {
-      insertStmt.run(row.id, req.user.id, JSON.stringify(row));
+      if (!row?.id) continue;
+      const existing = db
+        .prepare("SELECT id, user_id, data, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
+        .get(row.id) as LogisticsRowRecord | undefined;
+
+      if (existing) {
+        if (getRowScopeForUser(req.user.id, existing) && !existing.deleted_at) {
+          const current = parseRowData(existing.data);
+          updateStmt.run(JSON.stringify({ ...current, ...row, id: current.id }), existing.id);
+        }
+      } else {
+        insertStmt.run(row.id, req.user.id, JSON.stringify(row));
+      }
     }
   });
 

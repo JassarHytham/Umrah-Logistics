@@ -2,11 +2,11 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar,
-  Plane, Info, Plus, Copy, Share2, Bookmark, LayoutTemplate,
+  Plane, Info, Plus, Copy, Share2,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
   History as HistoryIcon, StickyNote, Users
 } from 'lucide-react';
-import { LogisticsRow, TripStatus, LogisticsTemplate, DEFAULT_COLUMN_ORDER, COLUMN_LABELS } from '../types';
+import { LogisticsRow, TripStatus, DEFAULT_COLUMN_ORDER, COLUMN_LABELS } from '../types';
 import { parseDateTime } from '../utils/parser';
 
 interface TableEditorProps {
@@ -17,14 +17,9 @@ interface TableEditorProps {
   enableFiltering?: boolean;
   readOnly?: boolean;
   externalFilters?: Record<string, string[]>;
-  templates?: LogisticsTemplate[];
   onAddNewRow?: () => void;
   onDuplicateRow?: (row: LogisticsRow) => void;
-  onSaveAsTemplate?: (row: LogisticsRow) => void;
-  onApplyTemplate?: (templateId: string) => void;
-  onCopyRowDetails?: (row: LogisticsRow) => void;
   onShareTrip?: (row: LogisticsRow) => void;
-  onDeleteTemplate?: (templateId: string) => void;
   onFilteredRowsChange?: (rows: LogisticsRow[]) => void;
   density?: 'compact' | 'comfortable';
   requiredFields?: string[];
@@ -56,14 +51,9 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   enableFiltering = false,
   readOnly = false,
   externalFilters,
-  templates = [],
   onAddNewRow,
   onDuplicateRow,
-  onSaveAsTemplate,
-  onApplyTemplate,
-  onCopyRowDetails,
   onShareTrip,
-  onDeleteTemplate,
   onFilteredRowsChange,
   density = 'compact',
   requiredFields,
@@ -84,13 +74,11 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
     const [filterSearch, setFilterSearch] = useState("");
     const [calViewDate, setCalViewDate] = useState(new Date());
-    const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: keyof LogisticsRow; direction: 'asc' | 'desc' } | null>(null);
     const [showPastTrips, setShowPastTrips] = useState(false);
     const [expandedNoteRowId, setExpandedNoteRowId] = useState<string | null>(null);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const templateDropdownRef = useRef<HTMLDivElement>(null);
     const tbodyId = useRef(`tbl-${Math.random().toString(36).slice(2)}`).current;
 
     useEffect(() => {
@@ -104,9 +92,6 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setActiveFilterCol(null);
                 setFilterSearch("");
-            }
-            if (templateDropdownRef.current && !templateDropdownRef.current.contains(event.target as Node)) {
-                setShowTemplatesDropdown(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -321,20 +306,6 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     >
                         <Copy size={14} />
                     </button>
-                    <button 
-                        onClick={() => onSaveAsTemplate?.(row)} 
-                        title="حفظ كقالب"
-                        className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"
-                    >
-                        <Bookmark size={14} />
-                    </button>
-                    <button 
-                        onClick={() => onCopyRowDetails?.(row)}
-                        title="نسخ التفاصيل"
-                        className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
-                    >
-                        <Copy size={14} />
-                    </button>
                     <button
                         onClick={() => onShareTrip?.(row)}
                         title="مشاركة"
@@ -436,44 +407,6 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             <Plus size={16} />
                             إضافة رحلة جديدة
                         </button>
-
-                        <div className="relative" ref={templateDropdownRef}>
-                            <button 
-                                onClick={() => setShowTemplatesDropdown(!showTemplatesDropdown)}
-                                className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50 transition-all"
-                            >
-                                <LayoutTemplate size={16} />
-                                تطبيق قالب
-                            </button>
-                            {showTemplatesDropdown && (
-                                <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in text-right">
-                                    <div className="p-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                                        <span className="text-xs font-bold text-gray-600">القوالب المحفوظة</span>
-                                        <Bookmark size={12} className="text-gray-400" />
-                                    </div>
-                                    <div className="max-h-60 overflow-y-auto">
-                                        {templates.length > 0 ? templates.map(t => (
-                                            <div key={t.id} className="group flex items-center justify-between p-2 hover:bg-blue-50 transition-colors border-b border-gray-50 last:border-0">
-                                                <button 
-                                                    onClick={() => { onApplyTemplate?.(t.id); setShowTemplatesDropdown(false); }}
-                                                    className="flex-1 text-right text-xs font-medium text-gray-700 px-2 py-1"
-                                                >
-                                                    {t.name}
-                                                </button>
-                                                <button 
-                                                    onClick={() => onDeleteTemplate?.(t.id)}
-                                                    className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                                                >
-                                                    <X size={12} />
-                                                </button>
-                                            </div>
-                                        )) : (
-                                            <div className="p-4 text-center text-gray-400 text-xs italic">لا توجد قوالب محفوظة</div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
                     </div>
                 </div>
             )}
@@ -497,7 +430,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 else if (h.key === "date") widthClass = "w-[120px]";
                                 else if (h.key === "time") widthClass = "w-[90px]";
                                 else if (h.key === "notes") widthClass = "w-[40px]";
-                                else if (h.key === "actions") widthClass = "w-[150px]";
+                                else if (h.key === "actions") widthClass = "w-[110px]";
                                 else widthClass = "w-[100px]";
                                 
                                 const isEndColumn = ['date', 'time', 'flight', 'count', 'actions'].includes(h.key as string);

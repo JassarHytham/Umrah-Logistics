@@ -3,7 +3,7 @@ import {
   Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users, ChevronDown,
   ClipboardList, Upload, Trash2, History, RotateCcw, XCircle,
   Eraser, Calendar, Clock, Check, FileJson, Database, AlertTriangle,
-  LayoutDashboard, Settings as SettingsIcon, Plus, Copy, Share2, Bookmark,
+  LayoutDashboard, Settings as SettingsIcon, Share2,
   CheckSquare, Square, Type, Minus, PlusCircle, RotateCw, Bell, BellRing, Smartphone, Bot, Send, ShieldCheck, SlidersHorizontal,
   Info,
   ExternalLink,
@@ -14,7 +14,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER, ShareInvitation } from './types';
+import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER, ShareInvitation } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
@@ -67,7 +67,6 @@ export default function App() {
   const [allRows, setAllRows] = useState<LogisticsRow[]>([]);
   const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
   const [shareInvitations, setShareInvitations] = useState<ShareInvitation[]>([]);
-  const [templates, setTemplates] = useState<LogisticsTemplate[]>([]);
   const [tgConfig, setTgConfig] = useState<TelegramConfig>({ token: '', chatId: '', enabled: false });
 
   const [inputs, setInputs] = useState<InputState>({ groupNo: '', groupName: '', count: '', text: '' });
@@ -147,7 +146,6 @@ export default function App() {
       setShareInvitations(invitations || []);
       setNotifiedIds(settings.notifiedIds || []);
       setTgConfig(settings.tgConfig || { token: '', chatId: '', enabled: false });
-      setTemplates(settings.templates || []);
       setFontSize(settings.fontSize || 100);
       setAlertSettings(settings.alertSettings || {
         arrivalMinutes: 120,
@@ -167,7 +165,6 @@ export default function App() {
           if (window.confirm("تم العثور على بيانات قديمة في هذا المتصفح. هل تريد استيرادها إلى حسابك الجديد؟")) {
             setAllRows(localRows);
             setDeletedRows(loadFromStorage('umrah_logistics_deleted', []));
-            setTemplates(loadFromStorage('umrah_logistics_templates', []));
             setTgConfig(loadFromStorage('umrah_tg_config', { token: '', chatId: '', enabled: false }));
             setNotifiedIds(loadFromStorage('umrah_notified_trip_ids', []));
             // Clear local storage to prevent repeated prompts
@@ -188,7 +185,7 @@ export default function App() {
     try {
       await Promise.all([
         api.data.syncRows(allRows),
-        api.settings.save({ tgConfig, templates, deletedRows, notifiedIds, fontSize, alertSettings, previewSettings, displaySettings })
+        api.settings.save({ tgConfig, deletedRows, notifiedIds, fontSize, alertSettings, previewSettings, displaySettings })
       ]);
     } catch (err) {
       console.error("Sync failed", err);
@@ -204,7 +201,7 @@ export default function App() {
       const timer = setTimeout(syncAllData, 2000);
       return () => clearTimeout(timer);
     }
-  }, [allRows, deletedRows, tgConfig, templates, fontSize, notifiedIds, alertSettings, previewSettings, displaySettings, user, loading]);
+  }, [allRows, deletedRows, tgConfig, fontSize, notifiedIds, alertSettings, previewSettings, displaySettings, user, loading]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -539,21 +536,6 @@ export default function App() {
     showNotification("تم تكرار الرحلة بنجاح", "success");
   };
 
-  const saveAsTemplate = (row: LogisticsRow) => {
-    const name = prompt("أدخل اسماً لهذا القالب:", `${row.Column1} - ${row.to}`);
-    if (name) {
-      const { id, date, ...rest } = row;
-      setTemplates([...templates, { id: uid(), name, data: rest }]);
-      showNotification("تم حفظ القالب", "success");
-    }
-  };
-
-  const shareRowDetails = (row: LogisticsRow) => {
-    const details = `📋 تفاصيل الرحلة:\n📦 المجموعة: ${row.groupName}\n🕒 التاريخ: ${row.date} @ ${row.time}\n📍 من: ${row.from}\n📍 إلى: ${row.to}\n🚗 السيارة: ${row.carType}\n✈️ الرحلة: ${row.flight}`;
-    navigator.clipboard.writeText(details);
-    showNotification("تم نسخ التفاصيل للحافظة", "success");
-  };
-
   const openShareDialog = (row: LogisticsRow) => {
     setShareTarget({ row, scope: 'row' });
     setShareReceiverUsername('');
@@ -825,17 +807,9 @@ export default function App() {
                   columnOrder={displaySettings.columnOrder}
                   hiddenColumns={displaySettings.hiddenColumns}
                   enableFiltering={true}
-                  templates={templates}
                   onAddNewRow={addNewEmptyRow}
                   onDuplicateRow={duplicateRow}
-                  onSaveAsTemplate={saveAsTemplate}
-                  onApplyTemplate={(tid) => {
-                    const t = templates.find(x => x.id === tid);
-                    if (t) setAllRows([{ id: uid(), ...t.data, date: getLocalDateString(), status: 'Planned' } as any, ...allRows]);
-                  }}
-                  onCopyRowDetails={shareRowDetails}
                   onShareTrip={openShareDialog}
-                  onDeleteTemplate={(tid) => setTemplates(templates.filter(x => x.id !== tid))}
                   onFilteredRowsChange={setFilteredRows}
                 />
               </div>

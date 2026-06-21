@@ -3,6 +3,14 @@ export type TripStatus = 'Planned' | 'Confirmed' | 'Driver Assigned' | 'In Progr
 
 export type NoteHighlightColor = 'amber' | 'yellow' | 'blue' | 'green' | 'pink' | 'purple';
 
+export interface SharedMetadata {
+  shared: boolean;
+  ownerUsername?: string;
+  scope?: 'row' | 'group';
+  deletedByUsername?: string;
+  deletedAt?: string;
+}
+
 export interface LogisticsRow {
   id: string;
   groupNo: string;
@@ -18,7 +26,8 @@ export interface LogisticsRow {
   tafweej: string; // Description
   status: TripStatus;
   notes?: string;
-  [key: string]: string | number | undefined; // Index signature for dynamic access
+  _sharing?: SharedMetadata;
+  [key: string]: string | number | SharedMetadata | undefined; // Index signature for dynamic access
   _originalIndex?: number;
 }
 
@@ -48,6 +57,16 @@ export interface InputState extends GroupInfo {
 export interface NotificationState {
   msg: string;
   type: 'success' | 'error';
+}
+
+export interface ShareInvitation {
+  id: number;
+  senderUsername: string;
+  scopeType: 'row' | 'group';
+  rowId?: string;
+  groupNo?: string;
+  rowSummary?: string;
+  createdAt: string;
 }
 
 export interface BotMessage {

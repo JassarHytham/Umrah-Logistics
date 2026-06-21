@@ -60,10 +60,51 @@ export const api = {
     async fetchRows() {
       return api.request('/data');
     },
+    async fetchDeletedRows() {
+      return api.request('/data/deleted');
+    },
     async syncRows(rows: any[]) {
       return api.request('/data/sync', {
         method: 'POST',
         body: JSON.stringify({ rows }),
+      });
+    },
+    async updateRow(id: string, updates: any) {
+      return api.request(`/data/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ updates }),
+      });
+    },
+    async deleteRow(id: string) {
+      return api.request(`/data/${id}/delete`, {
+        method: 'POST',
+      });
+    },
+    async restoreRow(id: string) {
+      return api.request(`/data/${id}/restore`, {
+        method: 'POST',
+      });
+    }
+  },
+
+  shares: {
+    async fetchInvitations() {
+      return api.request('/shares/invitations');
+    },
+    async createInvitation(payload: any) {
+      return api.request('/shares/invitations', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+    async acceptInvitation(id: number) {
+      return api.request(`/shares/invitations/${id}/accept`, {
+        method: 'POST',
+      });
+    },
+    async declineInvitation(id: number) {
+      return api.request(`/shares/invitations/${id}/decline`, {
+        method: 'POST',
       });
     }
   },

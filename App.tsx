@@ -14,7 +14,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER } from './types';
+import { LogisticsRow, InputState, NotificationState, TripStatus, LogisticsTemplate, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER, ShareInvitation } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
@@ -66,6 +66,7 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [allRows, setAllRows] = useState<LogisticsRow[]>([]);
   const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
+  const [shareInvitations, setShareInvitations] = useState<ShareInvitation[]>([]);
   const [templates, setTemplates] = useState<LogisticsTemplate[]>([]);
   const [tgConfig, setTgConfig] = useState<TelegramConfig>({ token: '', chatId: '', enabled: false });
 
@@ -131,12 +132,15 @@ export default function App() {
   const loadUserData = async () => {
     try {
       setLoading(true);
-      const [rows, settings] = await Promise.all([
+      const [rows, deleted, settings, invitations] = await Promise.all([
         api.data.fetchRows(),
-        api.settings.fetch()
+        api.data.fetchDeletedRows(),
+        api.settings.fetch(),
+        api.shares.fetchInvitations()
       ]);
       setAllRows(rows);
-      setDeletedRows(settings.deletedRows || []);
+      setDeletedRows(deleted?.length ? deleted : (settings.deletedRows || []));
+      setShareInvitations(invitations || []);
       setNotifiedIds(settings.notifiedIds || []);
       setTgConfig(settings.tgConfig || { token: '', chatId: '', enabled: false });
       setTemplates(settings.templates || []);

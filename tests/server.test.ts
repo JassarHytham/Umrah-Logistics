@@ -505,3 +505,81 @@ describe('Shared trip row invitations', () => {
     expect(rows.body).toHaveLength(0);
   });
 });
+
+describe('Shared trip editing and group membership', () => {
+  it('lets an accepted row collaborator edit the canonical row for the owner', async () => {
+    const owner = await registerSharedTestUser('edit_owner');
+    const receiver = await registerSharedTestUser('edit_receiver');
+    const row = makeSharedTripRow(`edit-row-${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id });
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const patch = await request(app)
+      .patch(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send({ updates: { status: 'Confirmed', notes: 'Updated by receiver' } });
+    expect(patch.status).toBe(200);
+
+    const ownerRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    const ownerRow = ownerRows.body.find((r: any) => r.id === row.id);
+    expect(ownerRow.status).toBe('Confirmed');
+    expect(ownerRow.notes).toBe('Updated by receiver');
+  });
+
+  it('shares current and future group rows created by any accepted collaborator', async () => {
+    const owner = await registerSharedTestUser('group_owner');
+    const receiver = await registerSharedTestUser('group_receiver');
+    const groupNo = `G${Date.now()}`;
+    const originalRow = makeSharedTripRow(`group-row-1-${Date.now()}`, groupNo);
+    const futureRow = makeSharedTripRow(`group-row-2-${Date.now()}`, groupNo);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [originalRow] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'group', groupNo });
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const receiverRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(receiverRows.body.map((r: any) => r.id)).toContain(originalRow.id);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send({ rows: [futureRow] });
+
+    const ownerRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(ownerRows.body.map((r: any) => r.id)).toContain(futureRow.id);
+  });
+});

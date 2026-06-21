@@ -273,6 +273,24 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
   res.json({ success: true });
 });
 
+app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
+  const visible = getVisibleRowForUser(req.user.id, req.params.id, false);
+  if (!visible) return res.status(404).json({ error: "Trip not found" });
+
+  const updates = req.body?.updates;
+  if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
+    return res.status(400).json({ error: "Invalid updates" });
+  }
+
+  const current = parseRowData(visible.data);
+  const updated = { ...current, ...updates, id: current.id };
+  db.prepare("UPDATE logistics_rows SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+    .run(JSON.stringify(updated), visible.id);
+
+  const refreshed = getVisibleRowForUser(req.user.id, visible.id, false) as LogisticsRowRecord;
+  res.json({ success: true, row: decorateRowForUser(refreshed, req.user.id) });
+});
+
 // Sharing Routes
 app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
   const { receiverUsername, scopeType, rowId, groupNo } = req.body;
@@ -294,7 +312,7 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
   } else {
     if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
     normalizedGroupNo = String(groupNo).trim();
-    const canShareGroup = listVisibleRowsForUser(req.user.id, true)
+    const canShareGroup = listVisibleRowsForUser(req.user.id, false)
       .some((row: any) => String(row.groupNo || "").trim() === normalizedGroupNo);
     const hasGroupAccess = db
       .prepare("SELECT 1 FROM trip_group_access WHERE group_no = ? AND user_id = ?")
@@ -377,10 +395,12 @@ app.post("/api/shares/invitations/:id/accept", authenticateToken, (req: any, res
       VALUES (?, ?, ?)
     `).run(invitation.row_id, req.user.id, invitation.sender_user_id);
   } else {
-    db.prepare(`
+    const insertGroupAccess = db.prepare(`
       INSERT OR IGNORE INTO trip_group_access (group_no, user_id, granted_by_user_id)
       VALUES (?, ?, ?)
-    `).run(invitation.group_no, req.user.id, invitation.sender_user_id);
+    `);
+    insertGroupAccess.run(invitation.group_no, invitation.sender_user_id, invitation.sender_user_id);
+    insertGroupAccess.run(invitation.group_no, req.user.id, invitation.sender_user_id);
   }
 
   db.prepare(`

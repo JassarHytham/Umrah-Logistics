@@ -241,6 +241,10 @@ export default function App() {
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          const actorUserId = Number(message.actorUserId);
+          if (message.type === 'rows_changed' && actorUserId && actorUserId === Number(user.id)) {
+            return;
+          }
           if (message.type === 'rows_changed' || message.type === 'invitations_changed') {
             scheduleRefresh();
           }

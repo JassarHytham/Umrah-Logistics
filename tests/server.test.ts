@@ -917,6 +917,51 @@ describe('Row conflict protection', () => {
     expect(stale.body.row.status).toBe('Confirmed');
     expect(stale.body.row._version).toBeGreaterThan(version);
   });
+
+  it('allows a stale full-table sync when the row already matches the saved edit', async () => {
+    const owner = await registerSharedTestUser('same_sync_owner');
+    const receiver = await registerSharedTestUser('same_sync_receiver');
+    const row = makeSharedTripRow(`same-sync-row-${Date.now()}`, `SAMESYNC${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id, role: 'editor' });
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const receiverRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    const loadedRow = receiverRows.body.find((r: any) => r.id === row.id);
+
+    const patch = await request(app)
+      .patch(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send({ updates: { status: 'Confirmed' }, baseVersion: loadedRow._version });
+    expect(patch.status).toBe(200);
+
+    const staleButSame = { ...loadedRow, status: 'Confirmed' };
+    const sync = await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send({ rows: [staleButSame] });
+    expect(sync.status).toBe(200);
+
+    const ownerRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(ownerRows.body.find((r: any) => r.id === row.id).status).toBe('Confirmed');
+  });
 });
 
 describe('Extension text ingest with deleted rows', () => {
@@ -1113,6 +1158,7 @@ describe('Live update websocket invalidation', () => {
 
       const event = await eventPromise;
       expect(event.type).toBe('rows_changed');
+      expect(event.actorUserId).toBe(receiver.user.id);
     } finally {
       ownerSocket?.close();
       await closeLiveTestServer(server);

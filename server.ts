@@ -285,8 +285,8 @@ const listVisibleRowsForUser = (userId: number, includeDeleted = false) => {
 
 type LiveEventType = "rows_changed" | "invitations_changed";
 
-const sendLiveEvent = (userIds: Iterable<number>, type: LiveEventType) => {
-  const payload = JSON.stringify({ type, at: new Date().toISOString() });
+const sendLiveEvent = (userIds: Iterable<number>, type: LiveEventType, actorUserId?: number) => {
+  const payload = JSON.stringify({ type, at: new Date().toISOString(), ...(actorUserId ? { actorUserId: Number(actorUserId) } : {}) });
   for (const id of new Set(Array.from(userIds).map(Number))) {
     const clients = liveClients.get(id);
     if (!clients) continue;
@@ -426,12 +426,15 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
       if (existing) {
         const access = getRowAccessForUser(req.user.id, existing);
         if (access && canEditAccessRole(access.role) && !existing.deleted_at) {
+          const current = parseRowData(existing.data);
+          const next = { ...current, ...storedRow, id: current.id };
           if (row._version !== undefined && Number(row._version) !== Number(existing.version)) {
-            conflicts.push({ id: existing.id, row: decorateRowForUser(existing, req.user.id) });
+            if (JSON.stringify(next) !== JSON.stringify(current)) {
+              conflicts.push({ id: existing.id, row: decorateRowForUser(existing, req.user.id) });
+            }
             continue;
           }
-          const current = parseRowData(existing.data);
-          updateStmt.run(JSON.stringify({ ...current, ...storedRow, id: current.id }), existing.id);
+          updateStmt.run(JSON.stringify(next), existing.id);
           getVisibleUserIdsForRowId(existing.id).forEach((id) => affectedUserIds.add(id));
         }
       } else {
@@ -451,10 +454,10 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
 
   sync(rows);
   if (conflicts.length > 0) {
-    sendLiveEvent(affectedUserIds, "rows_changed");
+    sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
     return res.status(409).json({ success: false, code: "CONFLICT", conflicts });
   }
-  sendLiveEvent(affectedUserIds, "rows_changed");
+  sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
   res.json({ success: true });
 });
 
@@ -485,7 +488,7 @@ app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
     .run(JSON.stringify(updated), visible.id);
 
   const refreshed = getVisibleRowForUser(req.user.id, visible.id, false) as LogisticsRowRecord;
-  sendLiveEvent(getVisibleUserIdsForRowRecord(refreshed), "rows_changed");
+  sendLiveEvent(getVisibleUserIdsForRowRecord(refreshed), "rows_changed", req.user.id);
   res.json({ success: true, row: decorateRowForUser(refreshed, req.user.id) });
 });
 
@@ -501,7 +504,7 @@ app.post("/api/data/:id/delete", authenticateToken, (req: any, res) => {
     WHERE id = ?
   `).run(req.user.id, visible.id);
 
-  sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed");
+  sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed", req.user.id);
   res.json({ success: true });
 });
 
@@ -517,7 +520,7 @@ app.post("/api/data/:id/restore", authenticateToken, (req: any, res) => {
     WHERE id = ?
   `).run(visible.id);
 
-  sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed");
+  sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed", req.user.id);
   res.json({ success: true });
 });
 
@@ -546,7 +549,7 @@ app.delete("/api/data/deleted", authenticateToken, (req: any, res) => {
   });
 
   deleteRows(records);
-  sendLiveEvent(affectedUserIds, "rows_changed");
+  sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
   res.json({ success: true, deletedCount: records.length });
 });
 
@@ -563,7 +566,7 @@ app.delete("/api/data/:id", authenticateToken, (req: any, res) => {
     db.prepare("UPDATE settings SET deleted_rows = ? WHERE user_id = ?").run("[]", req.user.id);
   })();
 
-  sendLiveEvent(affectedUserIds, "rows_changed");
+  sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
   res.json({ success: true });
 });
 
@@ -701,9 +704,9 @@ app.post("/api/shares/invitations/:id/accept", authenticateToken, (req: any, res
 
   sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed");
   if (invitation.scope_type === "row") {
-    sendLiveEvent(getVisibleUserIdsForRowId(invitation.row_id), "rows_changed");
+    sendLiveEvent(getVisibleUserIdsForRowId(invitation.row_id), "rows_changed", req.user.id);
   } else {
-    sendLiveEvent(getVisibleUserIdsForGroupNo(invitation.group_no, invitation.sender_user_id), "rows_changed");
+    sendLiveEvent(getVisibleUserIdsForGroupNo(invitation.group_no, invitation.sender_user_id), "rows_changed", req.user.id);
   }
   res.json({ success: true });
 });
@@ -799,7 +802,7 @@ app.patch("/api/shares/access", authenticateToken, (req: any, res) => {
         AND (granted_by_user_id = ? OR ? = ?)
     `).run(role, String(rowId), Number(userId), req.user.id, Number(record.user_id), Number(req.user.id));
     if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
-    sendLiveEvent(getVisibleUserIdsForRowId(String(rowId)), "rows_changed");
+    sendLiveEvent(getVisibleUserIdsForRowId(String(rowId)), "rows_changed", req.user.id);
     return res.json({ success: true });
   }
 
@@ -810,7 +813,7 @@ app.patch("/api/shares/access", authenticateToken, (req: any, res) => {
     WHERE group_no = ? AND user_id = ? AND granted_by_user_id = ?
   `).run(role, String(groupNo).trim(), Number(userId), req.user.id);
   if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
-  sendLiveEvent([Number(userId), req.user.id], "rows_changed");
+  sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
   return res.json({ success: true });
 });
 
@@ -830,7 +833,7 @@ app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
         AND (granted_by_user_id = ? OR ? = ?)
     `).run(String(rowId), Number(userId), req.user.id, Number(record.user_id), Number(req.user.id));
     if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
-    sendLiveEvent([Number(userId), req.user.id], "rows_changed");
+    sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
     return res.json({ success: true });
   }
 
@@ -840,7 +843,7 @@ app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
     WHERE group_no = ? AND user_id = ? AND granted_by_user_id = ?
   `).run(String(groupNo).trim(), Number(userId), req.user.id);
   if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
-  sendLiveEvent([Number(userId), req.user.id], "rows_changed");
+  sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
   return res.json({ success: true });
 });
 
@@ -1042,7 +1045,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
       const rowGroupNo = String(row.groupNo || "").trim();
       if (rowGroupNo) getVisibleUserIdsForGroupNo(rowGroupNo, req.user.id).forEach((id) => affectedUserIds.add(id));
     });
-    sendLiveEvent(affectedUserIds, "rows_changed");
+    sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
 
     const action = overwrite ? "استبدال" : "إضافة";
     console.log(`[Ingest] ${action} ${newRows.length} rows for group ${groupNo} (user ${req.user.id})`);

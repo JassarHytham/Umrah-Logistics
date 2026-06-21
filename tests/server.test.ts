@@ -401,3 +401,107 @@ describe('POST /api/settings', () => {
     expect(res.body.notifiedIds).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────
+// Shared Trips
+// ─────────────────────────────────────────────
+const registerSharedTestUser = async (prefix: string) => {
+  const credentials = {
+    username: `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    password: 'pass123',
+  };
+  const res = await request(app).post('/api/auth/register').send(credentials);
+  return { ...credentials, token: res.body.token, user: res.body.user };
+};
+
+const makeSharedTripRow = (id: string, groupNo = 'S001') => ({
+  id,
+  groupNo,
+  groupName: 'Shared Group',
+  count: '4',
+  Column1: 'وصول',
+  date: '15/01/2026',
+  time: '14:30',
+  flight: 'SV123',
+  from: 'جدة',
+  to: 'مكة المكرمة',
+  carType: 'سيدان',
+  tafweej: 'Test',
+  status: 'Planned',
+});
+
+describe('Shared trip row invitations', () => {
+  it('keeps a row hidden until invite acceptance, then exposes the same canonical row', async () => {
+    const owner = await registerSharedTestUser('share_owner');
+    const receiver = await registerSharedTestUser('share_receiver');
+    const row = makeSharedTripRow(`shared-row-${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+
+    const invite = await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id });
+
+    expect(invite.status).toBe(200);
+    expect(invite.body.invitation.scopeType).toBe('row');
+
+    const beforeAccept = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(beforeAccept.body).toHaveLength(0);
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(pending.body).toHaveLength(1);
+
+    const accept = await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+    expect(accept.status).toBe(200);
+
+    const afterAccept = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(afterAccept.body).toHaveLength(1);
+    expect(afterAccept.body[0].id).toBe(row.id);
+    expect(afterAccept.body[0]._sharing.shared).toBe(true);
+    expect(afterAccept.body[0]._sharing.ownerUsername).toBe(owner.username);
+  });
+
+  it('declining a row invitation does not grant access', async () => {
+    const owner = await registerSharedTestUser('decline_owner');
+    const receiver = await registerSharedTestUser('decline_receiver');
+    const row = makeSharedTripRow(`declined-row-${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id });
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+
+    const decline = await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/decline`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+    expect(decline.status).toBe(200);
+
+    const rows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(rows.body).toHaveLength(0);
+  });
+});

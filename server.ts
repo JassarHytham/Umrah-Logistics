@@ -638,7 +638,7 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(req.user.id, receiver.id, scopeType, normalizedRowId, normalizedGroupNo, role);
 
-  sendLiveEvent([receiver.id], "invitations_changed");
+  sendLiveEvent([receiver.id], "invitations_changed", req.user.id);
 
   res.json({
     success: true,
@@ -702,7 +702,7 @@ app.post("/api/shares/invitations/:id/accept", authenticateToken, (req: any, res
     WHERE id = ?
   `).run(invitation.id);
 
-  sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed");
+  sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed", req.user.id);
   if (invitation.scope_type === "row") {
     sendLiveEvent(getVisibleUserIdsForRowId(invitation.row_id), "rows_changed", req.user.id);
   } else {
@@ -724,7 +724,7 @@ app.post("/api/shares/invitations/:id/decline", authenticateToken, (req: any, re
     WHERE id = ?
   `).run(invitation.id);
 
-  sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed");
+  sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed", req.user.id);
   res.json({ success: true });
 });
 

@@ -14,6 +14,7 @@ type RowUpdateQueueOptions<Row extends RowWithVersion> = {
 export const createRowUpdateQueue = <Row extends RowWithVersion>(options: RowUpdateQueueOptions<Row>) => {
   const pendingUpdates = new Map<string, Partial<Row>>();
   const inFlight = new Set<string>();
+  const canceledRows = new Set<string>();
   const latestVersions = new Map<string, number>();
 
   const rememberRows = (rows: Row[]) => {
@@ -48,11 +49,13 @@ export const createRowUpdateQueue = <Row extends RowWithVersion>(options: RowUpd
       const row = options.getRow(id);
       const baseVersion = latestVersions.get(id) ?? row?._version;
       const savedRow = await options.save(id, updates, baseVersion);
+      if (canceledRows.has(id)) return;
       if (savedRow._version !== undefined) {
         latestVersions.set(id, Number(savedRow._version));
       }
       options.onSaved(id, savedRow, pendingUpdates.get(id) || {});
     } catch (error: any) {
+      if (canceledRows.has(id)) return;
       const serverRow = getConflictRow(error);
       if (serverRow) {
         if (serverRow._version !== undefined) {
@@ -67,19 +70,41 @@ export const createRowUpdateQueue = <Row extends RowWithVersion>(options: RowUpd
       inFlight.delete(id);
     }
 
+    if (canceledRows.has(id)) {
+      if (!pendingUpdates.has(id)) {
+        canceledRows.delete(id);
+        latestVersions.delete(id);
+      }
+      return;
+    }
+
     if (pendingUpdates.has(id)) {
       await flush(id);
     }
   };
 
   const enqueue = (id: string, updates: Partial<Row>) => {
+    if (!inFlight.has(id)) {
+      canceledRows.delete(id);
+    }
     mergePending(id, updates);
     void flush(id);
   };
 
   const hasPending = () => pendingUpdates.size > 0 || inFlight.size > 0;
 
+  const cancel = (id: string) => {
+    pendingUpdates.delete(id);
+    latestVersions.delete(id);
+    if (inFlight.has(id)) {
+      canceledRows.add(id);
+      return;
+    }
+    canceledRows.delete(id);
+  };
+
   return {
+    cancel,
     enqueue,
     flush,
     hasPending,

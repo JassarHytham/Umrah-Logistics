@@ -22,6 +22,7 @@ import { Auth } from './components/Auth';
 import { Settings } from './components/Settings';
 import { api } from './services/api';
 import { createRowUpdateQueue } from './utils/rowUpdateQueue';
+import { markRowsDeleted, removeDeletedRows, restoreRows } from './utils/rowStateActions';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
   try {
@@ -213,6 +214,7 @@ export default function App() {
 
   const tgConfigRef = useRef(tgConfig);
   const allRowsRef = useRef(allRows);
+  const deletedRowsRef = useRef(deletedRows);
   const alertSettingsRef = useRef(alertSettings);
   useEffect(() => { tgConfigRef.current = tgConfig; }, [tgConfig]);
   const rowUpdateQueueRef = useRef<ReturnType<typeof createRowUpdateQueue<LogisticsRow>> | null>(null);
@@ -239,6 +241,7 @@ export default function App() {
     allRowsRef.current = allRows;
     rowUpdateQueueRef.current?.rememberRows(allRows);
   }, [allRows]);
+  useEffect(() => { deletedRowsRef.current = deletedRows; }, [deletedRows]);
   useEffect(() => { alertSettingsRef.current = alertSettings; }, [alertSettings]);
 
   useEffect(() => {
@@ -267,7 +270,7 @@ export default function App() {
         try {
           const message = JSON.parse(event.data);
           const actorUserId = Number(message.actorUserId);
-          if (message.type === 'rows_changed' && actorUserId && actorUserId === Number(user.id)) {
+          if (actorUserId && actorUserId === Number(user.id)) {
             return;
           }
           if (message.type === 'rows_changed' || message.type === 'invitations_changed') {
@@ -562,15 +565,18 @@ export default function App() {
   };
 
   const softDeleteRow = async (id: string) => {
-    const rowToDelete = allRows.find(r => r.id === id);
+    const rowToDelete = allRowsRef.current.find(r => r.id === id);
     if (!rowToDelete) return;
     if (rowToDelete._sharing?.role === 'viewer') {
       showNotification("لا تملك صلاحية حذف هذه الرحلة", "error");
       return;
     }
     try {
+      rowUpdateQueueRef.current?.cancel(id);
       await api.data.deleteRow(id);
-      await loadUserData();
+      const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, [id], user?.username);
+      setAllRows(next.activeRows);
+      setDeletedRows(next.deletedRows);
       showNotification("تم نقل الرحلة لسلة المحذوفات", "success");
     } catch (err) {
       console.error("Delete failed", err);
@@ -579,11 +585,15 @@ export default function App() {
   };
 
   const deleteAllRows = async () => {
-    if (allRows.length === 0) return;
+    const rowsToDelete = allRowsRef.current;
+    if (rowsToDelete.length === 0) return;
     if (window.confirm("هل أنت متأكد من حذف جميع السجلات؟ سيتم نقلها لسلة المحذوفات.")) {
       try {
-        await Promise.all(allRows.map(row => api.data.deleteRow(row.id)));
-        await loadUserData();
+        rowsToDelete.forEach(row => rowUpdateQueueRef.current?.cancel(row.id));
+        await Promise.all(rowsToDelete.map(row => api.data.deleteRow(row.id)));
+        const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, rowsToDelete.map(row => row.id), user?.username);
+        setAllRows(next.activeRows);
+        setDeletedRows(next.deletedRows);
         showNotification("تم نقل جميع السجلات لسلة المحذوفات", "success");
       } catch (err) {
         console.error("Delete all failed", err);
@@ -593,10 +603,13 @@ export default function App() {
   };
 
   const restoreAllRows = async () => {
-    if (deletedRows.length === 0) return;
+    const rowsToRestore = deletedRowsRef.current;
+    if (rowsToRestore.length === 0) return;
     try {
-      await Promise.all(deletedRows.map(row => api.data.restoreRow(row.id)));
-      await loadUserData();
+      await Promise.all(rowsToRestore.map(row => api.data.restoreRow(row.id)));
+      const next = restoreRows(allRowsRef.current, deletedRowsRef.current, rowsToRestore.map(row => row.id));
+      setAllRows(next.activeRows);
+      setDeletedRows(next.deletedRows);
       showNotification("تم استعادة جميع السجلات", "success");
     } catch (err) {
       console.error("Restore all failed", err);
@@ -607,7 +620,7 @@ export default function App() {
   const permanentlyDeleteRow = async (id: string) => {
     try {
       await api.data.permanentlyDeleteRow(id);
-      await loadUserData(false);
+      setDeletedRows(prev => removeDeletedRows(prev, [id]));
       showNotification("تم حذف الرحلة نهائياً", "success");
     } catch (err) {
       console.error("Permanent delete failed", err);
@@ -620,7 +633,7 @@ export default function App() {
     if (!window.confirm("هل أنت متأكد من الحذف النهائي لجميع العناصر؟ لا يمكن التراجع عن هذا الإجراء.")) return;
     try {
       await api.data.clearDeletedRows();
-      await loadUserData(false);
+      setDeletedRows([]);
       showNotification("تم حذف سلة المحذوفات نهائياً", "success");
     } catch (err) {
       console.error("Permanent delete all failed", err);
@@ -682,7 +695,8 @@ export default function App() {
   const acceptShareInvitation = async (id: number) => {
     try {
       await api.shares.acceptInvitation(id);
-      await loadUserData();
+      setShareInvitations(prev => prev.filter(invitation => invitation.id !== id));
+      loadUserData(false);
       showNotification("تم قبول دعوة المشاركة", "success");
     } catch (err) {
       console.error("Accept invitation failed", err);
@@ -693,7 +707,7 @@ export default function App() {
   const declineShareInvitation = async (id: number) => {
     try {
       await api.shares.declineInvitation(id);
-      await loadUserData();
+      setShareInvitations(prev => prev.filter(invitation => invitation.id !== id));
       showNotification("تم رفض دعوة المشاركة", "success");
     } catch (err) {
       console.error("Decline invitation failed", err);
@@ -710,7 +724,14 @@ export default function App() {
         userId: grant.userId,
         role,
       });
-      await loadUserData(false);
+      setShareAccessGrants(prev => prev.map(item => (
+        item.scopeType === grant.scopeType &&
+        item.rowId === grant.rowId &&
+        item.groupNo === grant.groupNo &&
+        item.userId === grant.userId
+          ? { ...item, role }
+          : item
+      )));
       showNotification("تم تحديث صلاحية المشاركة", "success");
     } catch (err) {
       console.error("Update access failed", err);
@@ -727,7 +748,12 @@ export default function App() {
         groupNo: grant.groupNo,
         userId: grant.userId,
       });
-      await loadUserData(false);
+      setShareAccessGrants(prev => prev.filter(item => !(
+        item.scopeType === grant.scopeType &&
+        item.rowId === grant.rowId &&
+        item.groupNo === grant.groupNo &&
+        item.userId === grant.userId
+      )));
       showNotification("تم إلغاء المشاركة", "success");
     } catch (err) {
       console.error("Revoke access failed", err);
@@ -738,7 +764,9 @@ export default function App() {
   const restoreDeletedRow = async (id: string) => {
     try {
       await api.data.restoreRow(id);
-      await loadUserData();
+      const next = restoreRows(allRowsRef.current, deletedRowsRef.current, [id]);
+      setAllRows(next.activeRows);
+      setDeletedRows(next.deletedRows);
       showNotification("تم استعادة الرحلة", "success");
     } catch (err) {
       console.error("Restore failed", err);

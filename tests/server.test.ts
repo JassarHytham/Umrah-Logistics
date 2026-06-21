@@ -1117,6 +1117,7 @@ describe('Live update websocket invalidation', () => {
 
       const event = await eventPromise;
       expect(event.type).toBe('invitations_changed');
+      expect(event.actorUserId).toBe(owner.user.id);
     } finally {
       socket?.close();
       await closeLiveTestServer(server);

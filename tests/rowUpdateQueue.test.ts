@@ -89,4 +89,33 @@ describe('row update queue', () => {
     expect(save).toHaveBeenNthCalledWith(2, 'row-1', { notes: 'mine' }, 3);
     expect(currentRow).toEqual({ id: 'row-1', notes: 'mine', _version: 4 });
   });
+
+  it('cancels pending row saves when the row is removed locally', async () => {
+    let currentRow: TestRow | undefined = { id: 'row-1', notes: '', _version: 1 };
+    const firstSave = deferred<TestRow>();
+    const save = vi.fn().mockReturnValueOnce(firstSave.promise);
+    const onSaved = vi.fn();
+    const onError = vi.fn();
+
+    const queue = createRowUpdateQueue<TestRow>({
+      getRow: () => currentRow,
+      save,
+      onSaved,
+      onConflict: vi.fn(),
+      onError,
+    });
+    queue.rememberRows([currentRow]);
+
+    queue.enqueue('row-1', { notes: 'a' });
+    queue.enqueue('row-1', { notes: 'ab' });
+    queue.cancel('row-1');
+    currentRow = undefined;
+
+    firstSave.resolve({ id: 'row-1', notes: 'a', _version: 2 });
+    await waitForMicrotasks();
+
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(queue.hasPending()).toBe(false);
+  });
 });

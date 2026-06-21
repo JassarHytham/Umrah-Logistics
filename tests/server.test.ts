@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
-import { app } from '../server';
+import { createServer, type Server } from 'http';
+import WebSocket from 'ws';
+import { app, attachLiveUpdates } from '../server';
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -13,6 +15,41 @@ const authGet = (path: string) =>
   request(app).get(path).set('Authorization', `Bearer ${authToken}`);
 const authPost = (path: string) =>
   request(app).post(path).set('Authorization', `Bearer ${authToken}`);
+
+const startLiveTestServer = async () => {
+  const server = createServer(app);
+  attachLiveUpdates(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Failed to start test server');
+  return { server, baseUrl: `http://127.0.0.1:${address.port}`, wsUrl: `ws://127.0.0.1:${address.port}` };
+};
+
+const closeLiveTestServer = async (server: Server) => {
+  await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+};
+
+const connectLiveSocket = async (wsUrl: string, token: string) => {
+  const socket = new WebSocket(`${wsUrl}/api/live?token=${encodeURIComponent(token)}`);
+  await new Promise<void>((resolve, reject) => {
+    socket.once('open', () => resolve());
+    socket.once('error', reject);
+  });
+  return socket;
+};
+
+const waitForLiveEvent = async (socket: WebSocket, expectedType: string) => {
+  return await new Promise<any>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${expectedType}`)), 1000);
+    socket.on('message', (data) => {
+      const message = JSON.parse(String(data));
+      if (message.type === expectedType) {
+        clearTimeout(timeout);
+        resolve(message);
+      }
+    });
+  });
+};
 
 // Register once and reuse the token for all tests in this file
 beforeAll(async () => {
@@ -747,5 +784,121 @@ describe('Shared trip sync compatibility', () => {
       .get('/api/data')
       .set('Authorization', `Bearer ${owner.token}`);
     expect(rows.body.find((r: any) => r.id === row.id)._sharing).toBeUndefined();
+  });
+});
+
+describe('Live update websocket invalidation', () => {
+  it('notifies a receiver when a share invitation is created', async () => {
+    const { server, baseUrl, wsUrl } = await startLiveTestServer();
+    let socket: WebSocket | null = null;
+
+    try {
+      const owner = await registerSharedTestUser('live_invite_owner');
+      const receiver = await registerSharedTestUser('live_invite_receiver');
+      const row = makeSharedTripRow(`live-invite-row-${Date.now()}`, `LIVE${Date.now()}`);
+
+      await request(baseUrl)
+        .post('/api/data/sync')
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ rows: [row] });
+
+      socket = await connectLiveSocket(wsUrl, receiver.token);
+      const eventPromise = waitForLiveEvent(socket, 'invitations_changed');
+
+      await request(baseUrl)
+        .post('/api/shares/invitations')
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id });
+
+      const event = await eventPromise;
+      expect(event.type).toBe('invitations_changed');
+    } finally {
+      socket?.close();
+      await closeLiveTestServer(server);
+    }
+  });
+
+  it('notifies shared row collaborators when a row is edited', async () => {
+    const { server, baseUrl, wsUrl } = await startLiveTestServer();
+    let ownerSocket: WebSocket | null = null;
+
+    try {
+      const owner = await registerSharedTestUser('live_edit_owner');
+      const receiver = await registerSharedTestUser('live_edit_receiver');
+      const row = makeSharedTripRow(`live-edit-row-${Date.now()}`, `LIVEEDIT${Date.now()}`);
+
+      await request(baseUrl)
+        .post('/api/data/sync')
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ rows: [row] });
+      await request(baseUrl)
+        .post('/api/shares/invitations')
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id });
+      const pending = await request(baseUrl)
+        .get('/api/shares/invitations')
+        .set('Authorization', `Bearer ${receiver.token}`);
+      await request(baseUrl)
+        .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+        .set('Authorization', `Bearer ${receiver.token}`)
+        .send();
+
+      ownerSocket = await connectLiveSocket(wsUrl, owner.token);
+      const eventPromise = waitForLiveEvent(ownerSocket, 'rows_changed');
+
+      await request(baseUrl)
+        .patch(`/api/data/${row.id}`)
+        .set('Authorization', `Bearer ${receiver.token}`)
+        .send({ updates: { status: 'Confirmed' } });
+
+      const event = await eventPromise;
+      expect(event.type).toBe('rows_changed');
+    } finally {
+      ownerSocket?.close();
+      await closeLiveTestServer(server);
+    }
+  });
+
+  it('notifies group collaborators when a future group row is synced', async () => {
+    const { server, baseUrl, wsUrl } = await startLiveTestServer();
+    let ownerSocket: WebSocket | null = null;
+
+    try {
+      const owner = await registerSharedTestUser('live_group_owner');
+      const receiver = await registerSharedTestUser('live_group_receiver');
+      const groupNo = `LIVEGROUP${Date.now()}`;
+      const originalRow = makeSharedTripRow(`live-group-row-1-${Date.now()}`, groupNo);
+      const futureRow = makeSharedTripRow(`live-group-row-2-${Date.now()}`, groupNo);
+
+      await request(baseUrl)
+        .post('/api/data/sync')
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ rows: [originalRow] });
+      await request(baseUrl)
+        .post('/api/shares/invitations')
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ receiverUsername: receiver.username, scopeType: 'group', groupNo });
+      const pending = await request(baseUrl)
+        .get('/api/shares/invitations')
+        .set('Authorization', `Bearer ${receiver.token}`);
+      await request(baseUrl)
+        .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+        .set('Authorization', `Bearer ${receiver.token}`)
+        .send();
+
+      ownerSocket = await connectLiveSocket(wsUrl, owner.token);
+      const eventPromise = waitForLiveEvent(ownerSocket, 'rows_changed');
+
+      await request(baseUrl)
+        .post('/api/data/sync')
+        .set('Authorization', `Bearer ${receiver.token}`)
+        .send({ rows: [futureRow] });
+
+      const event = await eventPromise;
+      expect(event.type).toBe('rows_changed');
+    } finally {
+      ownerSocket?.close();
+      await closeLiveTestServer(server);
+    }
   });
 });

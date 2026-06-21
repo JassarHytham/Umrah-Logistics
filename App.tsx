@@ -132,9 +132,9 @@ export default function App() {
     }
   }, []);
 
-  const loadUserData = async () => {
+  const loadUserData = async (showLoader = true) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       const [rows, deleted, settings, invitations] = await Promise.all([
         api.data.fetchRows(),
         api.data.fetchDeletedRows(),
@@ -211,6 +211,59 @@ export default function App() {
   useEffect(() => { tgConfigRef.current = tgConfig; }, [tgConfig]);
   useEffect(() => { allRowsRef.current = allRows; }, [allRows]);
   useEffect(() => { alertSettingsRef.current = alertSettings; }, [alertSettings]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const token = localStorage.getItem('umrah_auth_token');
+    if (!token) return;
+
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | null = null;
+    let refreshTimer: number | null = null;
+    let manuallyClosed = false;
+
+    const scheduleRefresh = () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        loadUserData(false);
+      }, 250);
+    };
+
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      socket = new WebSocket(`${protocol}//${window.location.host}/api/live?token=${encodeURIComponent(token)}`);
+
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === 'rows_changed' || message.type === 'invitations_changed') {
+            scheduleRefresh();
+          }
+        } catch (err) {
+          console.error("Live update parse failed", err);
+        }
+      };
+
+      socket.onclose = () => {
+        if (manuallyClosed) return;
+        reconnectTimer = window.setTimeout(connect, 3000);
+      };
+
+      socket.onerror = () => {
+        socket?.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      manuallyClosed = true;
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      socket?.close();
+    };
+  }, [user]);
 
   const requestNotificationPermission = async () => {
     if (typeof Notification !== 'undefined') {

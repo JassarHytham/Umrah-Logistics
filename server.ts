@@ -5,8 +5,10 @@ import bcrypt from "bcryptjs";
 import Database from "better-sqlite3";
 import cors from "cors";
 import dotenv from "dotenv";
+import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
+import { WebSocketServer } from "ws";
 import { parseDateTime, parseItineraryText, getCarType } from "./utils/parser.js";
 
 dotenv.config();
@@ -17,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "umrah-secret-key-2026";
+const liveClients = new Map<number, Set<any>>();
 
 // Database initialization
 const DB_PATH = process.env.VITEST ? ":memory:" : (process.env.DB_PATH || "umrah.db");
@@ -221,6 +224,86 @@ const listVisibleRowsForUser = (userId: number, includeDeleted = false) => {
     .map((record) => decorateRowForUser(record, userId));
 };
 
+type LiveEventType = "rows_changed" | "invitations_changed";
+
+const sendLiveEvent = (userIds: Iterable<number>, type: LiveEventType) => {
+  const payload = JSON.stringify({ type, at: new Date().toISOString() });
+  for (const id of new Set(Array.from(userIds).map(Number))) {
+    const clients = liveClients.get(id);
+    if (!clients) continue;
+    for (const ws of clients) {
+      if (ws.readyState === 1) ws.send(payload);
+    }
+  }
+};
+
+const getVisibleUserIdsForRowRecord = (record: LogisticsRowRecord) => {
+  const userIds = new Set<number>([Number(record.user_id)]);
+  const rowAccess = db.prepare("SELECT user_id FROM trip_row_access WHERE row_id = ?").all(record.id) as { user_id: number }[];
+  rowAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
+
+  const row = parseRowData(record.data);
+  if (row.groupNo) {
+    const groupAccess = db.prepare("SELECT user_id FROM trip_group_access WHERE group_no = ?").all(String(row.groupNo)) as { user_id: number }[];
+    groupAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
+  }
+  return userIds;
+};
+
+const getVisibleUserIdsForRowId = (rowId: string) => {
+  const record = db
+    .prepare("SELECT id, user_id, data, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
+    .get(rowId) as LogisticsRowRecord | undefined;
+  return record ? getVisibleUserIdsForRowRecord(record) : new Set<number>();
+};
+
+const getVisibleUserIdsForGroupNo = (groupNo: string, ownerUserId: number) => {
+  const userIds = new Set<number>([Number(ownerUserId)]);
+  const groupAccess = db.prepare("SELECT user_id FROM trip_group_access WHERE group_no = ?").all(groupNo) as { user_id: number }[];
+  groupAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
+  return userIds;
+};
+
+const attachLiveUpdates = (server: http.Server) => {
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (req, socket, head) => {
+    const url = new URL(req.url || "", "http://localhost");
+    if (url.pathname !== "/api/live") return;
+
+    const token = url.searchParams.get("token");
+    if (!token) {
+      socket.destroy();
+      return;
+    }
+
+    try {
+      const user = jwt.verify(token, JWT_SECRET) as { id: number; username: string };
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        (ws as any).userId = Number(user.id);
+        wss.emit("connection", ws, req);
+      });
+    } catch {
+      socket.destroy();
+    }
+  });
+
+  wss.on("connection", (ws: any) => {
+    const userId = Number(ws.userId);
+    const clients = liveClients.get(userId) ?? new Set();
+    clients.add(ws);
+    liveClients.set(userId, clients);
+    ws.on("close", () => {
+      const current = liveClients.get(userId);
+      if (!current) return;
+      current.delete(ws);
+      if (current.size === 0) liveClients.delete(userId);
+    });
+  });
+
+  return wss;
+};
+
 // Auth Routes
 app.post("/api/auth/register", async (req, res) => {
   const { username, password } = req.body;
@@ -270,6 +353,7 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
 
   const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
   const updateStmt = db.prepare("UPDATE logistics_rows SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+  const affectedUserIds = new Set<number>();
 
   const sync = db.transaction((rows) => {
     for (const row of rows) {
@@ -283,14 +367,19 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
         if (getRowScopeForUser(req.user.id, existing) && !existing.deleted_at) {
           const current = parseRowData(existing.data);
           updateStmt.run(JSON.stringify({ ...current, ...storedRow, id: current.id }), existing.id);
+          getVisibleUserIdsForRowId(existing.id).forEach((id) => affectedUserIds.add(id));
         }
       } else {
         insertStmt.run(row.id, req.user.id, JSON.stringify(storedRow));
+        const groupNo = String(storedRow.groupNo || "").trim();
+        const recipients = groupNo ? getVisibleUserIdsForGroupNo(groupNo, req.user.id) : new Set<number>([req.user.id]);
+        recipients.forEach((id) => affectedUserIds.add(id));
       }
     }
   });
 
   sync(rows);
+  sendLiveEvent(affectedUserIds, "rows_changed");
   res.json({ success: true });
 });
 
@@ -309,6 +398,7 @@ app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
     .run(JSON.stringify(updated), visible.id);
 
   const refreshed = getVisibleRowForUser(req.user.id, visible.id, false) as LogisticsRowRecord;
+  sendLiveEvent(getVisibleUserIdsForRowRecord(refreshed), "rows_changed");
   res.json({ success: true, row: decorateRowForUser(refreshed, req.user.id) });
 });
 
@@ -322,6 +412,7 @@ app.post("/api/data/:id/delete", authenticateToken, (req: any, res) => {
     WHERE id = ?
   `).run(req.user.id, visible.id);
 
+  sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed");
   res.json({ success: true });
 });
 
@@ -335,6 +426,7 @@ app.post("/api/data/:id/restore", authenticateToken, (req: any, res) => {
     WHERE id = ?
   `).run(visible.id);
 
+  sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed");
   res.json({ success: true });
 });
 
@@ -397,6 +489,8 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
     VALUES (?, ?, ?, ?, ?)
   `).run(req.user.id, receiver.id, scopeType, normalizedRowId, normalizedGroupNo);
 
+  sendLiveEvent([receiver.id], "invitations_changed");
+
   res.json({
     success: true,
     invitation: {
@@ -456,6 +550,12 @@ app.post("/api/shares/invitations/:id/accept", authenticateToken, (req: any, res
     WHERE id = ?
   `).run(invitation.id);
 
+  sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed");
+  if (invitation.scope_type === "row") {
+    sendLiveEvent(getVisibleUserIdsForRowId(invitation.row_id), "rows_changed");
+  } else {
+    sendLiveEvent(getVisibleUserIdsForGroupNo(invitation.group_no, invitation.sender_user_id), "rows_changed");
+  }
   res.json({ success: true });
 });
 
@@ -472,6 +572,7 @@ app.post("/api/shares/invitations/:id/decline", authenticateToken, (req: any, re
     WHERE id = ?
   `).run(invitation.id);
 
+  sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed");
   res.json({ success: true });
 });
 
@@ -668,6 +769,13 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
       for (const row of rows) insertStmt.run(row.id, req.user.id, JSON.stringify(row));
     })(mergedRows);
 
+    const affectedUserIds = new Set<number>([req.user.id]);
+    newRows.forEach((row: any) => {
+      const rowGroupNo = String(row.groupNo || "").trim();
+      if (rowGroupNo) getVisibleUserIdsForGroupNo(rowGroupNo, req.user.id).forEach((id) => affectedUserIds.add(id));
+    });
+    sendLiveEvent(affectedUserIds, "rows_changed");
+
     const action = overwrite ? "استبدال" : "إضافة";
     console.log(`[Ingest] ${action} ${newRows.length} rows for group ${groupNo} (user ${req.user.id})`);
 
@@ -820,14 +928,17 @@ async function checkAndSendAlerts() {
   }
 }
 
-export { app };
+export { app, attachLiveUpdates };
 
 if (!process.env.VITEST) {
+  const server = http.createServer(app);
+  attachLiveUpdates(server);
+
   // Start alert worker immediately then every 60 s
   checkAndSendAlerts();
   setInterval(checkAndSendAlerts, 60_000);
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`[Alerts] Proximity alert worker started (60 s interval)`);
   });

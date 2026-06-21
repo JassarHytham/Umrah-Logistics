@@ -521,6 +521,52 @@ app.post("/api/data/:id/restore", authenticateToken, (req: any, res) => {
   res.json({ success: true });
 });
 
+app.delete("/api/data/deleted", authenticateToken, (req: any, res) => {
+  const records = db
+    .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE user_id = ? AND deleted_at IS NOT NULL")
+    .all(req.user.id) as LogisticsRowRecord[];
+
+  const affectedUserIds = new Set<number>([Number(req.user.id)]);
+  records.forEach((record) => {
+    getVisibleUserIdsForRowRecord(record).forEach((id) => affectedUserIds.add(id));
+  });
+
+  const deleteRows = db.transaction((rows: LogisticsRowRecord[]) => {
+    const deleteRowAccess = db.prepare("DELETE FROM trip_row_access WHERE row_id = ?");
+    const deleteInvitations = db.prepare("DELETE FROM trip_share_invitations WHERE row_id = ?");
+    const deleteRow = db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL");
+
+    for (const row of rows) {
+      deleteRowAccess.run(row.id);
+      deleteInvitations.run(row.id);
+      deleteRow.run(row.id, req.user.id);
+    }
+
+    db.prepare("UPDATE settings SET deleted_rows = ? WHERE user_id = ?").run("[]", req.user.id);
+  });
+
+  deleteRows(records);
+  sendLiveEvent(affectedUserIds, "rows_changed");
+  res.json({ success: true, deletedCount: records.length });
+});
+
+app.delete("/api/data/:id", authenticateToken, (req: any, res) => {
+  const visible = getVisibleRowForUser(req.user.id, req.params.id, true);
+  if (!visible || !visible.deleted_at) return res.status(404).json({ error: "Trip not found" });
+  if (Number(visible.user_id) !== Number(req.user.id)) return res.status(403).json({ error: "Only the owner can permanently delete a trip" });
+
+  const affectedUserIds = getVisibleUserIdsForRowRecord(visible);
+  db.transaction(() => {
+    db.prepare("DELETE FROM trip_row_access WHERE row_id = ?").run(visible.id);
+    db.prepare("DELETE FROM trip_share_invitations WHERE row_id = ?").run(visible.id);
+    db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL").run(visible.id, req.user.id);
+    db.prepare("UPDATE settings SET deleted_rows = ? WHERE user_id = ?").run("[]", req.user.id);
+  })();
+
+  sendLiveEvent(affectedUserIds, "rows_changed");
+  res.json({ success: true });
+});
+
 // Sharing Routes
 app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
   const { receiverUsername, scopeType, rowId, groupNo } = req.body;

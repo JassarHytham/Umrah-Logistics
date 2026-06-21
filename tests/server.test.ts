@@ -987,6 +987,66 @@ SV456
   });
 });
 
+describe('Recycle bin permanent deletion', () => {
+  it('permanently deletes a single deleted row', async () => {
+    const user = await registerSharedTestUser('hard_delete_user');
+    const row = makeSharedTripRow(`hard-delete-row-${Date.now()}`, `HARD${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows: [row] });
+
+    await request(app)
+      .post(`/api/data/${row.id}/delete`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send();
+
+    const hardDelete = await request(app)
+      .delete(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send();
+    expect(hardDelete.status).toBe(200);
+
+    const deletedRows = await request(app)
+      .get('/api/data/deleted')
+      .set('Authorization', `Bearer ${user.token}`);
+    expect(deletedRows.body.map((r: any) => r.id)).not.toContain(row.id);
+  });
+
+  it('permanently clears all owned deleted rows from the recycle bin', async () => {
+    const user = await registerSharedTestUser('clear_deleted_user');
+    const rows = [
+      makeSharedTripRow(`clear-deleted-row-1-${Date.now()}`, `CLR${Date.now()}`),
+      makeSharedTripRow(`clear-deleted-row-2-${Date.now()}`, `CLR${Date.now()}`),
+    ];
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows });
+
+    await Promise.all(rows.map(row =>
+      request(app)
+        .post(`/api/data/${row.id}/delete`)
+        .set('Authorization', `Bearer ${user.token}`)
+        .send()
+    ));
+
+    const clear = await request(app)
+      .delete('/api/data/deleted')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send();
+    expect(clear.status).toBe(200);
+    expect(clear.body.deletedCount).toBe(2);
+
+    const deletedRows = await request(app)
+      .get('/api/data/deleted')
+      .set('Authorization', `Bearer ${user.token}`);
+    expect(deletedRows.body).toHaveLength(0);
+  });
+});
+
 describe('Live update websocket invalidation', () => {
   it('notifies a receiver when a share invitation is created', async () => {
     const { server, baseUrl, wsUrl } = await startLiveTestServer();

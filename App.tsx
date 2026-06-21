@@ -145,7 +145,7 @@ export default function App() {
         api.shares.fetchAccess()
       ]);
       setAllRows(rows);
-      setDeletedRows(deleted?.length ? deleted : (settings.deletedRows || []));
+      setDeletedRows(deleted || []);
       setShareInvitations(invitations || []);
       setShareAccessGrants(accessGrants || []);
       setNotifiedIds(settings.notifiedIds || []);
@@ -579,6 +579,30 @@ export default function App() {
     } catch (err) {
       console.error("Restore all failed", err);
       showNotification("فشل استعادة جميع السجلات", "error");
+    }
+  };
+
+  const permanentlyDeleteRow = async (id: string) => {
+    try {
+      await api.data.permanentlyDeleteRow(id);
+      await loadUserData(false);
+      showNotification("تم حذف الرحلة نهائياً", "success");
+    } catch (err) {
+      console.error("Permanent delete failed", err);
+      showNotification("فشل حذف الرحلة نهائياً", "error");
+    }
+  };
+
+  const permanentlyDeleteAllRows = async () => {
+    if (deletedRows.length === 0) return;
+    if (!window.confirm("هل أنت متأكد من الحذف النهائي لجميع العناصر؟ لا يمكن التراجع عن هذا الإجراء.")) return;
+    try {
+      await api.data.clearDeletedRows();
+      await loadUserData(false);
+      showNotification("تم حذف سلة المحذوفات نهائياً", "success");
+    } catch (err) {
+      console.error("Permanent delete all failed", err);
+      showNotification("فشل حذف سلة المحذوفات", "error");
     }
   };
 
@@ -1078,7 +1102,7 @@ export default function App() {
                       <RotateCcw size={16} /> استعادة الكل
                     </button>
                     <button
-                      onClick={() => { if (window.confirm("هل أنت متأكد من الحذف النهائي لجميع العناصر؟ لا يمكن التراجع عن هذا الإجراء.")) setDeletedRows([]); }}
+                      onClick={permanentlyDeleteAllRows}
                       className="text-xs bg-red-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-red-700 transition-all flex items-center gap-1 shadow-sm min-h-[44px]"
                     >
                       <Trash2 size={16} /> حذف الكل
@@ -1109,7 +1133,7 @@ export default function App() {
                           <td className="p-4">{row.Column1} - {row.to}</td>
                           <td className="p-4 flex gap-2">
                             <button onClick={() => restoreDeletedRow(row.id)} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded-lg border border-green-100 flex items-center gap-1 text-xs"><RotateCcw size={14} /> استعادة</button>
-                            <button onClick={() => setDeletedRows(p => p.filter(x => x.id !== row.id))} className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg border border-red-100 flex items-center gap-1 text-xs"><Trash2 size={14} /> حذف نهائي</button>
+                            <button onClick={() => permanentlyDeleteRow(row.id)} className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg border border-red-100 flex items-center gap-1 text-xs"><Trash2 size={14} /> حذف نهائي</button>
                           </td>
                         </tr>
                       ))}

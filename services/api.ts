@@ -85,6 +85,16 @@ export const api = {
         method: 'POST',
       });
     },
+    async permanentlyDeleteRow(id: string) {
+      return api.request(`/data/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    async clearDeletedRows() {
+      return api.request('/data/deleted', {
+        method: 'DELETE',
+      });
+    },
     async restoreRow(id: string) {
       return api.request(`/data/${id}/restore`, {
         method: 'POST',

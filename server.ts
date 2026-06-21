@@ -195,11 +195,11 @@ const decorateRowForUser = (record: LogisticsRowRecord, userId: number) => {
   const row = parseRowData(record.data);
   const scope = getRowScopeForUser(userId, record);
   const isShared = Boolean(scope && scope !== "owner");
-  if (isShared) {
+  if (isShared || record.deleted_at) {
     row._sharing = {
-      shared: true,
+      shared: isShared,
       ownerUsername: getUsernameById(record.user_id),
-      scope,
+      ...(scope && scope !== "owner" ? { scope } : {}),
       ...(record.deleted_at ? { deletedAt: record.deleted_at, deletedByUsername: getUsernameById(record.deleted_by_user_id) } : {}),
     };
   }
@@ -255,6 +255,10 @@ app.get("/api/data", authenticateToken, (req: any, res) => {
   res.json(listVisibleRowsForUser(req.user.id, false));
 });
 
+app.get("/api/data/deleted", authenticateToken, (req: any, res) => {
+  res.json(listVisibleRowsForUser(req.user.id, true));
+});
+
 app.post("/api/data/sync", authenticateToken, (req: any, res) => {
   const { rows } = req.body;
   if (!Array.isArray(rows)) return res.status(400).json({ error: "Invalid data" });
@@ -289,6 +293,32 @@ app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
 
   const refreshed = getVisibleRowForUser(req.user.id, visible.id, false) as LogisticsRowRecord;
   res.json({ success: true, row: decorateRowForUser(refreshed, req.user.id) });
+});
+
+app.post("/api/data/:id/delete", authenticateToken, (req: any, res) => {
+  const visible = getVisibleRowForUser(req.user.id, req.params.id, false);
+  if (!visible) return res.status(404).json({ error: "Trip not found" });
+
+  db.prepare(`
+    UPDATE logistics_rows
+    SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(req.user.id, visible.id);
+
+  res.json({ success: true });
+});
+
+app.post("/api/data/:id/restore", authenticateToken, (req: any, res) => {
+  const visible = getVisibleRowForUser(req.user.id, req.params.id, true);
+  if (!visible || !visible.deleted_at) return res.status(404).json({ error: "Trip not found" });
+
+  db.prepare(`
+    UPDATE logistics_rows
+    SET deleted_at = NULL, deleted_by_user_id = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(visible.id);
+
+  res.json({ success: true });
 });
 
 // Sharing Routes

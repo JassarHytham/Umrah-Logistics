@@ -583,3 +583,98 @@ describe('Shared trip editing and group membership', () => {
     expect(ownerRows.body.map((r: any) => r.id)).toContain(futureRow.id);
   });
 });
+
+describe('Shared trip delete and restore', () => {
+  it('moves a shared deleted row to every collaborator recycle bin and allows restore', async () => {
+    const owner = await registerSharedTestUser('delete_owner');
+    const receiver = await registerSharedTestUser('delete_receiver');
+    const row = makeSharedTripRow(`delete-shared-row-${Date.now()}`, `DEL${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id });
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const del = await request(app)
+      .post(`/api/data/${row.id}/delete`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+    expect(del.status).toBe(200);
+
+    const ownerActive = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    const receiverActive = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(ownerActive.body.map((r: any) => r.id)).not.toContain(row.id);
+    expect(receiverActive.body.map((r: any) => r.id)).not.toContain(row.id);
+
+    const ownerDeleted = await request(app)
+      .get('/api/data/deleted')
+      .set('Authorization', `Bearer ${owner.token}`);
+    const receiverDeleted = await request(app)
+      .get('/api/data/deleted')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(ownerDeleted.body.map((r: any) => r.id)).toContain(row.id);
+    expect(receiverDeleted.body.map((r: any) => r.id)).toContain(row.id);
+    expect(ownerDeleted.body.find((r: any) => r.id === row.id)._sharing.deletedByUsername).toBe(receiver.username);
+
+    const restore = await request(app)
+      .post(`/api/data/${row.id}/restore`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send();
+    expect(restore.status).toBe(200);
+
+    const receiverRestored = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(receiverRestored.body.map((r: any) => r.id)).toContain(row.id);
+  });
+
+  it('blocks unauthorized users from editing, deleting, restoring, or inviting hidden rows', async () => {
+    const owner = await registerSharedTestUser('auth_owner');
+    const outsider = await registerSharedTestUser('auth_outsider');
+    const row = makeSharedTripRow(`auth-row-${Date.now()}`, `AUTH${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+
+    const patch = await request(app)
+      .patch(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${outsider.token}`)
+      .send({ updates: { status: 'Confirmed' } });
+    expect(patch.status).toBe(404);
+
+    const del = await request(app)
+      .post(`/api/data/${row.id}/delete`)
+      .set('Authorization', `Bearer ${outsider.token}`)
+      .send();
+    expect(del.status).toBe(404);
+
+    const restore = await request(app)
+      .post(`/api/data/${row.id}/restore`)
+      .set('Authorization', `Bearer ${outsider.token}`)
+      .send();
+    expect(restore.status).toBe(404);
+
+    const invite = await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${outsider.token}`)
+      .send({ receiverUsername: owner.username, scopeType: 'row', rowId: row.id });
+    expect(invite.status).toBe(404);
+  });
+});

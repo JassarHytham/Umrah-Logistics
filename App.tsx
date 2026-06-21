@@ -14,7 +14,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER, ShareInvitation } from './types';
+import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER, ShareInvitation, ShareAccessGrant, ShareRole } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
@@ -67,6 +67,7 @@ export default function App() {
   const [allRows, setAllRows] = useState<LogisticsRow[]>([]);
   const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
   const [shareInvitations, setShareInvitations] = useState<ShareInvitation[]>([]);
+  const [shareAccessGrants, setShareAccessGrants] = useState<ShareAccessGrant[]>([]);
   const [tgConfig, setTgConfig] = useState<TelegramConfig>({ token: '', chatId: '', enabled: false });
 
   const [inputs, setInputs] = useState<InputState>({ groupNo: '', groupName: '', count: '', text: '' });
@@ -107,6 +108,7 @@ export default function App() {
   const [notifiedCount, setNotifiedCount] = useState(0);
   const [shareTarget, setShareTarget] = useState<{ row: LogisticsRow; scope: 'row' | 'group' } | null>(null);
   const [shareReceiverUsername, setShareReceiverUsername] = useState('');
+  const [shareRole, setShareRole] = useState<ShareRole>('editor');
   const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
@@ -135,15 +137,17 @@ export default function App() {
   const loadUserData = async (showLoader = true) => {
     try {
       if (showLoader) setLoading(true);
-      const [rows, deleted, settings, invitations] = await Promise.all([
+      const [rows, deleted, settings, invitations, accessGrants] = await Promise.all([
         api.data.fetchRows(),
         api.data.fetchDeletedRows(),
         api.settings.fetch(),
-        api.shares.fetchInvitations()
+        api.shares.fetchInvitations(),
+        api.shares.fetchAccess()
       ]);
       setAllRows(rows);
       setDeletedRows(deleted?.length ? deleted : (settings.deletedRows || []));
       setShareInvitations(invitations || []);
+      setShareAccessGrants(accessGrants || []);
       setNotifiedIds(settings.notifiedIds || []);
       setTgConfig(settings.tgConfig || { token: '', chatId: '', enabled: false });
       setFontSize(settings.fontSize || 100);
@@ -517,12 +521,20 @@ export default function App() {
   };
 
   const updateRowField = async (id: string, field: keyof LogisticsRow, value: string) => {
+    const currentRow = allRows.find(r => r.id === id);
+    if (currentRow?._sharing?.role === 'viewer') {
+      showNotification("لا تملك صلاحية تعديل هذه الرحلة", "error");
+      return;
+    }
     setAllRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
     try {
-      await api.data.updateRow(id, { [field]: value });
-    } catch (err) {
+      const result = await api.data.updateRow(id, { [field]: value }, currentRow?._version);
+      if (result?.row) {
+        setAllRows(prev => prev.map(r => r.id === id ? result.row : r));
+      }
+    } catch (err: any) {
       console.error("Row update failed", err);
-      showNotification("فشل تحديث الرحلة", "error");
+      showNotification(err?.status === 409 ? "تم تعديل الرحلة من مستخدم آخر، جرى تحديث البيانات" : "فشل تحديث الرحلة", "error");
       loadUserData();
     }
   };
@@ -530,6 +542,10 @@ export default function App() {
   const softDeleteRow = async (id: string) => {
     const rowToDelete = allRows.find(r => r.id === id);
     if (!rowToDelete) return;
+    if (rowToDelete._sharing?.role === 'viewer') {
+      showNotification("لا تملك صلاحية حذف هذه الرحلة", "error");
+      return;
+    }
     try {
       await api.data.deleteRow(id);
       await loadUserData();
@@ -592,6 +608,7 @@ export default function App() {
   const openShareDialog = (row: LogisticsRow) => {
     setShareTarget({ row, scope: 'row' });
     setShareReceiverUsername('');
+    setShareRole('editor');
   };
 
   const submitShareInvitation = async () => {
@@ -603,6 +620,7 @@ export default function App() {
         scopeType: shareTarget.scope,
         rowId: shareTarget.scope === 'row' ? shareTarget.row.id : undefined,
         groupNo: shareTarget.scope === 'group' ? shareTarget.row.groupNo : undefined,
+        role: shareRole,
       });
       setShareTarget(null);
       setShareReceiverUsername('');
@@ -634,6 +652,40 @@ export default function App() {
     } catch (err) {
       console.error("Decline invitation failed", err);
       showNotification("فشل رفض الدعوة", "error");
+    }
+  };
+
+  const updateShareAccessRole = async (grant: ShareAccessGrant, role: ShareRole) => {
+    try {
+      await api.shares.updateAccessRole({
+        scopeType: grant.scopeType,
+        rowId: grant.rowId,
+        groupNo: grant.groupNo,
+        userId: grant.userId,
+        role,
+      });
+      await loadUserData(false);
+      showNotification("تم تحديث صلاحية المشاركة", "success");
+    } catch (err) {
+      console.error("Update access failed", err);
+      showNotification("فشل تحديث صلاحية المشاركة", "error");
+    }
+  };
+
+  const revokeShareAccess = async (grant: ShareAccessGrant) => {
+    if (!window.confirm("هل تريد إلغاء هذه المشاركة؟")) return;
+    try {
+      await api.shares.revokeAccess({
+        scopeType: grant.scopeType,
+        rowId: grant.rowId,
+        groupNo: grant.groupNo,
+        userId: grant.userId,
+      });
+      await loadUserData(false);
+      showNotification("تم إلغاء المشاركة", "success");
+    } catch (err) {
+      console.error("Revoke access failed", err);
+      showNotification("فشل إلغاء المشاركة", "error");
     }
   };
 
@@ -769,6 +821,9 @@ export default function App() {
             onRequestNotifPermission={requestNotificationPermission}
             notifiedCount={notifiedCount}
             allRowsCount={allRows.length}
+            shareAccessGrants={shareAccessGrants}
+            onUpdateShareAccessRole={updateShareAccessRole}
+            onRevokeShareAccess={revokeShareAccess}
           />
         ) : view === 'analytics' ? (
           <OperationsIntelligence rows={allRows} onNavigateToTable={() => setView('operational')} />
@@ -968,6 +1023,33 @@ export default function App() {
                   dir="ltr"
                   autoFocus
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-2">صلاحية المستلم</label>
+                <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setShareRole('editor')}
+                    className={`min-h-[44px] rounded-lg text-xs font-bold transition-all ${
+                      shareRole === 'editor'
+                        ? 'bg-white text-teal-700 shadow-sm border border-teal-100'
+                        : 'text-gray-500 hover:bg-white/60'
+                    }`}
+                  >
+                    تعديل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShareRole('viewer')}
+                    className={`min-h-[44px] rounded-lg text-xs font-bold transition-all ${
+                      shareRole === 'viewer'
+                        ? 'bg-white text-teal-700 shadow-sm border border-teal-100'
+                        : 'text-gray-500 hover:bg-white/60'
+                    }`}
+                  >
+                    مشاهدة فقط
+                  </button>
+                </div>
               </div>
               <button
                 onClick={submitShareInvitation}

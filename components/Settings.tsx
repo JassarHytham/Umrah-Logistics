@@ -3,11 +3,11 @@ import {
   Send, Zap, Bell, BellRing, Smartphone, CheckCircle2, Info,
   Loader2, SlidersHorizontal, Eye, EyeOff, GripVertical, Type, Minus, PlusCircle,
   LayoutList, AlignJustify, Download, Puzzle, ChevronLeft,
-  Monitor, Package, FolderOpen, StickyNote
+  Monitor, Package, FolderOpen, StickyNote, Users, Trash2, ShieldCheck
 } from 'lucide-react';
-import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings, NoteHighlightColor, COLUMN_LABELS, DEFAULT_COLUMN_ORDER } from '../types';
+import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings, NoteHighlightColor, COLUMN_LABELS, DEFAULT_COLUMN_ORDER, ShareAccessGrant, ShareRole } from '../types';
 
-type SettingsPage = 'telegram' | 'display' | 'extension';
+type SettingsPage = 'telegram' | 'display' | 'extension' | 'access';
 
 interface SettingsProps {
   tgConfig: TelegramConfig;
@@ -26,6 +26,9 @@ interface SettingsProps {
   onRequestNotifPermission: () => void;
   notifiedCount: number;
   allRowsCount: number;
+  shareAccessGrants: ShareAccessGrant[];
+  onUpdateShareAccessRole: (grant: ShareAccessGrant, role: ShareRole) => void;
+  onRevokeShareAccess: (grant: ShareAccessGrant) => void;
 }
 
 const PREVIEW_FIELD_OPTIONS: { key: string; label: string }[] = [
@@ -83,6 +86,7 @@ const COLOR_OPTIONS: { key: NoteHighlightColor; label: string }[] = [
 const NAV_ITEMS: { id: SettingsPage; label: string; sublabel: string; Icon: React.FC<{ size?: number; className?: string }> }[] = [
   { id: 'display',   label: 'العرض والمعاينة',    sublabel: 'الخط والجدول والحقول',      Icon: Eye },
   { id: 'telegram',  label: 'تيليجرام والتنبيهات', sublabel: 'البوت والتوقيت والإشعارات', Icon: Send },
+  { id: 'access',    label: 'المشاركة والصلاحيات', sublabel: 'المستخدمون والأدوار',       Icon: Users },
   { id: 'extension', label: 'إضافة المتصفح',     sublabel: 'تحميل وتثبيت الإضافة',     Icon: Puzzle },
 ];
 
@@ -94,6 +98,7 @@ export const Settings: React.FC<SettingsProps> = ({
   fontSize, onFontSizeChange,
   notifPermission, onRequestNotifPermission,
   notifiedCount, allRowsCount,
+  shareAccessGrants, onUpdateShareAccessRole, onRevokeShareAccess,
 }) => {
   const [activePage, setActivePage] = useState<SettingsPage>('display');
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -516,6 +521,86 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
               </div>
 
+            </div>
+          )}
+
+          {/* ── Access management page ── */}
+          {activePage === 'access' && (
+            <div className="space-y-6 max-w-3xl">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
+                  <ShieldCheck size={20} className="text-teal-600" /> المشاركة والصلاحيات
+                </h2>
+                <p className="text-sm text-gray-400">إدارة الأشخاص الذين يملكون وصولاً للرحلات أو المجموعات التي شاركتها</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">إجمالي المشاركات</p>
+                  <p className="mt-2 text-3xl font-black text-gray-800">{shareAccessGrants.length}</p>
+                </div>
+                <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4">
+                  <p className="text-[10px] font-black text-teal-600 uppercase tracking-wider">صلاحية تعديل</p>
+                  <p className="mt-2 text-3xl font-black text-teal-800">{shareAccessGrants.filter(g => g.role === 'editor').length}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">مشاهدة فقط</p>
+                  <p className="mt-2 text-3xl font-black text-slate-800">{shareAccessGrants.filter(g => g.role === 'viewer').length}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                  <p className="text-sm font-bold text-gray-700">المستخدمون المشتركون</p>
+                  <span className="text-[10px] font-bold text-gray-400">المالك يحتفظ بالصلاحية الكاملة دائماً</span>
+                </div>
+
+                {shareAccessGrants.length > 0 ? (
+                  <div className="divide-y divide-gray-100">
+                    {shareAccessGrants.map((grant) => (
+                      <div key={`${grant.scopeType}-${grant.rowId || grant.groupNo}-${grant.userId}`} className="p-4 flex flex-col lg:flex-row lg:items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-black text-gray-800">{grant.username}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                              grant.scopeType === 'group'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                : 'bg-teal-50 text-teal-700 border-teal-100'
+                            }`}>
+                              {grant.scopeType === 'group' ? 'مجموعة' : 'رحلة'}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500 truncate">{grant.rowSummary || grant.groupNo || grant.rowId}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={grant.role}
+                            onChange={(e) => onUpdateShareAccessRole(grant, e.target.value as ShareRole)}
+                            className="min-h-[44px] rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                          >
+                            <option value="editor">تعديل</option>
+                            <option value="viewer">مشاهدة فقط</option>
+                          </select>
+                          <button
+                            onClick={() => onRevokeShareAccess(grant)}
+                            className="min-h-[44px] min-w-[44px] rounded-xl border border-red-100 text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors"
+                            title="إلغاء المشاركة"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-16 px-6 text-center bg-white">
+                    <Users size={36} className="mx-auto text-gray-200 mb-3" />
+                    <p className="text-sm font-bold text-gray-500">لا توجد مشاركات نشطة</p>
+                    <p className="text-xs text-gray-400 mt-1">عند مشاركة رحلة أو مجموعة ستظهر هنا لإدارة صلاحياتها.</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

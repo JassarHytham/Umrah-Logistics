@@ -787,6 +787,138 @@ describe('Shared trip sync compatibility', () => {
   });
 });
 
+describe('Shared trip access roles and management', () => {
+  it('lets owners list, change, and revoke granted shared access', async () => {
+    const owner = await registerSharedTestUser('manage_owner');
+    const receiver = await registerSharedTestUser('manage_receiver');
+    const row = makeSharedTripRow(`manage-row-${Date.now()}`, `MANAGE${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id, role: 'viewer' });
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const access = await request(app)
+      .get('/api/shares/access')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(access.status).toBe(200);
+    expect(access.body).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        username: receiver.username,
+        role: 'viewer',
+        scopeType: 'row',
+        rowId: row.id,
+      }),
+    ]));
+
+    const update = await request(app)
+      .patch('/api/shares/access')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ scopeType: 'row', rowId: row.id, userId: receiver.user.id, role: 'editor' });
+    expect(update.status).toBe(200);
+
+    const updatedAccess = await request(app)
+      .get('/api/shares/access')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(updatedAccess.body.find((item: any) => item.userId === receiver.user.id).role).toBe('editor');
+
+    const revoke = await request(app)
+      .delete('/api/shares/access')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ scopeType: 'row', rowId: row.id, userId: receiver.user.id });
+    expect(revoke.status).toBe(200);
+
+    const receiverRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(receiverRows.body.map((r: any) => r.id)).not.toContain(row.id);
+  });
+
+  it('prevents viewer collaborators from editing or deleting shared trips', async () => {
+    const owner = await registerSharedTestUser('viewer_owner');
+    const receiver = await registerSharedTestUser('viewer_receiver');
+    const row = makeSharedTripRow(`viewer-row-${Date.now()}`, `VIEW${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id, role: 'viewer' });
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const rows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(rows.body.map((r: any) => r.id)).toContain(row.id);
+
+    const patch = await request(app)
+      .patch(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send({ updates: { status: 'Confirmed' } });
+    expect(patch.status).toBe(403);
+
+    const del = await request(app)
+      .post(`/api/data/${row.id}/delete`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+    expect(del.status).toBe(403);
+  });
+});
+
+describe('Row conflict protection', () => {
+  it('rejects stale row updates with a conflict response', async () => {
+    const owner = await registerSharedTestUser('conflict_owner');
+    const row = makeSharedTripRow(`conflict-row-${Date.now()}`, `CONFLICT${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+
+    const initial = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    const version = initial.body.find((r: any) => r.id === row.id)._version;
+
+    const first = await request(app)
+      .patch(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ updates: { status: 'Confirmed' }, baseVersion: version });
+    expect(first.status).toBe(200);
+
+    const stale = await request(app)
+      .patch(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ updates: { status: 'Delayed' }, baseVersion: version });
+    expect(stale.status).toBe(409);
+    expect(stale.body.code).toBe('CONFLICT');
+    expect(stale.body.row.status).toBe('Confirmed');
+    expect(stale.body.row._version).toBeGreaterThan(version);
+  });
+});
+
 describe('Live update websocket invalidation', () => {
   it('notifies a receiver when a share invitation is created', async () => {
     const { server, baseUrl, wsUrl } = await startLiveTestServer();

@@ -26,7 +26,12 @@ export const api = {
       throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}...`);
     }
 
-    if (!response.ok) throw new Error(data.error || 'Request failed');
+    if (!response.ok) {
+      const error: any = new Error(data.error || 'Request failed');
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
     return data;
   },
 
@@ -69,10 +74,10 @@ export const api = {
         body: JSON.stringify({ rows }),
       });
     },
-    async updateRow(id: string, updates: any) {
+    async updateRow(id: string, updates: any, baseVersion?: number) {
       return api.request(`/data/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ updates }),
+        body: JSON.stringify({ updates, ...(baseVersion !== undefined ? { baseVersion } : {}) }),
       });
     },
     async deleteRow(id: string) {
@@ -105,6 +110,21 @@ export const api = {
     async declineInvitation(id: number) {
       return api.request(`/shares/invitations/${id}/decline`, {
         method: 'POST',
+      });
+    },
+    async fetchAccess() {
+      return api.request('/shares/access');
+    },
+    async updateAccessRole(payload: any) {
+      return api.request('/shares/access', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+    },
+    async revokeAccess(payload: any) {
+      return api.request('/shares/access', {
+        method: 'DELETE',
+        body: JSON.stringify(payload),
       });
     }
   },

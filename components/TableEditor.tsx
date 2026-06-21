@@ -296,6 +296,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     };
 
     const renderCellContent = (row: LogisticsRow, h: { key: keyof LogisticsRow | 'actions' }) => {
+        const rowReadOnly = readOnly || row._sharing?.role === 'viewer';
         if (h.key === 'actions') {
             return (
                 <div className="flex items-center justify-center gap-1">
@@ -306,14 +307,14 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     >
                         <Copy size={14} />
                     </button>
-                    <button
+                    {row._sharing?.role !== 'viewer' && <button
                         onClick={() => onShareTrip?.(row)}
                         title="مشاركة"
                         className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
                     >
                         <Share2 size={14} />
-                    </button>
-                    {onDelete && (
+                    </button>}
+                    {onDelete && row._sharing?.role !== 'viewer' && (
                         <button 
                             onClick={() => onDelete(row.id)} 
                             title="حذف"
@@ -347,7 +348,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     <select
                         value={status}
                         onChange={(e) => onChange(row.id, 'status', e.target.value)}
-                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all cursor-pointer text-center ${config.color}`}
+                        disabled={rowReadOnly}
+                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all text-center ${rowReadOnly ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
                     >
                         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                             <option key={key} value={key} className="bg-white text-gray-800 text-xs font-normal">{cfg.label}</option>
@@ -366,9 +368,9 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             );
         }
         if (isLongField(h.key as string)) {
-            if (readOnly && wrapCells) {
+            if (rowReadOnly) {
                 const isEmpty = !row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true);
-                return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words whitespace-normal w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
+                return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words ${wrapCells ? 'whitespace-normal' : 'whitespace-nowrap'} w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
             }
             return (
                 <textarea 
@@ -380,9 +382,9 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 />
             );
         }
-        if (readOnly && wrapCells) {
+        if (rowReadOnly) {
             const isEmpty = !row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true);
-            return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words whitespace-normal w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
+            return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words ${wrapCells ? 'whitespace-normal' : 'whitespace-nowrap'} w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
         }
         return (
             <input 

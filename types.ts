@@ -7,8 +7,22 @@ export interface SharedMetadata {
   shared: boolean;
   ownerUsername?: string;
   scope?: 'row' | 'group';
+  role?: ShareRole;
   deletedByUsername?: string;
   deletedAt?: string;
+}
+
+export type ShareRole = 'viewer' | 'editor';
+
+export interface ShareAccessGrant {
+  scopeType: 'row' | 'group';
+  rowId?: string;
+  groupNo?: string;
+  userId: number;
+  username: string;
+  role: ShareRole;
+  rowSummary?: string;
+  createdAt: string;
 }
 
 export interface LogisticsRow {
@@ -29,6 +43,7 @@ export interface LogisticsRow {
   _sharing?: SharedMetadata;
   [key: string]: string | number | SharedMetadata | undefined; // Index signature for dynamic access
   _originalIndex?: number;
+  _version?: number;
 }
 
 export interface TelegramConfig {
@@ -66,6 +81,7 @@ export interface ShareInvitation {
   rowId?: string;
   groupNo?: string;
   rowSummary?: string;
+  role?: ShareRole;
   createdAt: string;
 }
 

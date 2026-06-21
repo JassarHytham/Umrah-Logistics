@@ -21,6 +21,7 @@ import { OperationsIntelligence } from './components/OperationsIntelligence';
 import { Auth } from './components/Auth';
 import { Settings } from './components/Settings';
 import { api } from './services/api';
+import { createRowUpdateQueue } from './utils/rowUpdateQueue';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
   try {
@@ -187,8 +188,9 @@ export default function App() {
     if (!user) return;
     setIsSyncing(true);
     try {
+      const shouldSyncRows = !rowUpdateQueueRef.current?.hasPending();
       await Promise.all([
-        api.data.syncRows(allRows),
+        shouldSyncRows ? api.data.syncRows(allRows) : Promise.resolve(),
         api.settings.save({ tgConfig, deletedRows, notifiedIds, fontSize, alertSettings, previewSettings, displaySettings })
       ]);
     } catch (err) {
@@ -213,7 +215,30 @@ export default function App() {
   const allRowsRef = useRef(allRows);
   const alertSettingsRef = useRef(alertSettings);
   useEffect(() => { tgConfigRef.current = tgConfig; }, [tgConfig]);
-  useEffect(() => { allRowsRef.current = allRows; }, [allRows]);
+  const rowUpdateQueueRef = useRef<ReturnType<typeof createRowUpdateQueue<LogisticsRow>> | null>(null);
+  if (!rowUpdateQueueRef.current) {
+    rowUpdateQueueRef.current = createRowUpdateQueue<LogisticsRow>({
+      getRow: (id) => allRowsRef.current.find(r => r.id === id),
+      save: async (id, updates, baseVersion) => {
+        const result = await api.data.updateRow(id, updates, baseVersion);
+        return result.row;
+      },
+      onSaved: (id, savedRow, pendingUpdates) => {
+        setAllRows(prev => prev.map(r => r.id === id ? { ...savedRow, ...pendingUpdates } : r));
+      },
+      onConflict: (id, serverRow, pendingUpdates) => {
+        setAllRows(prev => prev.map(r => r.id === id ? { ...serverRow, ...pendingUpdates } : r));
+      },
+      onError: (id, _updates, error) => {
+        console.error("Row update failed", error);
+        showNotification("فشل تحديث الرحلة", "error");
+      },
+    });
+  }
+  useEffect(() => {
+    allRowsRef.current = allRows;
+    rowUpdateQueueRef.current?.rememberRows(allRows);
+  }, [allRows]);
   useEffect(() => { alertSettingsRef.current = alertSettings; }, [alertSettings]);
 
   useEffect(() => {
@@ -525,21 +550,14 @@ export default function App() {
   };
 
   const updateRowField = async (id: string, field: keyof LogisticsRow, value: string) => {
-    const currentRow = allRows.find(r => r.id === id);
+    const currentRow = allRowsRef.current.find(r => r.id === id);
     if (currentRow?._sharing?.role === 'viewer') {
       showNotification("لا تملك صلاحية تعديل هذه الرحلة", "error");
       return;
     }
     setAllRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
-    try {
-      const result = await api.data.updateRow(id, { [field]: value }, currentRow?._version);
-      if (result?.row) {
-        setAllRows(prev => prev.map(r => r.id === id ? result.row : r));
-      }
-    } catch (err: any) {
-      console.error("Row update failed", err);
-      showNotification(err?.status === 409 ? "تم تعديل الرحلة من مستخدم آخر، جرى تحديث البيانات" : "فشل تحديث الرحلة", "error");
-      loadUserData();
+    if (currentRow?._version !== undefined) {
+      rowUpdateQueueRef.current?.enqueue(id, { [field]: value } as Partial<LogisticsRow>);
     }
   };
 

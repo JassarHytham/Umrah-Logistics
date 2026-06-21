@@ -730,4 +730,22 @@ describe('Shared trip sync compatibility', () => {
       .set('Authorization', `Bearer ${receiver.token}`);
     expect(receiverRows.body.map((r: any) => r.id)).toContain(row.id);
   });
+
+  it('does not persist client-returned sharing metadata into canonical row data', async () => {
+    const owner = await registerSharedTestUser('metadata_owner');
+    const row = {
+      ...makeSharedTripRow(`metadata-row-${Date.now()}`, `META${Date.now()}`),
+      _sharing: { shared: true, ownerUsername: 'client-copy', scope: 'row' },
+    };
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+
+    const rows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(rows.body.find((r: any) => r.id === row.id)._sharing).toBeUndefined();
+  });
 });

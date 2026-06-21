@@ -4,7 +4,7 @@ import {
   Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar,
   Plane, Info, Plus, Copy, Share2, Bookmark, LayoutTemplate,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
-  History as HistoryIcon, StickyNote
+  History as HistoryIcon, StickyNote, Users
 } from 'lucide-react';
 import { LogisticsRow, TripStatus, LogisticsTemplate, DEFAULT_COLUMN_ORDER, COLUMN_LABELS } from '../types';
 import { parseDateTime } from '../utils/parser';
@@ -22,7 +22,9 @@ interface TableEditorProps {
   onDuplicateRow?: (row: LogisticsRow) => void;
   onSaveAsTemplate?: (row: LogisticsRow) => void;
   onApplyTemplate?: (templateId: string) => void;
-  onShareRow?: (row: LogisticsRow) => void;
+  onCopyRowDetails?: (row: LogisticsRow) => void;
+  onShareTripRow?: (row: LogisticsRow) => void;
+  onShareTripGroup?: (row: LogisticsRow) => void;
   onDeleteTemplate?: (templateId: string) => void;
   onFilteredRowsChange?: (rows: LogisticsRow[]) => void;
   density?: 'compact' | 'comfortable';
@@ -60,7 +62,9 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onDuplicateRow,
   onSaveAsTemplate,
   onApplyTemplate,
-  onShareRow,
+  onCopyRowDetails,
+  onShareTripRow,
+  onShareTripGroup,
   onDeleteTemplate,
   onFilteredRowsChange,
   density = 'compact',
@@ -327,11 +331,25 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                         <Bookmark size={14} />
                     </button>
                     <button 
-                        onClick={() => onShareRow?.(row)} 
+                        onClick={() => onCopyRowDetails?.(row)}
                         title="نسخ التفاصيل"
                         className="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
                     >
+                        <Copy size={14} />
+                    </button>
+                    <button
+                        onClick={() => onShareTripRow?.(row)}
+                        title="مشاركة هذه الرحلة"
+                        className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                    >
                         <Share2 size={14} />
+                    </button>
+                    <button
+                        onClick={() => onShareTripGroup?.(row)}
+                        title="مشاركة المجموعة"
+                        className="p-1.5 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                    >
+                        <Users size={14} />
                     </button>
                     {onDelete && (
                         <button 
@@ -363,15 +381,26 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             const status = (row.status || 'Planned') as TripStatus;
             const config = STATUS_CONFIG[status];
             return (
-                <select
-                    value={status}
-                    onChange={(e) => onChange(row.id, 'status', e.target.value)}
-                    className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all cursor-pointer text-center ${config.color}`}
-                >
-                    {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                        <option key={key} value={key} className="bg-white text-gray-800 text-xs font-normal">{cfg.label}</option>
-                    ))}
-                </select>
+                <div className="space-y-1">
+                    <select
+                        value={status}
+                        onChange={(e) => onChange(row.id, 'status', e.target.value)}
+                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all cursor-pointer text-center ${config.color}`}
+                    >
+                        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                            <option key={key} value={key} className="bg-white text-gray-800 text-xs font-normal">{cfg.label}</option>
+                        ))}
+                    </select>
+                    {row._sharing?.shared && (
+                        <div
+                            title={`مشتركة من ${row._sharing.ownerUsername || 'مستخدم آخر'}${row._sharing.scope === 'group' ? ' كمجموعة' : ''}`}
+                            className="mx-auto inline-flex items-center justify-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[9px] font-bold text-teal-700"
+                        >
+                            <Users size={10} />
+                            {row._sharing.scope === 'group' ? 'مشتركة كمجموعة' : 'مشتركة'}
+                        </div>
+                    )}
+                </div>
             );
         }
         if (isLongField(h.key as string)) {
@@ -477,7 +506,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 else if (h.key === "date") widthClass = "w-[120px]";
                                 else if (h.key === "time") widthClass = "w-[90px]";
                                 else if (h.key === "notes") widthClass = "w-[40px]";
-                                else if (h.key === "actions") widthClass = "w-[130px]";
+                                else if (h.key === "actions") widthClass = "w-[170px]";
                                 else widthClass = "w-[100px]";
                                 
                                 const isEndColumn = ['date', 'time', 'flight', 'count', 'actions'].includes(h.key as string);

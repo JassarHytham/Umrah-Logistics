@@ -74,6 +74,7 @@ export default function App() {
   const [previewRows, setPreviewRows] = useState<LogisticsRow[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [showInvitations, setShowInvitations] = useState(false);
   const [inputSectionOpen, setInputSectionOpen] = useState(false);
   const [notification, setNotification] = useState<NotificationState | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -105,6 +106,9 @@ export default function App() {
   const [notifiedIds, setNotifiedIds] = useState<string[]>([]);
   const notifiedIdsRef = useRef<Set<string>>(new Set());
   const [notifiedCount, setNotifiedCount] = useState(0);
+  const [shareTarget, setShareTarget] = useState<{ row: LogisticsRow; scope: 'row' | 'group' } | null>(null);
+  const [shareReceiverUsername, setShareReceiverUsername] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     notifiedIdsRef.current = new Set(notifiedIds);
@@ -462,27 +466,54 @@ export default function App() {
     else reader.readAsArrayBuffer(file);
   };
 
-  const softDeleteRow = (id: string) => {
-    const rowToDelete = allRows.find(r => r.id === id);
-    if (!rowToDelete) return;
-    setDeletedRows(prev => [rowToDelete, ...prev]);
-    setAllRows(prev => prev.filter(r => r.id !== id));
-  };
-
-  const deleteAllRows = () => {
-    if (allRows.length === 0) return;
-    if (window.confirm("هل أنت متأكد من حذف جميع السجلات؟ سيتم نقلها لسلة المحذوفات.")) {
-      setDeletedRows(prev => [...allRows, ...prev]);
-      setAllRows([]);
-      showNotification("تم نقل جميع السجلات لسلة المحذوفات", "success");
+  const updateRowField = async (id: string, field: keyof LogisticsRow, value: string) => {
+    setAllRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+    try {
+      await api.data.updateRow(id, { [field]: value });
+    } catch (err) {
+      console.error("Row update failed", err);
+      showNotification("فشل تحديث الرحلة", "error");
+      loadUserData();
     }
   };
 
-  const restoreAllRows = () => {
+  const softDeleteRow = async (id: string) => {
+    const rowToDelete = allRows.find(r => r.id === id);
+    if (!rowToDelete) return;
+    try {
+      await api.data.deleteRow(id);
+      await loadUserData();
+      showNotification("تم نقل الرحلة لسلة المحذوفات", "success");
+    } catch (err) {
+      console.error("Delete failed", err);
+      showNotification("فشل حذف الرحلة", "error");
+    }
+  };
+
+  const deleteAllRows = async () => {
+    if (allRows.length === 0) return;
+    if (window.confirm("هل أنت متأكد من حذف جميع السجلات؟ سيتم نقلها لسلة المحذوفات.")) {
+      try {
+        await Promise.all(allRows.map(row => api.data.deleteRow(row.id)));
+        await loadUserData();
+        showNotification("تم نقل جميع السجلات لسلة المحذوفات", "success");
+      } catch (err) {
+        console.error("Delete all failed", err);
+        showNotification("فشل حذف جميع السجلات", "error");
+      }
+    }
+  };
+
+  const restoreAllRows = async () => {
     if (deletedRows.length === 0) return;
-    setAllRows(prev => [...deletedRows, ...prev]);
-    setDeletedRows([]);
-    showNotification("تم استعادة جميع السجلات", "success");
+    try {
+      await Promise.all(deletedRows.map(row => api.data.restoreRow(row.id)));
+      await loadUserData();
+      showNotification("تم استعادة جميع السجلات", "success");
+    } catch (err) {
+      console.error("Restore all failed", err);
+      showNotification("فشل استعادة جميع السجلات", "error");
+    }
   };
 
   const addNewEmptyRow = () => {
@@ -521,6 +552,65 @@ export default function App() {
     const details = `📋 تفاصيل الرحلة:\n📦 المجموعة: ${row.groupName}\n🕒 التاريخ: ${row.date} @ ${row.time}\n📍 من: ${row.from}\n📍 إلى: ${row.to}\n🚗 السيارة: ${row.carType}\n✈️ الرحلة: ${row.flight}`;
     navigator.clipboard.writeText(details);
     showNotification("تم نسخ التفاصيل للحافظة", "success");
+  };
+
+  const openShareDialog = (row: LogisticsRow, scope: 'row' | 'group') => {
+    setShareTarget({ row, scope });
+    setShareReceiverUsername('');
+  };
+
+  const submitShareInvitation = async () => {
+    if (!shareTarget || !shareReceiverUsername.trim() || isSharing) return;
+    setIsSharing(true);
+    try {
+      await api.shares.createInvitation({
+        receiverUsername: shareReceiverUsername.trim(),
+        scopeType: shareTarget.scope,
+        rowId: shareTarget.scope === 'row' ? shareTarget.row.id : undefined,
+        groupNo: shareTarget.scope === 'group' ? shareTarget.row.groupNo : undefined,
+      });
+      setShareTarget(null);
+      setShareReceiverUsername('');
+      showNotification("تم إرسال دعوة المشاركة", "success");
+    } catch (err) {
+      console.error("Share failed", err);
+      showNotification(err instanceof Error ? err.message : "فشل إرسال دعوة المشاركة", "error");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const acceptShareInvitation = async (id: number) => {
+    try {
+      await api.shares.acceptInvitation(id);
+      await loadUserData();
+      showNotification("تم قبول دعوة المشاركة", "success");
+    } catch (err) {
+      console.error("Accept invitation failed", err);
+      showNotification("فشل قبول الدعوة", "error");
+    }
+  };
+
+  const declineShareInvitation = async (id: number) => {
+    try {
+      await api.shares.declineInvitation(id);
+      await loadUserData();
+      showNotification("تم رفض دعوة المشاركة", "success");
+    } catch (err) {
+      console.error("Decline invitation failed", err);
+      showNotification("فشل رفض الدعوة", "error");
+    }
+  };
+
+  const restoreDeletedRow = async (id: string) => {
+    try {
+      await api.data.restoreRow(id);
+      await loadUserData();
+      showNotification("تم استعادة الرحلة", "success");
+    } catch (err) {
+      console.error("Restore failed", err);
+      showNotification("فشل استعادة الرحلة", "error");
+    }
   };
 
   if (loading) {
@@ -701,6 +791,14 @@ export default function App() {
                     <button onClick={downloadExcel} title="تصدير إكسل" className="p-3 sm:p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg border border-emerald-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><Download size={18} /></button>
                     <button onClick={() => fileInputRef.current?.click()} title="استيراد إكسل / JSON" className="p-3 sm:p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg border border-indigo-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><Upload size={18} /></button>
                     <button onClick={() => setShowRecycleBin(true)} title="المحذوفات" className="p-3 sm:p-2 text-gray-400 hover:bg-gray-50 rounded-lg border border-gray-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><History size={18} /></button>
+                    <button onClick={() => setShowInvitations(true)} title="دعوات المشاركة" className="relative p-3 sm:p-2 text-teal-600 hover:bg-teal-50 rounded-lg border border-teal-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]">
+                      <Share2 size={18} />
+                      {shareInvitations.length > 0 && (
+                        <span className="absolute -top-2 -left-2 min-w-5 h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
+                          {shareInvitations.length}
+                        </span>
+                      )}
+                    </button>
                     <button onClick={deleteAllRows} title="حذف الكل" className="p-3 sm:p-2 text-red-500 hover:bg-red-50 rounded-lg border border-red-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><Eraser size={18} /></button>
                   </div>
                 </div>
@@ -713,7 +811,7 @@ export default function App() {
               <div className="mt-2">
                 <TableEditor
                   rows={allRows}
-                  onChange={(id, f, v) => setAllRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))}
+                  onChange={updateRowField}
                   onDelete={softDeleteRow}
                   isPreview={false}
                   readOnly={!isEditing}
@@ -735,7 +833,9 @@ export default function App() {
                     const t = templates.find(x => x.id === tid);
                     if (t) setAllRows([{ id: uid(), ...t.data, date: getLocalDateString(), status: 'Planned' } as any, ...allRows]);
                   }}
-                  onShareRow={shareRowDetails}
+                  onCopyRowDetails={shareRowDetails}
+                  onShareTripRow={(row) => openShareDialog(row, 'row')}
+                  onShareTripGroup={(row) => openShareDialog(row, 'group')}
                   onDeleteTemplate={(tid) => setTemplates(templates.filter(x => x.id !== tid))}
                   onFilteredRowsChange={setFilteredRows}
                 />
@@ -744,6 +844,89 @@ export default function App() {
           </>
         )}
       </main>
+
+      {showInvitations && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in text-right">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-teal-50/60">
+              <h3 className="text-lg font-bold flex items-center gap-2 text-teal-800">
+                <Share2 size={20} /> دعوات المشاركة
+              </h3>
+              <button onClick={() => setShowInvitations(false)} className="p-2 hover:bg-white rounded-full transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
+                <XCircle size={22} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3 overflow-y-auto">
+              {shareInvitations.length > 0 ? shareInvitations.map(invite => (
+                <div key={invite.id} className="border border-gray-100 rounded-xl p-4 bg-white shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">دعوة من {invite.senderUsername}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {invite.scopeType === 'group' ? `مشاركة المجموعة ${invite.groupNo}` : 'مشاركة رحلة محددة'}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-teal-50 px-2 py-1 text-[10px] font-bold text-teal-700 border border-teal-100">
+                      {invite.scopeType === 'group' ? 'مجموعة' : 'رحلة'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <button onClick={() => acceptShareInvitation(invite.id)} className="flex-1 min-h-[44px] bg-teal-600 text-white rounded-lg text-sm font-bold hover:bg-teal-700 transition-colors">
+                      قبول
+                    </button>
+                    <button onClick={() => declineShareInvitation(invite.id)} className="flex-1 min-h-[44px] bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
+                      رفض
+                    </button>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-12 text-gray-400 italic">لا توجد دعوات مشاركة حالياً</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shareTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in text-right">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-teal-50/60">
+              <h3 className="text-lg font-bold flex items-center gap-2 text-teal-800">
+                <Share2 size={20} />
+                {shareTarget.scope === 'group' ? 'مشاركة المجموعة' : 'مشاركة الرحلة'}
+              </h3>
+              <button onClick={() => setShareTarget(null)} className="p-2 hover:bg-white rounded-full transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
+                <XCircle size={22} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 text-xs text-gray-600 space-y-1">
+                <p><b>المجموعة:</b> {shareTarget.row.groupName || '-'} ({shareTarget.row.groupNo || '-'})</p>
+                <p><b>النطاق:</b> {shareTarget.scope === 'group' ? 'كل رحلات هذا الرقم الحالية والمستقبلية' : 'هذه الرحلة فقط'}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 mb-2">اسم حساب المستلم</label>
+                <input
+                  type="text"
+                  value={shareReceiverUsername}
+                  onChange={(e) => setShareReceiverUsername(e.target.value)}
+                  placeholder="username"
+                  className="w-full p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none text-left"
+                  dir="ltr"
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={submitShareInvitation}
+                disabled={!shareReceiverUsername.trim() || isSharing}
+                className="w-full min-h-[44px] bg-teal-600 text-white rounded-xl text-sm font-bold hover:bg-teal-700 transition-colors disabled:opacity-50"
+              >
+                {isSharing ? 'جاري الإرسال...' : 'إرسال دعوة المشاركة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showRecycleBin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in text-right">
@@ -778,10 +961,19 @@ export default function App() {
                     <tbody className="divide-y divide-gray-100">
                       {deletedRows.map(row => (
                         <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="p-4 font-bold">{row.groupName} ({row.groupNo})</td>
+                          <td className="p-4">
+                            <div className="font-bold">{row.groupName} ({row.groupNo})</div>
+                            {row._sharing && (
+                              <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-bold">
+                                {row._sharing.shared && <span className="rounded-full bg-teal-50 text-teal-700 border border-teal-100 px-2 py-0.5">مشتركة</span>}
+                                {row._sharing.ownerUsername && <span className="text-gray-400">المالك: {row._sharing.ownerUsername}</span>}
+                                {row._sharing.deletedByUsername && <span className="text-red-400">حذفها: {row._sharing.deletedByUsername}</span>}
+                              </div>
+                            )}
+                          </td>
                           <td className="p-4">{row.Column1} - {row.to}</td>
                           <td className="p-4 flex gap-2">
-                            <button onClick={() => { setAllRows([row, ...allRows]); setDeletedRows(p => p.filter(x => x.id !== row.id)); }} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded-lg border border-green-100 flex items-center gap-1 text-xs"><RotateCcw size={14} /> استعادة</button>
+                            <button onClick={() => restoreDeletedRow(row.id)} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded-lg border border-green-100 flex items-center gap-1 text-xs"><RotateCcw size={14} /> استعادة</button>
                             <button onClick={() => setDeletedRows(p => p.filter(x => x.id !== row.id))} className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg border border-red-100 flex items-center gap-1 text-xs"><Trash2 size={14} /> حذف نهائي</button>
                           </td>
                         </tr>

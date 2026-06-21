@@ -154,6 +154,11 @@ type LogisticsRowRecord = {
 
 const parseRowData = (data: string) => JSON.parse(data);
 
+const sanitizeRowForStorage = (row: any) => {
+  const { _sharing, _originalIndex, ...stored } = row;
+  return stored;
+};
+
 const getUsernameById = (id: number | null | undefined) => {
   if (!id) return null;
   const user: any = db.prepare("SELECT username FROM users WHERE id = ?").get(id);
@@ -273,13 +278,14 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
         .prepare("SELECT id, user_id, data, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
         .get(row.id) as LogisticsRowRecord | undefined;
 
+      const storedRow = sanitizeRowForStorage(row);
       if (existing) {
         if (getRowScopeForUser(req.user.id, existing) && !existing.deleted_at) {
           const current = parseRowData(existing.data);
-          updateStmt.run(JSON.stringify({ ...current, ...row, id: current.id }), existing.id);
+          updateStmt.run(JSON.stringify({ ...current, ...storedRow, id: current.id }), existing.id);
         }
       } else {
-        insertStmt.run(row.id, req.user.id, JSON.stringify(row));
+        insertStmt.run(row.id, req.user.id, JSON.stringify(storedRow));
       }
     }
   });
@@ -298,7 +304,7 @@ app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
   }
 
   const current = parseRowData(visible.data);
-  const updated = { ...current, ...updates, id: current.id };
+  const updated = sanitizeRowForStorage({ ...current, ...updates, id: current.id });
   db.prepare("UPDATE logistics_rows SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
     .run(JSON.stringify(updated), visible.id);
 

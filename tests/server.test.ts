@@ -1208,4 +1208,46 @@ describe('Live update websocket invalidation', () => {
       await closeLiveTestServer(server);
     }
   });
+
+  it('notifies the same user tab when extension text ingest adds rows', async () => {
+    const { server, baseUrl, wsUrl } = await startLiveTestServer();
+    let socket: WebSocket | null = null;
+
+    try {
+      const user = await registerSharedTestUser('live_ingest_user');
+      const groupNo = `LIVEINGEST${Date.now()}`;
+      const ingestText = `
+رحلة الوصول
+تاريخ الوصول
+15/01/2026
+وقت الوصول
+14:30
+رقم الرحلة
+SV123
+المطار
+مطار الملك عبد العزيز
+`;
+
+      socket = await connectLiveSocket(wsUrl, user.token);
+      const eventPromise = waitForLiveEvent(socket, 'rows_changed');
+
+      const ingest = await request(baseUrl)
+        .post('/api/ingest/text')
+        .set('Authorization', `Bearer ${user.token}`)
+        .send({
+          text: ingestText,
+          groupNo,
+          groupName: 'Live Ingest Group',
+          count: '4',
+        });
+      expect(ingest.status).toBe(200);
+
+      const event = await eventPromise;
+      expect(event.type).toBe('rows_changed');
+      expect(event.actorUserId).toBeUndefined();
+    } finally {
+      socket?.close();
+      await closeLiveTestServer(server);
+    }
+  });
 });

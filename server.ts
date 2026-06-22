@@ -1045,7 +1045,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
       const rowGroupNo = String(row.groupNo || "").trim();
       if (rowGroupNo) getVisibleUserIdsForGroupNo(rowGroupNo, req.user.id).forEach((id) => affectedUserIds.add(id));
     });
-    sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
+    sendLiveEvent(affectedUserIds, "rows_changed");
 
     const action = overwrite ? "استبدال" : "إضافة";
     console.log(`[Ingest] ${action} ${newRows.length} rows for group ${groupNo} (user ${req.user.id})`);

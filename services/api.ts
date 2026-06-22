@@ -26,7 +26,12 @@ export const api = {
       throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}...`);
     }
 
-    if (!response.ok) throw new Error(data.error || 'Request failed');
+    if (!response.ok) {
+      const error: any = new Error(data.error || 'Request failed');
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
     return data;
   },
 
@@ -60,10 +65,76 @@ export const api = {
     async fetchRows() {
       return api.request('/data');
     },
+    async fetchDeletedRows() {
+      return api.request('/data/deleted');
+    },
     async syncRows(rows: any[]) {
       return api.request('/data/sync', {
         method: 'POST',
         body: JSON.stringify({ rows }),
+      });
+    },
+    async updateRow(id: string, updates: any, baseVersion?: number) {
+      return api.request(`/data/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ updates, ...(baseVersion !== undefined ? { baseVersion } : {}) }),
+      });
+    },
+    async deleteRow(id: string) {
+      return api.request(`/data/${id}/delete`, {
+        method: 'POST',
+      });
+    },
+    async permanentlyDeleteRow(id: string) {
+      return api.request(`/data/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    async clearDeletedRows() {
+      return api.request('/data/deleted', {
+        method: 'DELETE',
+      });
+    },
+    async restoreRow(id: string) {
+      return api.request(`/data/${id}/restore`, {
+        method: 'POST',
+      });
+    }
+  },
+
+  shares: {
+    async fetchInvitations() {
+      return api.request('/shares/invitations');
+    },
+    async createInvitation(payload: any) {
+      return api.request('/shares/invitations', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+    async acceptInvitation(id: number) {
+      return api.request(`/shares/invitations/${id}/accept`, {
+        method: 'POST',
+      });
+    },
+    async declineInvitation(id: number) {
+      return api.request(`/shares/invitations/${id}/decline`, {
+        method: 'POST',
+      });
+    },
+    async fetchAccess() {
+      return api.request('/shares/access');
+    },
+    async updateAccessRole(payload: any) {
+      return api.request('/shares/access', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+    },
+    async revokeAccess(payload: any) {
+      return api.request('/shares/access', {
+        method: 'DELETE',
+        body: JSON.stringify(payload),
       });
     }
   },

@@ -5,8 +5,10 @@ import bcrypt from "bcryptjs";
 import Database from "better-sqlite3";
 import cors from "cors";
 import dotenv from "dotenv";
+import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
+import { WebSocketServer } from "ws";
 import { parseDateTime, parseItineraryText, getCarType } from "./utils/parser.js";
 
 dotenv.config();
@@ -17,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "umrah-secret-key-2026";
+const liveClients = new Map<number, Set<any>>();
 
 // Database initialization
 const DB_PATH = process.env.VITEST ? ":memory:" : (process.env.DB_PATH || "umrah.db");
@@ -36,6 +39,9 @@ db.exec(`
     id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
     data TEXT NOT NULL,
+    deleted_at DATETIME,
+    deleted_by_user_id INTEGER,
+    version INTEGER NOT NULL DEFAULT 1,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
@@ -49,7 +55,94 @@ db.exec(`
     font_size INTEGER DEFAULT 100,
     FOREIGN KEY (user_id) REFERENCES users (id)
   );
+
+  CREATE TABLE IF NOT EXISTS trip_share_invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_user_id INTEGER NOT NULL,
+    receiver_user_id INTEGER NOT NULL,
+    scope_type TEXT NOT NULL,
+    row_id TEXT,
+    group_no TEXT,
+    role TEXT NOT NULL DEFAULT 'editor',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    responded_at DATETIME,
+    FOREIGN KEY (sender_user_id) REFERENCES users (id),
+    FOREIGN KEY (receiver_user_id) REFERENCES users (id)
+  );
+
+  CREATE TABLE IF NOT EXISTS trip_row_access (
+    row_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    granted_by_user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'editor',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (row_id, user_id),
+    FOREIGN KEY (user_id) REFERENCES users (id),
+    FOREIGN KEY (granted_by_user_id) REFERENCES users (id)
+  );
+
+  CREATE TABLE IF NOT EXISTS trip_group_access (
+    group_no TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    granted_by_user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'editor',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_no, user_id),
+    FOREIGN KEY (user_id) REFERENCES users (id),
+    FOREIGN KEY (granted_by_user_id) REFERENCES users (id)
+  );
 `);
+
+// Migration: Add shared recycle-bin columns if missing
+try {
+  db.prepare("SELECT deleted_at, deleted_by_user_id, version FROM logistics_rows LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE logistics_rows ADD COLUMN deleted_at DATETIME");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration deleted_at failed", err);
+  }
+  try {
+    db.exec("ALTER TABLE logistics_rows ADD COLUMN deleted_by_user_id INTEGER");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration deleted_by_user_id failed", err);
+  }
+  try {
+    db.exec("ALTER TABLE logistics_rows ADD COLUMN version INTEGER NOT NULL DEFAULT 1");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration version failed", err);
+  }
+}
+
+// Migration: Add share roles if missing
+try {
+  db.prepare("SELECT role FROM trip_share_invitations LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE trip_share_invitations ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration invitation role failed", err);
+  }
+}
+try {
+  db.prepare("SELECT role FROM trip_row_access LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE trip_row_access ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration row access role failed", err);
+  }
+}
+try {
+  db.prepare("SELECT role FROM trip_group_access LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE trip_group_access ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration group access role failed", err);
+  }
+}
 
 // Migration: Add notified_ids if missing
 try {
@@ -91,6 +184,185 @@ const authenticateToken = (req: any, res: any, next: any) => {
   });
 };
 
+type LogisticsRowRecord = {
+  id: string;
+  user_id: number;
+  data: string;
+  version: number;
+  updated_at?: string;
+  deleted_at?: string | null;
+  deleted_by_user_id?: number | null;
+};
+
+type ShareRole = "viewer" | "editor";
+type AccessRole = ShareRole | "owner";
+type AccessScope = "owner" | "row" | "group";
+
+const parseRowData = (data: string) => JSON.parse(data);
+
+const sanitizeRowForStorage = (row: any) => {
+  const { _sharing, _originalIndex, _version, ...stored } = row;
+  return stored;
+};
+
+const normalizeShareRole = (role: any): ShareRole => role === "viewer" ? "viewer" : "editor";
+
+const canEditAccessRole = (role: AccessRole | null | undefined) => role === "owner" || role === "editor";
+
+const getUsernameById = (id: number | null | undefined) => {
+  if (!id) return null;
+  const user: any = db.prepare("SELECT username FROM users WHERE id = ?").get(id);
+  return user?.username ?? null;
+};
+
+const getUserByUsername = (username: string) =>
+  db.prepare("SELECT id, username FROM users WHERE username = ?").get(username) as { id: number; username: string } | undefined;
+
+const getRowAccessForUser = (userId: number, record: LogisticsRowRecord): { scope: AccessScope; role: AccessRole } | null => {
+  if (Number(record.user_id) === Number(userId)) return { scope: "owner", role: "owner" };
+
+  const rowAccess = db
+    .prepare("SELECT role FROM trip_row_access WHERE row_id = ? AND user_id = ?")
+    .get(record.id, userId) as { role: ShareRole } | undefined;
+
+  const row = parseRowData(record.data);
+  let groupAccess: { role: ShareRole } | undefined;
+  if (row.groupNo) {
+    groupAccess = db
+      .prepare("SELECT role FROM trip_group_access WHERE group_no = ? AND user_id = ?")
+      .get(String(row.groupNo), userId) as { role: ShareRole } | undefined;
+  }
+
+  if (rowAccess && groupAccess) {
+    return rowAccess.role === "editor" || groupAccess.role === "editor"
+      ? { scope: rowAccess.role === "editor" ? "row" : "group", role: "editor" }
+      : { scope: "row", role: "viewer" };
+  }
+  if (rowAccess) return { scope: "row", role: normalizeShareRole(rowAccess.role) };
+  if (groupAccess) return { scope: "group", role: normalizeShareRole(groupAccess.role) };
+
+  return null;
+};
+
+const getRowScopeForUser = (userId: number, record: LogisticsRowRecord): AccessScope | null =>
+  getRowAccessForUser(userId, record)?.scope ?? null;
+
+const getVisibleRowForUser = (userId: number, rowId: string, includeDeleted = false) => {
+  const record = db
+    .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
+    .get(rowId) as LogisticsRowRecord | undefined;
+  if (!record) return null;
+  if (!includeDeleted && record.deleted_at) return null;
+  return getRowScopeForUser(userId, record) ? record : null;
+};
+
+const decorateRowForUser = (record: LogisticsRowRecord, userId: number) => {
+  const row = parseRowData(record.data);
+  row._version = Number(record.version || 1);
+  const access = getRowAccessForUser(userId, record);
+  const scope = access?.scope;
+  const isShared = Boolean(scope && scope !== "owner");
+  if (isShared || record.deleted_at) {
+    row._sharing = {
+      shared: isShared,
+      ownerUsername: getUsernameById(record.user_id),
+      ...(scope && scope !== "owner" ? { scope, role: access?.role } : {}),
+      ...(record.deleted_at ? { deletedAt: record.deleted_at, deletedByUsername: getUsernameById(record.deleted_by_user_id) } : {}),
+    };
+  }
+  return row;
+};
+
+const listVisibleRowsForUser = (userId: number, includeDeleted = false) => {
+  const records = db
+    .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows")
+    .all() as LogisticsRowRecord[];
+  return records
+    .filter((record) => includeDeleted ? Boolean(record.deleted_at) : !record.deleted_at)
+    .filter((record) => Boolean(getRowScopeForUser(userId, record)))
+    .map((record) => decorateRowForUser(record, userId));
+};
+
+type LiveEventType = "rows_changed" | "invitations_changed";
+
+const sendLiveEvent = (userIds: Iterable<number>, type: LiveEventType, actorUserId?: number) => {
+  const payload = JSON.stringify({ type, at: new Date().toISOString(), ...(actorUserId ? { actorUserId: Number(actorUserId) } : {}) });
+  for (const id of new Set(Array.from(userIds).map(Number))) {
+    const clients = liveClients.get(id);
+    if (!clients) continue;
+    for (const ws of clients) {
+      if (ws.readyState === 1) ws.send(payload);
+    }
+  }
+};
+
+const getVisibleUserIdsForRowRecord = (record: LogisticsRowRecord) => {
+  const userIds = new Set<number>([Number(record.user_id)]);
+  const rowAccess = db.prepare("SELECT user_id FROM trip_row_access WHERE row_id = ?").all(record.id) as { user_id: number }[];
+  rowAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
+
+  const row = parseRowData(record.data);
+  if (row.groupNo) {
+    const groupAccess = db.prepare("SELECT user_id FROM trip_group_access WHERE group_no = ?").all(String(row.groupNo)) as { user_id: number }[];
+    groupAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
+  }
+  return userIds;
+};
+
+const getVisibleUserIdsForRowId = (rowId: string) => {
+  const record = db
+    .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
+    .get(rowId) as LogisticsRowRecord | undefined;
+  return record ? getVisibleUserIdsForRowRecord(record) : new Set<number>();
+};
+
+const getVisibleUserIdsForGroupNo = (groupNo: string, ownerUserId: number) => {
+  const userIds = new Set<number>([Number(ownerUserId)]);
+  const groupAccess = db.prepare("SELECT user_id FROM trip_group_access WHERE group_no = ?").all(groupNo) as { user_id: number }[];
+  groupAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
+  return userIds;
+};
+
+const attachLiveUpdates = (server: http.Server) => {
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (req, socket, head) => {
+    const url = new URL(req.url || "", "http://localhost");
+    if (url.pathname !== "/api/live") return;
+
+    const token = url.searchParams.get("token");
+    if (!token) {
+      socket.destroy();
+      return;
+    }
+
+    try {
+      const user = jwt.verify(token, JWT_SECRET) as { id: number; username: string };
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        (ws as any).userId = Number(user.id);
+        wss.emit("connection", ws, req);
+      });
+    } catch {
+      socket.destroy();
+    }
+  });
+
+  wss.on("connection", (ws: any) => {
+    const userId = Number(ws.userId);
+    const clients = liveClients.get(userId) ?? new Set();
+    clients.add(ws);
+    liveClients.set(userId, clients);
+    ws.on("close", () => {
+      const current = liveClients.get(userId);
+      if (!current) return;
+      current.delete(ws);
+      if (current.size === 0) liveClients.delete(userId);
+    });
+  });
+
+  return wss;
+};
+
 // Auth Routes
 app.post("/api/auth/register", async (req, res) => {
   const { username, password } = req.body;
@@ -127,26 +399,452 @@ app.post("/api/auth/login", async (req, res) => {
 
 // Data Routes
 app.get("/api/data", authenticateToken, (req: any, res) => {
-  const rows = db.prepare("SELECT data FROM logistics_rows WHERE user_id = ?").all(req.user.id);
-  res.json(rows.map((r: any) => JSON.parse(r.data)));
+  res.json(listVisibleRowsForUser(req.user.id, false));
+});
+
+app.get("/api/data/deleted", authenticateToken, (req: any, res) => {
+  res.json(listVisibleRowsForUser(req.user.id, true));
 });
 
 app.post("/api/data/sync", authenticateToken, (req: any, res) => {
   const { rows } = req.body;
   if (!Array.isArray(rows)) return res.status(400).json({ error: "Invalid data" });
 
-  const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ?");
   const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
+  const updateStmt = db.prepare("UPDATE logistics_rows SET data = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+  const affectedUserIds = new Set<number>();
+  const conflicts: any[] = [];
 
   const sync = db.transaction((rows) => {
-    deleteStmt.run(req.user.id);
     for (const row of rows) {
-      insertStmt.run(row.id, req.user.id, JSON.stringify(row));
+      if (!row?.id) continue;
+      const existing = db
+        .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
+        .get(row.id) as LogisticsRowRecord | undefined;
+
+      const storedRow = sanitizeRowForStorage(row);
+      if (existing) {
+        const access = getRowAccessForUser(req.user.id, existing);
+        if (access && canEditAccessRole(access.role) && !existing.deleted_at) {
+          const current = parseRowData(existing.data);
+          const next = { ...current, ...storedRow, id: current.id };
+          if (row._version !== undefined && Number(row._version) !== Number(existing.version)) {
+            if (JSON.stringify(next) !== JSON.stringify(current)) {
+              conflicts.push({ id: existing.id, row: decorateRowForUser(existing, req.user.id) });
+            }
+            continue;
+          }
+          updateStmt.run(JSON.stringify(next), existing.id);
+          getVisibleUserIdsForRowId(existing.id).forEach((id) => affectedUserIds.add(id));
+        }
+      } else {
+        const groupNo = String(storedRow.groupNo || "").trim();
+        if (groupNo) {
+          const groupAccess = db
+            .prepare("SELECT role FROM trip_group_access WHERE group_no = ? AND user_id = ?")
+            .get(groupNo, req.user.id) as { role: ShareRole } | undefined;
+          if (groupAccess && !canEditAccessRole(groupAccess.role)) continue;
+        }
+        insertStmt.run(row.id, req.user.id, JSON.stringify(storedRow));
+        const recipients = groupNo ? getVisibleUserIdsForGroupNo(groupNo, req.user.id) : new Set<number>([req.user.id]);
+        recipients.forEach((id) => affectedUserIds.add(id));
+      }
     }
   });
 
   sync(rows);
+  if (conflicts.length > 0) {
+    sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
+    return res.status(409).json({ success: false, code: "CONFLICT", conflicts });
+  }
+  sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
   res.json({ success: true });
+});
+
+app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
+  const visible = getVisibleRowForUser(req.user.id, req.params.id, false);
+  if (!visible) return res.status(404).json({ error: "Trip not found" });
+
+  const updates = req.body?.updates;
+  if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
+    return res.status(400).json({ error: "Invalid updates" });
+  }
+
+  const access = getRowAccessForUser(req.user.id, visible);
+  if (!canEditAccessRole(access?.role)) return res.status(403).json({ error: "Insufficient permission" });
+
+  const baseVersion = req.body?.baseVersion;
+  if (baseVersion !== undefined && Number(baseVersion) !== Number(visible.version)) {
+    return res.status(409).json({
+      error: "Trip was updated elsewhere",
+      code: "CONFLICT",
+      row: decorateRowForUser(visible, req.user.id),
+    });
+  }
+
+  const current = parseRowData(visible.data);
+  const updated = sanitizeRowForStorage({ ...current, ...updates, id: current.id });
+  db.prepare("UPDATE logistics_rows SET data = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+    .run(JSON.stringify(updated), visible.id);
+
+  const refreshed = getVisibleRowForUser(req.user.id, visible.id, false) as LogisticsRowRecord;
+  sendLiveEvent(getVisibleUserIdsForRowRecord(refreshed), "rows_changed", req.user.id);
+  res.json({ success: true, row: decorateRowForUser(refreshed, req.user.id) });
+});
+
+app.post("/api/data/:id/delete", authenticateToken, (req: any, res) => {
+  const visible = getVisibleRowForUser(req.user.id, req.params.id, false);
+  if (!visible) return res.status(404).json({ error: "Trip not found" });
+  const access = getRowAccessForUser(req.user.id, visible);
+  if (!canEditAccessRole(access?.role)) return res.status(403).json({ error: "Insufficient permission" });
+
+  db.prepare(`
+    UPDATE logistics_rows
+    SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(req.user.id, visible.id);
+
+  sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed", req.user.id);
+  res.json({ success: true });
+});
+
+app.post("/api/data/:id/restore", authenticateToken, (req: any, res) => {
+  const visible = getVisibleRowForUser(req.user.id, req.params.id, true);
+  if (!visible || !visible.deleted_at) return res.status(404).json({ error: "Trip not found" });
+  const access = getRowAccessForUser(req.user.id, visible);
+  if (!canEditAccessRole(access?.role)) return res.status(403).json({ error: "Insufficient permission" });
+
+  db.prepare(`
+    UPDATE logistics_rows
+    SET deleted_at = NULL, deleted_by_user_id = NULL, version = version + 1, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(visible.id);
+
+  sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed", req.user.id);
+  res.json({ success: true });
+});
+
+app.delete("/api/data/deleted", authenticateToken, (req: any, res) => {
+  const records = db
+    .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE user_id = ? AND deleted_at IS NOT NULL")
+    .all(req.user.id) as LogisticsRowRecord[];
+
+  const affectedUserIds = new Set<number>([Number(req.user.id)]);
+  records.forEach((record) => {
+    getVisibleUserIdsForRowRecord(record).forEach((id) => affectedUserIds.add(id));
+  });
+
+  const deleteRows = db.transaction((rows: LogisticsRowRecord[]) => {
+    const deleteRowAccess = db.prepare("DELETE FROM trip_row_access WHERE row_id = ?");
+    const deleteInvitations = db.prepare("DELETE FROM trip_share_invitations WHERE row_id = ?");
+    const deleteRow = db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL");
+
+    for (const row of rows) {
+      deleteRowAccess.run(row.id);
+      deleteInvitations.run(row.id);
+      deleteRow.run(row.id, req.user.id);
+    }
+
+    db.prepare("UPDATE settings SET deleted_rows = ? WHERE user_id = ?").run("[]", req.user.id);
+  });
+
+  deleteRows(records);
+  sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
+  res.json({ success: true, deletedCount: records.length });
+});
+
+app.delete("/api/data/:id", authenticateToken, (req: any, res) => {
+  const visible = getVisibleRowForUser(req.user.id, req.params.id, true);
+  if (!visible || !visible.deleted_at) return res.status(404).json({ error: "Trip not found" });
+  if (Number(visible.user_id) !== Number(req.user.id)) return res.status(403).json({ error: "Only the owner can permanently delete a trip" });
+
+  const affectedUserIds = getVisibleUserIdsForRowRecord(visible);
+  db.transaction(() => {
+    db.prepare("DELETE FROM trip_row_access WHERE row_id = ?").run(visible.id);
+    db.prepare("DELETE FROM trip_share_invitations WHERE row_id = ?").run(visible.id);
+    db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL").run(visible.id, req.user.id);
+    db.prepare("UPDATE settings SET deleted_rows = ? WHERE user_id = ?").run("[]", req.user.id);
+  })();
+
+  sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
+  res.json({ success: true });
+});
+
+// Sharing Routes
+app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
+  const { receiverUsername, scopeType, rowId, groupNo } = req.body;
+  const role = normalizeShareRole(req.body?.role);
+  if (!receiverUsername || !scopeType) return res.status(400).json({ error: "Receiver and scope required" });
+  if (!["row", "group"].includes(scopeType)) return res.status(400).json({ error: "Invalid share scope" });
+
+  const receiver = getUserByUsername(String(receiverUsername).trim());
+  if (!receiver) return res.status(404).json({ error: "Receiver account not found" });
+  if (Number(receiver.id) === Number(req.user.id)) return res.status(400).json({ error: "Cannot share with yourself" });
+
+  let normalizedRowId: string | null = null;
+  let normalizedGroupNo: string | null = null;
+
+  if (scopeType === "row") {
+    if (!rowId) return res.status(400).json({ error: "rowId is required" });
+    const visible = getVisibleRowForUser(req.user.id, String(rowId), true);
+    if (!visible) return res.status(404).json({ error: "Trip not found" });
+    if (!canEditAccessRole(getRowAccessForUser(req.user.id, visible)?.role)) {
+      return res.status(403).json({ error: "Insufficient permission" });
+    }
+    normalizedRowId = String(rowId);
+  } else {
+    if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
+    normalizedGroupNo = String(groupNo).trim();
+    const canShareGroup = listVisibleRowsForUser(req.user.id, false)
+      .some((row: any) => String(row.groupNo || "").trim() === normalizedGroupNo);
+    const hasGroupAccess = db
+      .prepare("SELECT role FROM trip_group_access WHERE group_no = ? AND user_id = ?")
+      .get(normalizedGroupNo, req.user.id);
+    if (!canShareGroup && !hasGroupAccess) return res.status(404).json({ error: "Group not found" });
+    const groupRole = hasGroupAccess ? (hasGroupAccess as any).role : "owner";
+    if (hasGroupAccess && !canEditAccessRole(groupRole)) {
+      return res.status(403).json({ error: "Insufficient permission" });
+    }
+  }
+
+  const existingAccess = scopeType === "row"
+    ? db.prepare("SELECT 1 FROM trip_row_access WHERE row_id = ? AND user_id = ?").get(normalizedRowId, receiver.id)
+    : db.prepare("SELECT 1 FROM trip_group_access WHERE group_no = ? AND user_id = ?").get(normalizedGroupNo, receiver.id);
+  if (existingAccess) return res.status(400).json({ error: "User already has access" });
+
+  const existingInvite: any = db.prepare(`
+    SELECT * FROM trip_share_invitations
+    WHERE receiver_user_id = ?
+      AND scope_type = ?
+      AND COALESCE(row_id, '') = COALESCE(?, '')
+      AND COALESCE(group_no, '') = COALESCE(?, '')
+      AND status = 'pending'
+  `).get(receiver.id, scopeType, normalizedRowId, normalizedGroupNo);
+  if (existingInvite) {
+    return res.json({
+      success: true,
+      invitation: {
+        id: existingInvite.id,
+        scopeType: existingInvite.scope_type,
+        rowId: existingInvite.row_id,
+        groupNo: existingInvite.group_no,
+        role: normalizeShareRole(existingInvite.role),
+      },
+    });
+  }
+
+  const info = db.prepare(`
+    INSERT INTO trip_share_invitations (sender_user_id, receiver_user_id, scope_type, row_id, group_no, role)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(req.user.id, receiver.id, scopeType, normalizedRowId, normalizedGroupNo, role);
+
+  sendLiveEvent([receiver.id], "invitations_changed", req.user.id);
+
+  res.json({
+    success: true,
+    invitation: {
+      id: Number(info.lastInsertRowid),
+      senderUsername: req.user.username,
+      receiverUsername: receiver.username,
+      scopeType,
+      rowId: normalizedRowId,
+      groupNo: normalizedGroupNo,
+      role,
+    },
+  });
+});
+
+app.get("/api/shares/invitations", authenticateToken, (req: any, res) => {
+  const invitations = db.prepare(`
+    SELECT i.id, i.scope_type, i.row_id, i.group_no, i.role, i.created_at, u.username AS sender_username
+    FROM trip_share_invitations i
+    JOIN users u ON u.id = i.sender_user_id
+    WHERE i.receiver_user_id = ? AND i.status = 'pending'
+    ORDER BY i.created_at DESC
+  `).all(req.user.id) as any[];
+
+  res.json(invitations.map((invite) => ({
+    id: invite.id,
+    senderUsername: invite.sender_username,
+    scopeType: invite.scope_type,
+    rowId: invite.row_id,
+    groupNo: invite.group_no,
+    role: normalizeShareRole(invite.role),
+    createdAt: invite.created_at,
+  })));
+});
+
+app.post("/api/shares/invitations/:id/accept", authenticateToken, (req: any, res) => {
+  const invitation: any = db.prepare(`
+    SELECT * FROM trip_share_invitations
+    WHERE id = ? AND receiver_user_id = ? AND status = 'pending'
+  `).get(req.params.id, req.user.id);
+  if (!invitation) return res.status(404).json({ error: "Invitation not found" });
+  const role = normalizeShareRole(invitation.role);
+
+  if (invitation.scope_type === "row") {
+    db.prepare(`
+      INSERT OR IGNORE INTO trip_row_access (row_id, user_id, granted_by_user_id, role)
+      VALUES (?, ?, ?, ?)
+    `).run(invitation.row_id, req.user.id, invitation.sender_user_id, role);
+  } else {
+    const insertGroupAccess = db.prepare(`
+      INSERT OR IGNORE INTO trip_group_access (group_no, user_id, granted_by_user_id, role)
+      VALUES (?, ?, ?, ?)
+    `);
+    insertGroupAccess.run(invitation.group_no, invitation.sender_user_id, invitation.sender_user_id, "editor");
+    insertGroupAccess.run(invitation.group_no, req.user.id, invitation.sender_user_id, role);
+  }
+
+  db.prepare(`
+    UPDATE trip_share_invitations
+    SET status = 'accepted', responded_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(invitation.id);
+
+  sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed", req.user.id);
+  if (invitation.scope_type === "row") {
+    sendLiveEvent(getVisibleUserIdsForRowId(invitation.row_id), "rows_changed", req.user.id);
+  } else {
+    sendLiveEvent(getVisibleUserIdsForGroupNo(invitation.group_no, invitation.sender_user_id), "rows_changed", req.user.id);
+  }
+  res.json({ success: true });
+});
+
+app.post("/api/shares/invitations/:id/decline", authenticateToken, (req: any, res) => {
+  const invitation: any = db.prepare(`
+    SELECT * FROM trip_share_invitations
+    WHERE id = ? AND receiver_user_id = ? AND status = 'pending'
+  `).get(req.params.id, req.user.id);
+  if (!invitation) return res.status(404).json({ error: "Invitation not found" });
+
+  db.prepare(`
+    UPDATE trip_share_invitations
+    SET status = 'declined', responded_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(invitation.id);
+
+  sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed", req.user.id);
+  res.json({ success: true });
+});
+
+app.get("/api/shares/access", authenticateToken, (req: any, res) => {
+  const rowAccess = db.prepare(`
+    SELECT
+      a.row_id AS row_id,
+      a.user_id AS user_id,
+      a.role AS role,
+      a.created_at AS created_at,
+      u.username AS username,
+      r.data AS row_data
+    FROM trip_row_access a
+    JOIN users u ON u.id = a.user_id
+    JOIN logistics_rows r ON r.id = a.row_id
+    WHERE a.user_id != ?
+      AND (a.granted_by_user_id = ? OR r.user_id = ?)
+    ORDER BY a.created_at DESC
+  `).all(req.user.id, req.user.id, req.user.id) as any[];
+
+  const groupAccess = db.prepare(`
+    SELECT
+      a.group_no AS group_no,
+      a.user_id AS user_id,
+      a.role AS role,
+      a.created_at AS created_at,
+      u.username AS username
+    FROM trip_group_access a
+    JOIN users u ON u.id = a.user_id
+    WHERE a.user_id != ?
+      AND a.granted_by_user_id = ?
+    ORDER BY a.created_at DESC
+  `).all(req.user.id, req.user.id) as any[];
+
+  res.json([
+    ...rowAccess.map((item) => {
+      const row = parseRowData(item.row_data);
+      return {
+        scopeType: "row",
+        rowId: item.row_id,
+        userId: Number(item.user_id),
+        username: item.username,
+        role: normalizeShareRole(item.role),
+        createdAt: item.created_at,
+        rowSummary: `${row.groupName || "-"} (${row.groupNo || "-"}) - ${row.Column1 || "-"}`,
+      };
+    }),
+    ...groupAccess.map((item) => ({
+      scopeType: "group",
+      groupNo: item.group_no,
+      userId: Number(item.user_id),
+      username: item.username,
+      role: normalizeShareRole(item.role),
+      createdAt: item.created_at,
+      rowSummary: `Group ${item.group_no}`,
+    })),
+  ]);
+});
+
+app.patch("/api/shares/access", authenticateToken, (req: any, res) => {
+  const { scopeType, rowId, groupNo, userId } = req.body;
+  const role = normalizeShareRole(req.body?.role);
+  if (!["row", "group"].includes(scopeType) || !userId) return res.status(400).json({ error: "Invalid access target" });
+
+  if (scopeType === "row") {
+    if (!rowId) return res.status(400).json({ error: "rowId is required" });
+    const record = db
+      .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
+      .get(String(rowId)) as LogisticsRowRecord | undefined;
+    if (!record) return res.status(404).json({ error: "Trip not found" });
+    const info = db.prepare(`
+      UPDATE trip_row_access
+      SET role = ?
+      WHERE row_id = ? AND user_id = ?
+        AND (granted_by_user_id = ? OR ? = ?)
+    `).run(role, String(rowId), Number(userId), req.user.id, Number(record.user_id), Number(req.user.id));
+    if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
+    sendLiveEvent(getVisibleUserIdsForRowId(String(rowId)), "rows_changed", req.user.id);
+    return res.json({ success: true });
+  }
+
+  if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
+  const info = db.prepare(`
+    UPDATE trip_group_access
+    SET role = ?
+    WHERE group_no = ? AND user_id = ? AND granted_by_user_id = ?
+  `).run(role, String(groupNo).trim(), Number(userId), req.user.id);
+  if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
+  sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+  return res.json({ success: true });
+});
+
+app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
+  const { scopeType, rowId, groupNo, userId } = req.body;
+  if (!["row", "group"].includes(scopeType) || !userId) return res.status(400).json({ error: "Invalid access target" });
+
+  if (scopeType === "row") {
+    if (!rowId) return res.status(400).json({ error: "rowId is required" });
+    const record = db
+      .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
+      .get(String(rowId)) as LogisticsRowRecord | undefined;
+    if (!record) return res.status(404).json({ error: "Trip not found" });
+    const info = db.prepare(`
+      DELETE FROM trip_row_access
+      WHERE row_id = ? AND user_id = ?
+        AND (granted_by_user_id = ? OR ? = ?)
+    `).run(String(rowId), Number(userId), req.user.id, Number(record.user_id), Number(req.user.id));
+    if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
+    sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+    return res.json({ success: true });
+  }
+
+  if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
+  const info = db.prepare(`
+    DELETE FROM trip_group_access
+    WHERE group_no = ? AND user_id = ? AND granted_by_user_id = ?
+  `).run(String(groupNo).trim(), Number(userId), req.user.id);
+  if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
+  sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+  return res.json({ success: true });
 });
 
 // Settings Routes
@@ -323,7 +1021,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
       return res.status(422).json({ error: "لم يتم استخراج أي رحلات من النص", rows: [] });
 
     const existingRaw = db
-      .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
+      .prepare("SELECT data FROM logistics_rows WHERE user_id = ? AND deleted_at IS NULL")
       .all(req.user.id) as { data: string }[];
 
     let existingRows = existingRaw.map((r) => JSON.parse(r.data));
@@ -334,13 +1032,20 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
 
     const mergedRows = [...newRows, ...existingRows];
 
-    const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ?");
+    const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ? AND deleted_at IS NULL");
     const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
 
     db.transaction((rows: any[]) => {
       deleteStmt.run(req.user.id);
       for (const row of rows) insertStmt.run(row.id, req.user.id, JSON.stringify(row));
     })(mergedRows);
+
+    const affectedUserIds = new Set<number>([req.user.id]);
+    newRows.forEach((row: any) => {
+      const rowGroupNo = String(row.groupNo || "").trim();
+      if (rowGroupNo) getVisibleUserIdsForGroupNo(rowGroupNo, req.user.id).forEach((id) => affectedUserIds.add(id));
+    });
+    sendLiveEvent(affectedUserIds, "rows_changed");
 
     const action = overwrite ? "استبدال" : "إضافة";
     console.log(`[Ingest] ${action} ${newRows.length} rows for group ${groupNo} (user ${req.user.id})`);
@@ -494,14 +1199,17 @@ async function checkAndSendAlerts() {
   }
 }
 
-export { app };
+export { app, attachLiveUpdates };
 
 if (!process.env.VITEST) {
+  const server = http.createServer(app);
+  attachLiveUpdates(server);
+
   // Start alert worker immediately then every 60 s
   checkAndSendAlerts();
   setInterval(checkAndSendAlerts, 60_000);
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`[Alerts] Proximity alert worker started (60 s interval)`);
   });

@@ -1030,6 +1030,56 @@ SV456
     expect(activeIds).not.toContain(deletedRows[1].id);
     expect(activeAfterIngest.body).toHaveLength(ingest.body.rows.length);
   });
+
+  it('stores agency from extension text ingest on every parsed row', async () => {
+    const user = await registerSharedTestUser('ingest_agency_user');
+    const groupNo = `AGENCY${Date.now()}`;
+    const ingestText = `
+رحلة الوصول
+تاريخ الوصول
+2026-07-08
+وقت الوصول
+14:30
+رقم الرحلة
+SV123
+المطار
+JED
+
+رحلة المغادرة
+تاريخ المغادرة
+2026-07-15
+وقت المغادرة
+10:00
+رقم الرحلة
+SV456
+المطار
+MED
+`;
+
+    const ingest = await request(app)
+      .post('/api/ingest/text')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({
+        text: ingestText,
+        groupNo,
+        groupName: 'Agency Group',
+        agency: 'اميرة ترافيل',
+        count: '6',
+      });
+
+    expect(ingest.status).toBe(200);
+    expect(ingest.body.rows.length).toBeGreaterThan(0);
+    expect(ingest.body.rows.every((row: any) => row.agency === 'اميرة ترافيل')).toBe(true);
+
+    const rows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${user.token}`);
+
+    expect(rows.status).toBe(200);
+    const storedRows = rows.body.filter((row: any) => row.groupNo === groupNo);
+    expect(storedRows.length).toBe(ingest.body.rows.length);
+    expect(storedRows.every((row: any) => row.agency === 'اميرة ترافيل')).toBe(true);
+  });
 });
 
 describe('Recycle bin permanent deletion', () => {

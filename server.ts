@@ -1001,9 +1001,9 @@ app.get("/api/check/group/:groupNo", authenticateToken, (req: any, res) => {
 });
 
 // POST /api/ingest/text — ingest raw itinerary text from browser extension
-// Body: { text, groupNo, groupName, count, overwrite? }
+// Body: { text, groupNo, groupName, agency?, count, overwrite? }
 app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
-  const { text, groupNo, groupName, count, overwrite = false } = req.body;
+  const { text, groupNo, groupName, agency = "", count, overwrite = false } = req.body;
 
   if (!text || typeof text !== "string" || text.trim().length < 5)
     return res.status(400).json({ error: "النص مطلوب ولا يمكن أن يكون فارغاً" });
@@ -1014,6 +1014,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     const newRows = parseItineraryText(text.trim(), {
       groupNo: String(groupNo).trim(),
       groupName: String(groupName).trim(),
+      agency: String(agency || "").trim(),
       count: String(count).trim(),
     });
 

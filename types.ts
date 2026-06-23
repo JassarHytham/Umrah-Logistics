@@ -145,6 +145,40 @@ export interface DisplaySettings {
   hiddenColumns: string[];                  // keys of columns to hide
 }
 
+export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
+  density: 'compact',
+  tableFontSize: 100,
+  borderStyle: 'thin',
+  noteHighlightEnabled: true,
+  noteHighlightColor: 'amber',
+  wrapCells: true,
+  columnOrder: DEFAULT_COLUMN_ORDER,
+  hiddenColumns: [],
+};
+
+export const normalizeDisplaySettings = (settings?: Partial<DisplaySettings> | null): DisplaySettings => {
+  const savedOrder = settings?.columnOrder ?? DEFAULT_COLUMN_ORDER;
+  const mergedOrder = [...savedOrder];
+
+  for (const key of DEFAULT_COLUMN_ORDER) {
+    if (!mergedOrder.includes(key)) {
+      const afterGroupName = key === 'agency' ? mergedOrder.indexOf('groupName') : -1;
+      if (afterGroupName >= 0) {
+        mergedOrder.splice(afterGroupName + 1, 0, key);
+      } else {
+        mergedOrder.push(key);
+      }
+    }
+  }
+
+  return {
+    ...DEFAULT_DISPLAY_SETTINGS,
+    ...settings,
+    columnOrder: mergedOrder,
+    hiddenColumns: settings?.hiddenColumns ?? DEFAULT_DISPLAY_SETTINGS.hiddenColumns,
+  };
+};
+
 declare global {
   interface Window {
     XLSX: any;

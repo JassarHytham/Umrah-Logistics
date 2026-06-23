@@ -14,7 +14,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER, ShareInvitation, ShareAccessGrant, ShareRole } from './types';
+import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER, ShareInvitation, ShareAccessGrant, ShareRole, normalizeDisplaySettings } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
@@ -162,7 +162,7 @@ export default function App() {
         requiredFields: ['groupName', 'groupNo', 'flight', 'date', 'time', 'from', 'to'],
         defaultStatus: 'Planned',
       });
-      setDisplaySettings(settings.displaySettings ? { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', wrapCells: true, columnOrder: DEFAULT_COLUMN_ORDER, hiddenColumns: [], ...settings.displaySettings } : { density: 'compact', tableFontSize: 100, borderStyle: 'thin', noteHighlightEnabled: true, noteHighlightColor: 'amber', wrapCells: true, columnOrder: DEFAULT_COLUMN_ORDER, hiddenColumns: [] });
+      setDisplaySettings(normalizeDisplaySettings(settings.displaySettings));
 
       // Legacy Migration: If backend is empty but local storage has data, offer to import
       if (rows.length === 0) {

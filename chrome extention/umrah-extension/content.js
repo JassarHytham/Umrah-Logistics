@@ -43,8 +43,14 @@
   function saveAndFlash(row, data, source) {
     if (!data.groupNo || !data.groupName) return;
     const payload = { ...data, timestamp: Date.now(), source };
+    const activeGroup = {
+      groupNo: data.groupNo,
+      groupName: data.groupName,
+      agency: data.agency || '',
+      count: data.count || '',
+    };
 
-    chrome.storage.local.set({ umrah_autofill: payload }, () => {
+    chrome.storage.local.set({ umrah_autofill: payload, umrah_active_group: activeGroup }, () => {
       if (chrome.runtime.lastError) {
         console.error('[Umrah Capture] Storage error:', chrome.runtime.lastError.message);
       } else {

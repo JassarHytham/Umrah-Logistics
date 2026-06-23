@@ -29,6 +29,7 @@ export interface LogisticsRow {
   id: string;
   groupNo: string;
   groupName: string;
+  agency?: string;
   count: string;
   Column1: string; // Movement type (Arrival, Departure, etc.)
   date: string;
@@ -62,6 +63,7 @@ export interface LogisticsTemplate {
 export interface GroupInfo {
   groupNo: string;
   groupName: string;
+  agency?: string;
   count: string;
 }
 
@@ -109,7 +111,7 @@ export interface PreviewSettings {
 }
 
 export const DEFAULT_COLUMN_ORDER: string[] = [
-  'status', 'groupNo', 'groupName', 'Column1', 'tafweej',
+  'status', 'groupNo', 'groupName', 'agency', 'Column1', 'tafweej',
   'carType', 'from', 'to', 'time', 'flight', 'date', 'count',
   'notes', 'actions',
 ];
@@ -118,6 +120,7 @@ export const COLUMN_LABELS: Record<string, string> = {
   status:    'الحالة',
   groupNo:   'رقم م',
   groupName: 'اسم المجموعة',
+  agency:    'الوكيل',
   Column1:   'الحركة',
   tafweej:   'التفويج',
   carType:   'السيارة',

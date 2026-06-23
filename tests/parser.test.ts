@@ -280,6 +280,13 @@ SV456
     }
   });
 
+  it('all rows carry agency when provided in group info', () => {
+    const rows = parseItineraryText(sampleItinerary, { ...groupInfo, agency: 'اميرة ترافيل' });
+    for (const row of rows) {
+      expect(row.agency).toBe('اميرة ترافيل');
+    }
+  });
+
   it('assigns carType سيدان for count=4', () => {
     const rows = parseItineraryText(sampleItinerary, groupInfo);
     for (const row of rows) {

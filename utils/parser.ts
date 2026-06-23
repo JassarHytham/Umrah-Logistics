@@ -113,6 +113,7 @@ export const parseDateTime = (dateStr: string, timeStr: string) => {
 export const parseItineraryText = (text: string, groupInfo: GroupInfo): LogisticsRow[] => {
   const rows: LogisticsRow[] = [];
   const carType = getCarType(groupInfo.count);
+  const rowGroupInfo = { ...groupInfo, agency: groupInfo.agency || "" };
   
   // Extract Destination Blocks
   const destBlocks: { city: string; startDate: string; hotel: string; index: number }[] = [];
@@ -236,7 +237,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
 
   if (arrivalData) {
       rows.push({
-          ...groupInfo,
+          ...rowGroupInfo,
           ...(arrivalData as any),
           id: uid(),
           carType,
@@ -253,7 +254,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
           const toLabel = to.hotel ? `${to.hotel} (${to.city})` : to.city;
           rows.push({
               id: uid(),
-              ...groupInfo,
+              ...rowGroupInfo,
               Column1: "بين المدن",
               date: to.startDate,
               time: "10:00",
@@ -269,7 +270,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
 
   if (departureData) {
       rows.push({
-          ...groupInfo,
+          ...rowGroupInfo,
           ...(departureData as any),
           id: uid(),
           carType,
@@ -281,7 +282,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   if (rows.length === 0 && text.trim().length > 10) {
       rows.push({
           id: uid(),
-          ...groupInfo,
+          ...rowGroupInfo,
           Column1: "غير محدد",
           date: "", time: "", flight: "", from: "?", to: "?",
           carType, tafweej: "لا", status: 'Planned'

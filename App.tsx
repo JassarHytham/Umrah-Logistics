@@ -72,7 +72,7 @@ export default function App() {
   const [shareAccessGrants, setShareAccessGrants] = useState<ShareAccessGrant[]>([]);
   const [tgConfig, setTgConfig] = useState<TelegramConfig>({ token: '', chatId: '', enabled: false });
 
-  const [inputs, setInputs] = useState<InputState>({ groupNo: '', groupName: '', count: '', text: '' });
+  const [inputs, setInputs] = useState<InputState>({ groupNo: '', groupName: '', agency: '', count: '', text: '' });
   const [previewRows, setPreviewRows] = useState<LogisticsRow[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
@@ -415,7 +415,12 @@ export default function App() {
       showNotification("يرجى تعبئة البيانات الأساسية", "error");
       return;
     }
-    const rows = parseItineraryText(inputs.text, { groupNo: inputs.groupNo, groupName: inputs.groupName, count: inputs.count });
+    const rows = parseItineraryText(inputs.text, {
+      groupNo: inputs.groupNo,
+      groupName: inputs.groupName,
+      agency: inputs.agency || '',
+      count: inputs.count
+    });
     setPreviewRows(rows);
     setShowPreview(true);
   };
@@ -445,6 +450,7 @@ export default function App() {
         "رقم الرحلة": row.flight,
         "العدد": parseInt(row.count) || 0,
         "اسم المجموعة": row.groupName,
+        "الوكيل": row.agency || '',
         "رقم مجموعة": row.groupNo,
         "تاريخ": row.date
       }));
@@ -531,6 +537,7 @@ export default function App() {
               id: uid(),
               groupNo: String(getVal(r, ['رقم مجموعة', 'رقم المجموعة', 'Group No', 'رقم_المجموعة']) || ''),
               groupName: String(getVal(r, ['اسم المجموعة', 'Group Name', 'اسم_المجموعة']) || ''),
+              agency: String(getVal(r, ['الوكيل', 'اسم الوكيل الرئيسي', 'Agency', 'Main Agent', 'اسم_الوكيل_الرئيسي']) || ''),
               count: String(getVal(r, ['العدد', 'عدد', 'Count', 'عدد المعتمرين']) || '0'),
               Column1: movement,
               date: dateStr,
@@ -646,6 +653,7 @@ export default function App() {
       id: uid(),
       groupNo: '',
       groupName: '',
+      agency: '',
       count: '0',
       Column1: 'غير محدد',
       date: getLocalDateString(),
@@ -921,6 +929,7 @@ export default function App() {
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
                     <input type="text" placeholder="رقم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.groupNo} onChange={(e) => setInputs({ ...inputs, groupNo: e.target.value })} />
                     <input type="text" placeholder="اسم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.groupName} onChange={(e) => setInputs({ ...inputs, groupName: e.target.value })} />
+                    <input type="text" placeholder="الوكيل" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.agency || ''} onChange={(e) => setInputs({ ...inputs, agency: e.target.value })} />
                     <input type="number" placeholder="العدد" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.count} onChange={(e) => setInputs({ ...inputs, count: e.target.value })} />
                   </div>
                   <button onClick={handleExtract} className="w-full bg-blue-600 text-white p-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 min-h-[44px]">

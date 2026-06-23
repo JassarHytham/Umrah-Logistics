@@ -8,4 +8,9 @@ describe('table column constants', () => {
     expect(DEFAULT_COLUMN_ORDER.indexOf('agency')).toBeGreaterThan(DEFAULT_COLUMN_ORDER.indexOf('groupName'));
     expect(DEFAULT_COLUMN_ORDER.indexOf('agency')).toBeLessThan(DEFAULT_COLUMN_ORDER.indexOf('Column1'));
   });
+
+  it('uses stable agency labels for import and export mapping', () => {
+    const agencyLabels = ['الوكيل', 'اسم الوكيل الرئيسي', 'Agency', 'Main Agent', 'اسم_الوكيل_الرئيسي'];
+    expect(agencyLabels).toContain(COLUMN_LABELS.agency);
+  });
 });

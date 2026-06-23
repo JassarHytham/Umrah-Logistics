@@ -6,6 +6,7 @@ const row = (id: string, extras: Partial<LogisticsRow> = {}): LogisticsRow => ({
   id,
   groupNo: 'G1',
   groupName: 'Group',
+  agency: '',
   count: '1',
   Column1: 'Arrival',
   date: '01/01/2026',

@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import { 
   BarChart3, AlertCircle, TrendingUp, Clock, Calendar, 
-  MapPin, Car, ShieldAlert, ArrowUpRight, 
+  MapPin, Car, ShieldAlert, ArrowUpRight, Users,
   CheckCircle2, AlertTriangle, Info
 } from 'lucide-react';
 import { LogisticsRow } from '../types';
 import { getLocalDateString } from '../App';
+import { countUniqueGroups } from '../utils/operationsStats';
 
 interface AnalyticsProps {
   rows: LogisticsRow[];
@@ -44,6 +45,7 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
       tomorrow: tomorrowRows.length,
       delayed: delayed.length,
       unassigned: unassigned.length,
+      groups: countUniqueGroups(rows),
       highLoadCount: highLoadDays.length,
       dailyCounts
     };
@@ -125,10 +127,11 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
     <div className="space-y-8 animate-fade-in pb-12" dir="rtl">
       
       {/* SECTION 1: Executive Snapshot */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         {[
           { label: 'رحلات اليوم', val: stats.today, icon: Clock, color: 'from-blue-600 to-blue-400' },
           { label: 'رحلات الغد', val: stats.tomorrow, icon: Calendar, color: 'from-indigo-600 to-indigo-400' },
+          { label: 'عدد المجموعات', val: stats.groups, icon: Users, color: 'from-cyan-600 to-cyan-400' },
           { label: 'تأخيرات نشطة', val: stats.delayed, icon: AlertCircle, color: 'from-red-600 to-red-400', urgent: stats.delayed > 0 },
           { label: 'بانتظار التأكيد', val: stats.unassigned, icon: ShieldAlert, color: 'from-amber-600 to-amber-400' },
           { label: 'أيام ضغط عالٍ', val: stats.highLoadCount, icon: TrendingUp, color: 'from-emerald-600 to-emerald-400' },

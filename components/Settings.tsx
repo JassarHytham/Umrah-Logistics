@@ -558,19 +558,21 @@ export const Settings: React.FC<SettingsProps> = ({
                 {shareAccessGrants.length > 0 ? (
                   <div className="divide-y divide-gray-100">
                     {shareAccessGrants.map((grant) => (
-                      <div key={`${grant.scopeType}-${grant.rowId || grant.groupNo}-${grant.userId}`} className="p-4 flex flex-col lg:flex-row lg:items-center gap-4">
+                      <div key={`${grant.scopeType}-${grant.rowId || grant.groupNo || grant.agency}-${grant.userId}`} className="p-4 flex flex-col lg:flex-row lg:items-center gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-black text-gray-800">{grant.username}</span>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
-                              grant.scopeType === 'group'
+                              grant.scopeType === 'agency'
+                                ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                : grant.scopeType === 'group'
                                 ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
                                 : 'bg-teal-50 text-teal-700 border-teal-100'
                             }`}>
-                              {grant.scopeType === 'group' ? 'مجموعة' : 'رحلة'}
+                              {grant.scopeType === 'agency' ? 'وكيل' : grant.scopeType === 'group' ? 'مجموعة' : 'رحلة'}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs text-gray-500 truncate">{grant.rowSummary || grant.groupNo || grant.rowId}</p>
+                          <p className="mt-1 text-xs text-gray-500 truncate">{grant.rowSummary || grant.agency || grant.groupNo || grant.rowId}</p>
                         </div>
 
                         <div className="flex items-center gap-2">

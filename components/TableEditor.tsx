@@ -357,11 +357,11 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     </select>
                     {row._sharing?.shared && (
                         <div
-                            title={`مشتركة من ${row._sharing.ownerUsername || 'مستخدم آخر'}${row._sharing.scope === 'group' ? ' كمجموعة' : ''}`}
+                            title={`مشتركة من ${row._sharing.ownerUsername || 'مستخدم آخر'}${row._sharing.scope === 'agency' ? ' كوكيل' : row._sharing.scope === 'group' ? ' كمجموعة' : ''}`}
                             className="mx-auto inline-flex items-center justify-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[9px] font-bold text-teal-700"
                         >
                             <Users size={10} />
-                            {row._sharing.scope === 'group' ? 'مشتركة كمجموعة' : 'مشتركة'}
+                            {row._sharing.scope === 'agency' ? 'مشتركة كوكيل' : row._sharing.scope === 'group' ? 'مشتركة كمجموعة' : 'مشتركة'}
                         </div>
                     )}
                 </div>

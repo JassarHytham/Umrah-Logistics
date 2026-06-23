@@ -6,7 +6,7 @@ export type NoteHighlightColor = 'amber' | 'yellow' | 'blue' | 'green' | 'pink' 
 export interface SharedMetadata {
   shared: boolean;
   ownerUsername?: string;
-  scope?: 'row' | 'group';
+  scope?: 'row' | 'group' | 'agency';
   role?: ShareRole;
   deletedByUsername?: string;
   deletedAt?: string;
@@ -15,9 +15,10 @@ export interface SharedMetadata {
 export type ShareRole = 'viewer' | 'editor';
 
 export interface ShareAccessGrant {
-  scopeType: 'row' | 'group';
+  scopeType: 'row' | 'group' | 'agency';
   rowId?: string;
   groupNo?: string;
+  agency?: string;
   userId: number;
   username: string;
   role: ShareRole;
@@ -79,9 +80,10 @@ export interface NotificationState {
 export interface ShareInvitation {
   id: number;
   senderUsername: string;
-  scopeType: 'row' | 'group';
+  scopeType: 'row' | 'group' | 'agency';
   rowId?: string;
   groupNo?: string;
+  agency?: string;
   rowSummary?: string;
   role?: ShareRole;
   createdAt: string;

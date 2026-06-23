@@ -108,7 +108,7 @@ export default function App() {
   const [notifiedIds, setNotifiedIds] = useState<string[]>([]);
   const notifiedIdsRef = useRef<Set<string>>(new Set());
   const [notifiedCount, setNotifiedCount] = useState(0);
-  const [shareTarget, setShareTarget] = useState<{ row: LogisticsRow; scope: 'row' | 'group' } | null>(null);
+  const [shareTarget, setShareTarget] = useState<{ row: LogisticsRow; scope: 'row' | 'group' | 'agency' } | null>(null);
   const [shareReceiverUsername, setShareReceiverUsername] = useState('');
   const [shareRole, setShareRole] = useState<ShareRole>('editor');
   const [isSharing, setIsSharing] = useState(false);
@@ -687,6 +687,7 @@ export default function App() {
         scopeType: shareTarget.scope,
         rowId: shareTarget.scope === 'row' ? shareTarget.row.id : undefined,
         groupNo: shareTarget.scope === 'group' ? shareTarget.row.groupNo : undefined,
+        agency: shareTarget.scope === 'agency' ? shareTarget.row.agency : undefined,
         role: shareRole,
       });
       setShareTarget(null);
@@ -729,6 +730,7 @@ export default function App() {
         scopeType: grant.scopeType,
         rowId: grant.rowId,
         groupNo: grant.groupNo,
+        agency: grant.agency,
         userId: grant.userId,
         role,
       });
@@ -736,6 +738,7 @@ export default function App() {
         item.scopeType === grant.scopeType &&
         item.rowId === grant.rowId &&
         item.groupNo === grant.groupNo &&
+        item.agency === grant.agency &&
         item.userId === grant.userId
           ? { ...item, role }
           : item
@@ -754,12 +757,14 @@ export default function App() {
         scopeType: grant.scopeType,
         rowId: grant.rowId,
         groupNo: grant.groupNo,
+        agency: grant.agency,
         userId: grant.userId,
       });
       setShareAccessGrants(prev => prev.filter(item => !(
         item.scopeType === grant.scopeType &&
         item.rowId === grant.rowId &&
         item.groupNo === grant.groupNo &&
+        item.agency === grant.agency &&
         item.userId === grant.userId
       )));
       showNotification("تم إلغاء المشاركة", "success");
@@ -1027,11 +1032,15 @@ export default function App() {
                     <div>
                       <p className="text-sm font-bold text-gray-800">دعوة من {invite.senderUsername}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {invite.scopeType === 'group' ? `مشاركة المجموعة ${invite.groupNo}` : 'مشاركة رحلة محددة'}
+                        {invite.scopeType === 'agency'
+                          ? `مشاركة الوكيل ${invite.agency || '-'}`
+                          : invite.scopeType === 'group'
+                            ? `مشاركة المجموعة ${invite.groupNo}`
+                            : 'مشاركة رحلة محددة'}
                       </p>
                     </div>
                     <span className="rounded-full bg-teal-50 px-2 py-1 text-[10px] font-bold text-teal-700 border border-teal-100">
-                      {invite.scopeType === 'group' ? 'مجموعة' : 'رحلة'}
+                      {invite.scopeType === 'agency' ? 'وكيل' : invite.scopeType === 'group' ? 'مجموعة' : 'رحلة'}
                     </span>
                   </div>
                   <div className="flex gap-2 mt-4">
@@ -1066,11 +1075,12 @@ export default function App() {
             <div className="p-5 space-y-4">
               <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 text-xs text-gray-600 space-y-1">
                 <p><b>المجموعة:</b> {shareTarget.row.groupName || '-'} ({shareTarget.row.groupNo || '-'})</p>
-                <p><b>النطاق:</b> {shareTarget.scope === 'group' ? 'كل رحلات هذا الرقم الحالية والمستقبلية' : 'هذه الرحلة فقط'}</p>
+                <p><b>الوكيل:</b> {shareTarget.row.agency || '-'}</p>
+                <p><b>النطاق:</b> {shareTarget.scope === 'agency' ? 'كل رحلات هذا الوكيل الحالية والمستقبلية' : shareTarget.scope === 'group' ? 'كل رحلات هذا الرقم الحالية والمستقبلية' : 'هذه الرحلة فقط'}</p>
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-2">ماذا تريد مشاركة؟</label>
-                <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
+                <div className="grid grid-cols-3 gap-2 rounded-xl bg-gray-100 p-1">
                   <button
                     type="button"
                     onClick={() => setShareTarget({ ...shareTarget, scope: 'row' })}
@@ -1092,6 +1102,18 @@ export default function App() {
                     }`}
                   >
                     كل المجموعة
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!String(shareTarget.row.agency || '').trim()}
+                    onClick={() => setShareTarget({ ...shareTarget, scope: 'agency' })}
+                    className={`min-h-[44px] rounded-lg text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                      shareTarget.scope === 'agency'
+                        ? 'bg-white text-teal-700 shadow-sm border border-teal-100'
+                        : 'text-gray-500 hover:bg-white/60'
+                    }`}
+                  >
+                    كل الوكيل
                   </button>
                 </div>
               </div>

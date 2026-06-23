@@ -63,6 +63,7 @@ db.exec(`
     scope_type TEXT NOT NULL,
     row_id TEXT,
     group_no TEXT,
+    agency TEXT,
     role TEXT NOT NULL DEFAULT 'editor',
     status TEXT NOT NULL DEFAULT 'pending',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -89,6 +90,17 @@ db.exec(`
     role TEXT NOT NULL DEFAULT 'editor',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (group_no, user_id),
+    FOREIGN KEY (user_id) REFERENCES users (id),
+    FOREIGN KEY (granted_by_user_id) REFERENCES users (id)
+  );
+
+  CREATE TABLE IF NOT EXISTS trip_agency_access (
+    agency TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    granted_by_user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'editor',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (agency, user_id),
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (granted_by_user_id) REFERENCES users (id)
   );
@@ -141,6 +153,15 @@ try {
     db.exec("ALTER TABLE trip_group_access ADD COLUMN role TEXT NOT NULL DEFAULT 'editor'");
   } catch (err: any) {
     if (!String(err.message || "").includes("duplicate column")) console.error("Migration group access role failed", err);
+  }
+}
+try {
+  db.prepare("SELECT agency FROM trip_share_invitations LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE trip_share_invitations ADD COLUMN agency TEXT");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration invitation agency failed", err);
   }
 }
 
@@ -196,7 +217,7 @@ type LogisticsRowRecord = {
 
 type ShareRole = "viewer" | "editor";
 type AccessRole = ShareRole | "owner";
-type AccessScope = "owner" | "row" | "group";
+type AccessScope = "owner" | "row" | "group" | "agency";
 
 const parseRowData = (data: string) => JSON.parse(data);
 
@@ -206,6 +227,7 @@ const sanitizeRowForStorage = (row: any) => {
 };
 
 const normalizeShareRole = (role: any): ShareRole => role === "viewer" ? "viewer" : "editor";
+const normalizeAgency = (agency: any) => String(agency || "").trim();
 
 const canEditAccessRole = (role: AccessRole | null | undefined) => role === "owner" || role === "editor";
 
@@ -221,25 +243,32 @@ const getUserByUsername = (username: string) =>
 const getRowAccessForUser = (userId: number, record: LogisticsRowRecord): { scope: AccessScope; role: AccessRole } | null => {
   if (Number(record.user_id) === Number(userId)) return { scope: "owner", role: "owner" };
 
+  const accessCandidates: { scope: AccessScope; role: ShareRole }[] = [];
+
   const rowAccess = db
     .prepare("SELECT role FROM trip_row_access WHERE row_id = ? AND user_id = ?")
     .get(record.id, userId) as { role: ShareRole } | undefined;
+  if (rowAccess) accessCandidates.push({ scope: "row", role: normalizeShareRole(rowAccess.role) });
 
   const row = parseRowData(record.data);
-  let groupAccess: { role: ShareRole } | undefined;
   if (row.groupNo) {
-    groupAccess = db
+    const groupAccess = db
       .prepare("SELECT role FROM trip_group_access WHERE group_no = ? AND user_id = ?")
       .get(String(row.groupNo), userId) as { role: ShareRole } | undefined;
+    if (groupAccess) accessCandidates.push({ scope: "group", role: normalizeShareRole(groupAccess.role) });
   }
 
-  if (rowAccess && groupAccess) {
-    return rowAccess.role === "editor" || groupAccess.role === "editor"
-      ? { scope: rowAccess.role === "editor" ? "row" : "group", role: "editor" }
-      : { scope: "row", role: "viewer" };
+  const agency = normalizeAgency(row.agency);
+  if (agency) {
+    const agencyAccess = db
+      .prepare("SELECT role FROM trip_agency_access WHERE agency = ? AND user_id = ?")
+      .get(agency, userId) as { role: ShareRole } | undefined;
+    if (agencyAccess) accessCandidates.push({ scope: "agency", role: normalizeShareRole(agencyAccess.role) });
   }
-  if (rowAccess) return { scope: "row", role: normalizeShareRole(rowAccess.role) };
-  if (groupAccess) return { scope: "group", role: normalizeShareRole(groupAccess.role) };
+
+  const editorAccess = accessCandidates.find((access) => access.role === "editor");
+  if (editorAccess) return editorAccess;
+  if (accessCandidates[0]) return accessCandidates[0];
 
   return null;
 };
@@ -306,6 +335,12 @@ const getVisibleUserIdsForRowRecord = (record: LogisticsRowRecord) => {
     const groupAccess = db.prepare("SELECT user_id FROM trip_group_access WHERE group_no = ?").all(String(row.groupNo)) as { user_id: number }[];
     groupAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
   }
+
+  const agency = normalizeAgency(row.agency);
+  if (agency) {
+    const agencyAccess = db.prepare("SELECT user_id FROM trip_agency_access WHERE agency = ?").all(agency) as { user_id: number }[];
+    agencyAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
+  }
   return userIds;
 };
 
@@ -320,6 +355,13 @@ const getVisibleUserIdsForGroupNo = (groupNo: string, ownerUserId: number) => {
   const userIds = new Set<number>([Number(ownerUserId)]);
   const groupAccess = db.prepare("SELECT user_id FROM trip_group_access WHERE group_no = ?").all(groupNo) as { user_id: number }[];
   groupAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
+  return userIds;
+};
+
+const getVisibleUserIdsForAgency = (agency: string, ownerUserId: number) => {
+  const userIds = new Set<number>([Number(ownerUserId)]);
+  const agencyAccess = db.prepare("SELECT user_id FROM trip_agency_access WHERE agency = ?").all(normalizeAgency(agency)) as { user_id: number }[];
+  agencyAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
   return userIds;
 };
 
@@ -439,14 +481,29 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
         }
       } else {
         const groupNo = String(storedRow.groupNo || "").trim();
+        const agency = normalizeAgency(storedRow.agency);
         if (groupNo) {
           const groupAccess = db
             .prepare("SELECT role FROM trip_group_access WHERE group_no = ? AND user_id = ?")
             .get(groupNo, req.user.id) as { role: ShareRole } | undefined;
-          if (groupAccess && !canEditAccessRole(groupAccess.role)) continue;
+          const agencyAccess = agency
+            ? db
+              .prepare("SELECT role FROM trip_agency_access WHERE agency = ? AND user_id = ?")
+              .get(agency, req.user.id) as { role: ShareRole } | undefined
+            : undefined;
+          const hasReadonlySharedScope = [groupAccess, agencyAccess].some((access) => access && !canEditAccessRole(access.role));
+          const hasEditableSharedScope = [groupAccess, agencyAccess].some((access) => access && canEditAccessRole(access.role));
+          if (hasReadonlySharedScope && !hasEditableSharedScope) continue;
+        } else if (agency) {
+          const agencyAccess = db
+            .prepare("SELECT role FROM trip_agency_access WHERE agency = ? AND user_id = ?")
+            .get(agency, req.user.id) as { role: ShareRole } | undefined;
+          if (agencyAccess && !canEditAccessRole(agencyAccess.role)) continue;
         }
         insertStmt.run(row.id, req.user.id, JSON.stringify(storedRow));
-        const recipients = groupNo ? getVisibleUserIdsForGroupNo(groupNo, req.user.id) : new Set<number>([req.user.id]);
+        const recipients = new Set<number>([req.user.id]);
+        if (groupNo) getVisibleUserIdsForGroupNo(groupNo, req.user.id).forEach((id) => recipients.add(id));
+        if (agency) getVisibleUserIdsForAgency(agency, req.user.id).forEach((id) => recipients.add(id));
         recipients.forEach((id) => affectedUserIds.add(id));
       }
     }
@@ -572,10 +629,10 @@ app.delete("/api/data/:id", authenticateToken, (req: any, res) => {
 
 // Sharing Routes
 app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
-  const { receiverUsername, scopeType, rowId, groupNo } = req.body;
+  const { receiverUsername, scopeType, rowId, groupNo, agency } = req.body;
   const role = normalizeShareRole(req.body?.role);
   if (!receiverUsername || !scopeType) return res.status(400).json({ error: "Receiver and scope required" });
-  if (!["row", "group"].includes(scopeType)) return res.status(400).json({ error: "Invalid share scope" });
+  if (!["row", "group", "agency"].includes(scopeType)) return res.status(400).json({ error: "Invalid share scope" });
 
   const receiver = getUserByUsername(String(receiverUsername).trim());
   if (!receiver) return res.status(404).json({ error: "Receiver account not found" });
@@ -583,6 +640,7 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
 
   let normalizedRowId: string | null = null;
   let normalizedGroupNo: string | null = null;
+  let normalizedAgency: string | null = null;
 
   if (scopeType === "row") {
     if (!rowId) return res.status(400).json({ error: "rowId is required" });
@@ -592,7 +650,7 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
       return res.status(403).json({ error: "Insufficient permission" });
     }
     normalizedRowId = String(rowId);
-  } else {
+  } else if (scopeType === "group") {
     if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
     normalizedGroupNo = String(groupNo).trim();
     const canShareGroup = listVisibleRowsForUser(req.user.id, false)
@@ -605,11 +663,26 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
     if (hasGroupAccess && !canEditAccessRole(groupRole)) {
       return res.status(403).json({ error: "Insufficient permission" });
     }
+  } else {
+    normalizedAgency = normalizeAgency(agency);
+    if (!normalizedAgency) return res.status(400).json({ error: "agency is required" });
+    const canShareAgency = listVisibleRowsForUser(req.user.id, false)
+      .some((row: any) => normalizeAgency(row.agency) === normalizedAgency);
+    const hasAgencyAccess = db
+      .prepare("SELECT role FROM trip_agency_access WHERE agency = ? AND user_id = ?")
+      .get(normalizedAgency, req.user.id);
+    if (!canShareAgency && !hasAgencyAccess) return res.status(404).json({ error: "Agency not found" });
+    const agencyRole = hasAgencyAccess ? (hasAgencyAccess as any).role : "owner";
+    if (hasAgencyAccess && !canEditAccessRole(agencyRole)) {
+      return res.status(403).json({ error: "Insufficient permission" });
+    }
   }
 
   const existingAccess = scopeType === "row"
     ? db.prepare("SELECT 1 FROM trip_row_access WHERE row_id = ? AND user_id = ?").get(normalizedRowId, receiver.id)
-    : db.prepare("SELECT 1 FROM trip_group_access WHERE group_no = ? AND user_id = ?").get(normalizedGroupNo, receiver.id);
+    : scopeType === "group"
+      ? db.prepare("SELECT 1 FROM trip_group_access WHERE group_no = ? AND user_id = ?").get(normalizedGroupNo, receiver.id)
+      : db.prepare("SELECT 1 FROM trip_agency_access WHERE agency = ? AND user_id = ?").get(normalizedAgency, receiver.id);
   if (existingAccess) return res.status(400).json({ error: "User already has access" });
 
   const existingInvite: any = db.prepare(`
@@ -618,8 +691,9 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
       AND scope_type = ?
       AND COALESCE(row_id, '') = COALESCE(?, '')
       AND COALESCE(group_no, '') = COALESCE(?, '')
+      AND COALESCE(agency, '') = COALESCE(?, '')
       AND status = 'pending'
-  `).get(receiver.id, scopeType, normalizedRowId, normalizedGroupNo);
+  `).get(receiver.id, scopeType, normalizedRowId, normalizedGroupNo, normalizedAgency);
   if (existingInvite) {
     return res.json({
       success: true,
@@ -628,15 +702,16 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
         scopeType: existingInvite.scope_type,
         rowId: existingInvite.row_id,
         groupNo: existingInvite.group_no,
+        agency: existingInvite.agency,
         role: normalizeShareRole(existingInvite.role),
       },
     });
   }
 
   const info = db.prepare(`
-    INSERT INTO trip_share_invitations (sender_user_id, receiver_user_id, scope_type, row_id, group_no, role)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(req.user.id, receiver.id, scopeType, normalizedRowId, normalizedGroupNo, role);
+    INSERT INTO trip_share_invitations (sender_user_id, receiver_user_id, scope_type, row_id, group_no, agency, role)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(req.user.id, receiver.id, scopeType, normalizedRowId, normalizedGroupNo, normalizedAgency, role);
 
   sendLiveEvent([receiver.id], "invitations_changed", req.user.id);
 
@@ -649,6 +724,7 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
       scopeType,
       rowId: normalizedRowId,
       groupNo: normalizedGroupNo,
+      agency: normalizedAgency,
       role,
     },
   });
@@ -656,7 +732,7 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
 
 app.get("/api/shares/invitations", authenticateToken, (req: any, res) => {
   const invitations = db.prepare(`
-    SELECT i.id, i.scope_type, i.row_id, i.group_no, i.role, i.created_at, u.username AS sender_username
+    SELECT i.id, i.scope_type, i.row_id, i.group_no, i.agency, i.role, i.created_at, u.username AS sender_username
     FROM trip_share_invitations i
     JOIN users u ON u.id = i.sender_user_id
     WHERE i.receiver_user_id = ? AND i.status = 'pending'
@@ -669,6 +745,7 @@ app.get("/api/shares/invitations", authenticateToken, (req: any, res) => {
     scopeType: invite.scope_type,
     rowId: invite.row_id,
     groupNo: invite.group_no,
+    agency: invite.agency,
     role: normalizeShareRole(invite.role),
     createdAt: invite.created_at,
   })));
@@ -687,13 +764,20 @@ app.post("/api/shares/invitations/:id/accept", authenticateToken, (req: any, res
       INSERT OR IGNORE INTO trip_row_access (row_id, user_id, granted_by_user_id, role)
       VALUES (?, ?, ?, ?)
     `).run(invitation.row_id, req.user.id, invitation.sender_user_id, role);
-  } else {
+  } else if (invitation.scope_type === "group") {
     const insertGroupAccess = db.prepare(`
       INSERT OR IGNORE INTO trip_group_access (group_no, user_id, granted_by_user_id, role)
       VALUES (?, ?, ?, ?)
     `);
     insertGroupAccess.run(invitation.group_no, invitation.sender_user_id, invitation.sender_user_id, "editor");
     insertGroupAccess.run(invitation.group_no, req.user.id, invitation.sender_user_id, role);
+  } else if (invitation.scope_type === "agency") {
+    const insertAgencyAccess = db.prepare(`
+      INSERT OR IGNORE INTO trip_agency_access (agency, user_id, granted_by_user_id, role)
+      VALUES (?, ?, ?, ?)
+    `);
+    insertAgencyAccess.run(invitation.agency, invitation.sender_user_id, invitation.sender_user_id, "editor");
+    insertAgencyAccess.run(invitation.agency, req.user.id, invitation.sender_user_id, role);
   }
 
   db.prepare(`
@@ -705,8 +789,10 @@ app.post("/api/shares/invitations/:id/accept", authenticateToken, (req: any, res
   sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed", req.user.id);
   if (invitation.scope_type === "row") {
     sendLiveEvent(getVisibleUserIdsForRowId(invitation.row_id), "rows_changed", req.user.id);
-  } else {
+  } else if (invitation.scope_type === "group") {
     sendLiveEvent(getVisibleUserIdsForGroupNo(invitation.group_no, invitation.sender_user_id), "rows_changed", req.user.id);
+  } else if (invitation.scope_type === "agency") {
+    sendLiveEvent(getVisibleUserIdsForAgency(invitation.agency, invitation.sender_user_id), "rows_changed", req.user.id);
   }
   res.json({ success: true });
 });
@@ -759,6 +845,20 @@ app.get("/api/shares/access", authenticateToken, (req: any, res) => {
     ORDER BY a.created_at DESC
   `).all(req.user.id, req.user.id) as any[];
 
+  const agencyAccess = db.prepare(`
+    SELECT
+      a.agency AS agency,
+      a.user_id AS user_id,
+      a.role AS role,
+      a.created_at AS created_at,
+      u.username AS username
+    FROM trip_agency_access a
+    JOIN users u ON u.id = a.user_id
+    WHERE a.user_id != ?
+      AND a.granted_by_user_id = ?
+    ORDER BY a.created_at DESC
+  `).all(req.user.id, req.user.id) as any[];
+
   res.json([
     ...rowAccess.map((item) => {
       const row = parseRowData(item.row_data);
@@ -781,13 +881,22 @@ app.get("/api/shares/access", authenticateToken, (req: any, res) => {
       createdAt: item.created_at,
       rowSummary: `Group ${item.group_no}`,
     })),
+    ...agencyAccess.map((item) => ({
+      scopeType: "agency",
+      agency: item.agency,
+      userId: Number(item.user_id),
+      username: item.username,
+      role: normalizeShareRole(item.role),
+      createdAt: item.created_at,
+      rowSummary: `Agency ${item.agency}`,
+    })),
   ]);
 });
 
 app.patch("/api/shares/access", authenticateToken, (req: any, res) => {
-  const { scopeType, rowId, groupNo, userId } = req.body;
+  const { scopeType, rowId, groupNo, agency, userId } = req.body;
   const role = normalizeShareRole(req.body?.role);
-  if (!["row", "group"].includes(scopeType) || !userId) return res.status(400).json({ error: "Invalid access target" });
+  if (!["row", "group", "agency"].includes(scopeType) || !userId) return res.status(400).json({ error: "Invalid access target" });
 
   if (scopeType === "row") {
     if (!rowId) return res.status(400).json({ error: "rowId is required" });
@@ -806,20 +915,33 @@ app.patch("/api/shares/access", authenticateToken, (req: any, res) => {
     return res.json({ success: true });
   }
 
-  if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
+  if (scopeType === "group") {
+    if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
+    const info = db.prepare(`
+      UPDATE trip_group_access
+      SET role = ?
+      WHERE group_no = ? AND user_id = ? AND granted_by_user_id = ?
+    `).run(role, String(groupNo).trim(), Number(userId), req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
+    sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+    return res.json({ success: true });
+  }
+
+  const normalizedAgency = normalizeAgency(agency);
+  if (!normalizedAgency) return res.status(400).json({ error: "agency is required" });
   const info = db.prepare(`
-    UPDATE trip_group_access
+    UPDATE trip_agency_access
     SET role = ?
-    WHERE group_no = ? AND user_id = ? AND granted_by_user_id = ?
-  `).run(role, String(groupNo).trim(), Number(userId), req.user.id);
+    WHERE agency = ? AND user_id = ? AND granted_by_user_id = ?
+  `).run(role, normalizedAgency, Number(userId), req.user.id);
   if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
   sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
   return res.json({ success: true });
 });
 
 app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
-  const { scopeType, rowId, groupNo, userId } = req.body;
-  if (!["row", "group"].includes(scopeType) || !userId) return res.status(400).json({ error: "Invalid access target" });
+  const { scopeType, rowId, groupNo, agency, userId } = req.body;
+  if (!["row", "group", "agency"].includes(scopeType) || !userId) return res.status(400).json({ error: "Invalid access target" });
 
   if (scopeType === "row") {
     if (!rowId) return res.status(400).json({ error: "rowId is required" });
@@ -837,11 +959,23 @@ app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
     return res.json({ success: true });
   }
 
-  if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
+  if (scopeType === "group") {
+    if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
+    const info = db.prepare(`
+      DELETE FROM trip_group_access
+      WHERE group_no = ? AND user_id = ? AND granted_by_user_id = ?
+    `).run(String(groupNo).trim(), Number(userId), req.user.id);
+    if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
+    sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+    return res.json({ success: true });
+  }
+
+  const normalizedAgency = normalizeAgency(agency);
+  if (!normalizedAgency) return res.status(400).json({ error: "agency is required" });
   const info = db.prepare(`
-    DELETE FROM trip_group_access
-    WHERE group_no = ? AND user_id = ? AND granted_by_user_id = ?
-  `).run(String(groupNo).trim(), Number(userId), req.user.id);
+    DELETE FROM trip_agency_access
+    WHERE agency = ? AND user_id = ? AND granted_by_user_id = ?
+  `).run(normalizedAgency, Number(userId), req.user.id);
   if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
   sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
   return res.json({ success: true });
@@ -1044,7 +1178,9 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     const affectedUserIds = new Set<number>([req.user.id]);
     newRows.forEach((row: any) => {
       const rowGroupNo = String(row.groupNo || "").trim();
+      const rowAgency = normalizeAgency(row.agency);
       if (rowGroupNo) getVisibleUserIdsForGroupNo(rowGroupNo, req.user.id).forEach((id) => affectedUserIds.add(id));
+      if (rowAgency) getVisibleUserIdsForAgency(rowAgency, req.user.id).forEach((id) => affectedUserIds.add(id));
     });
     sendLiveEvent(affectedUserIds, "rows_changed");
 

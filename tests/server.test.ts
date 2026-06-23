@@ -463,6 +463,7 @@ const makeSharedTripRow = (id: string, groupNo = 'S001') => ({
   id,
   groupNo,
   groupName: 'Shared Group',
+  agency: 'Shared Agency',
   count: '4',
   Column1: 'وصول',
   date: '15/01/2026',
@@ -626,6 +627,69 @@ describe('Shared trip editing and group membership', () => {
       .get('/api/data')
       .set('Authorization', `Bearer ${owner.token}`);
     expect(ownerRows.body.map((r: any) => r.id)).toContain(futureRow.id);
+  });
+
+  it('shares current and future agency rows created by any accepted collaborator', async () => {
+    const owner = await registerSharedTestUser('agency_owner');
+    const receiver = await registerSharedTestUser('agency_receiver');
+    const agency = `Agency ${Date.now()}`;
+    const firstGroup = `A1${Date.now()}`;
+    const secondGroup = `A2${Date.now()}`;
+    const originalRow = { ...makeSharedTripRow(`agency-row-1-${Date.now()}`, firstGroup), agency };
+    const sameAgencyOtherGroup = { ...makeSharedTripRow(`agency-row-2-${Date.now()}`, secondGroup), agency };
+    const otherAgencyRow = {
+      ...makeSharedTripRow(`agency-row-other-${Date.now()}`, `A3${Date.now()}`),
+      agency: `${agency} Other`,
+    };
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [originalRow, otherAgencyRow] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'agency', agency });
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(pending.body).toHaveLength(1);
+    expect(pending.body[0].scopeType).toBe('agency');
+    expect(pending.body[0].agency).toBe(agency);
+
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const access = await request(app)
+      .get('/api/shares/access')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(access.body).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        scopeType: 'agency',
+        agency,
+        username: receiver.username,
+        role: 'editor',
+      }),
+    ]));
+
+    const receiverRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(receiverRows.body.map((r: any) => r.id)).toContain(originalRow.id);
+    expect(receiverRows.body.map((r: any) => r.id)).not.toContain(otherAgencyRow.id);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send({ rows: [sameAgencyOtherGroup] });
+
+    const ownerRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(ownerRows.body.map((r: any) => r.id)).toContain(sameAgencyOtherGroup.id);
   });
 });
 

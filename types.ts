@@ -29,7 +29,7 @@ export interface LogisticsRow {
   id: string;
   groupNo: string;
   groupName: string;
-  agency?: string;
+  agency: string;
   count: string;
   Column1: string; // Movement type (Arrival, Departure, etc.)
   date: string;

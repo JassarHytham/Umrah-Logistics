@@ -287,6 +287,13 @@ SV456
     }
   });
 
+  it('defaults agency to empty string when group info omits it', () => {
+    const rows = parseItineraryText(sampleItinerary, groupInfo);
+    for (const row of rows) {
+      expect(row.agency).toBe('');
+    }
+  });
+
   it('assigns carType سيدان for count=4', () => {
     const rows = parseItineraryText(sampleItinerary, groupInfo);
     for (const row of rows) {

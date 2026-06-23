@@ -19,7 +19,9 @@
   let enabled  = false;
   let onPage   = false;
   let snapshot = null;     // { text, hash }
+  let activeTripRoot = null;
   let debounce = null;
+  let dataMo   = null;     // focused MO on tripRoot with characterData
   let badgeEl  = null;     // on-page "saving to group" pill
 
   function setStatus(state, extra) {
@@ -62,8 +64,8 @@
     return L.normalizeText(out);
   }
 
-  function takeSnapshot() {
-    const root = tripRoot();
+  function takeSnapshot(rootOverride) {
+    const root = rootOverride || tripRoot();
     if (!root) return;
     const text = extractText(root);
     if (!L.isValidSnapshot(text)) return;
@@ -74,6 +76,12 @@
   function scheduleSnapshot() {
     clearTimeout(debounce);
     debounce = setTimeout(takeSnapshot, 1000);
+  }
+
+  function captureLatestSnapshot() {
+    clearTimeout(debounce);
+    debounce = null;
+    takeSnapshot(activeTripRoot || tripRoot());
   }
 
   // ── In-page duplicate-confirm modal ─────────────────────
@@ -183,11 +191,45 @@
 
   function hideBadge() { if (badgeEl) { badgeEl.remove(); badgeEl = null; } }
 
+  // ── Focused characterData watcher on the trip element ───
+  // The main MO only watches childList — it misses Angular's text-node updates
+  // when data binding fills in airport names, dates, and flight numbers.
+  // This secondary MO on tripRoot() catches those characterData changes so the
+  // debounce timer resets and the final snapshot includes real data.
+  function startDataWatch() {
+    if (dataMo) return;
+    const root = tripRoot();
+    if (!root) return;
+    dataMo = new MutationObserver(() => { if (enabled && onPage) scheduleSnapshot(); });
+    dataMo.observe(root, { childList: true, subtree: true, characterData: true });
+  }
+  function stopDataWatch() {
+    if (dataMo) { dataMo.disconnect(); dataMo = null; }
+  }
+
   // ── Page presence tracking ──────────────────────────────
   function evaluatePresence() {
-    const present = !!tripRoot();
-    if (present && !onPage) { onPage = true; setStatus('monitoring'); takeSnapshot(); showBadge(); }
-    else if (!present && onPage) { onPage = false; hideBadge(); finalize(); }
+    const root = tripRoot();
+    const present = !!root;
+    if (present && !onPage) {
+      activeTripRoot = root;
+      onPage = true;
+      setStatus('monitoring');
+      scheduleSnapshot();
+      startDataWatch();
+      showBadge();
+    }
+    else if (present) {
+      activeTripRoot = root;
+    }
+    else if (!present && onPage) {
+      captureLatestSnapshot();
+      onPage = false;
+      hideBadge();
+      stopDataWatch();
+      finalize();
+      activeTripRoot = null;
+    }
   }
 
   const mo = new MutationObserver(() => {
@@ -197,7 +239,13 @@
   });
 
   function start() { mo.observe(document.body, { childList: true, subtree: true }); evaluatePresence(); }
-  function stop()  { mo.disconnect(); clearTimeout(debounce); debounce = null; onPage = false; snapshot = null; hideBadge(); setStatus('disabled'); }
+  function stop()  { mo.disconnect(); stopDataWatch(); clearTimeout(debounce); debounce = null; onPage = false; activeTripRoot = null; snapshot = null; hideBadge(); setStatus('disabled'); }
+
+  function finalizeBeforeUnload() {
+    if (!enabled || !onPage) return;
+    captureLatestSnapshot();
+    finalize();
+  }
 
   // ── React to the on/off toggle ──────────────────────────
   function applyEnabled(val) {
@@ -214,4 +262,7 @@
     // we're monitoring (e.g. cleared by the ✕ button or after a save).
     if (changes[GROUP_KEY] && enabled && onPage) renderBadge(changes[GROUP_KEY].newValue);
   });
+
+  window.addEventListener('pagehide', finalizeBeforeUnload, { capture: true });
+  window.addEventListener('beforeunload', finalizeBeforeUnload, { capture: true });
 })();

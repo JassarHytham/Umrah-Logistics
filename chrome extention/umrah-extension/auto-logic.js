@@ -36,11 +36,14 @@
   }
 
   // A snapshot is worth sending only if it looks like a fully-rendered
-  // trip page: enough text AND both arrival + departure markers present.
+  // trip page: enough text, both full section headers present, AND at least
+  // one date — which confirms Angular's data binding has loaded real data,
+  // not just the empty skeleton template that appears before the HTTP response.
   function isValidSnapshot(text) {
     const t = String(text == null ? '' : text);
     if (t.trim().length < 80) return false;
-    return t.indexOf('الوصول') !== -1 && t.indexOf('المغادرة') !== -1;
+    if (t.indexOf('رحلة الوصول') === -1 || t.indexOf('رحلة المغادرة') === -1) return false;
+    return /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2}/.test(t);
   }
 
   return { normalizeText, fnv1aHash, isValidSnapshot };

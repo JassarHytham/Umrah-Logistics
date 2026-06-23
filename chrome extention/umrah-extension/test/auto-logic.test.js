@@ -1,4 +1,4 @@
-const { test } = require('node:test');
+const test = globalThis.test || require('node:test').test;
 const assert = require('node:assert');
 const { normalizeText, fnv1aHash, isValidSnapshot } = require('../auto-logic.js');
 
@@ -27,8 +27,8 @@ test('fnv1aHash differs for different input', () => {
   assert.notStrictEqual(fnv1aHash('a'), fnv1aHash('b'));
 });
 
-test('isValidSnapshot true when long and has both arrival+departure markers', () => {
-  const text = 'رحلة الوصول '.repeat(6) + 'رحلة المغادرة '.repeat(6);
+test('isValidSnapshot true when long and has both arrival+departure markers and a date', () => {
+  const text = 'رحلة الوصول '.repeat(6) + 'تاريخ الوصول: 2026-07-08\n' + 'رحلة المغادرة '.repeat(6);
   assert.strictEqual(isValidSnapshot(text), true);
 });
 
@@ -38,4 +38,9 @@ test('isValidSnapshot false when too short', () => {
 
 test('isValidSnapshot false when a marker is missing', () => {
   assert.strictEqual(isValidSnapshot('رحلة الوصول '.repeat(20)), false);
+});
+
+test('isValidSnapshot false when arrival and departure headers exist but no date has loaded', () => {
+  const text = 'رحلة الوصول '.repeat(6) + 'رحلة المغادرة '.repeat(6);
+  assert.strictEqual(isValidSnapshot(text), false);
 });

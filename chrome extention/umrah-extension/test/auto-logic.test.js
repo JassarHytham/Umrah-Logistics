@@ -1,6 +1,6 @@
 const test = globalThis.test || require('node:test').test;
 const assert = require('node:assert');
-const { normalizeText, fnv1aHash, isValidSnapshot } = require('../auto-logic.js');
+const { normalizeText, fnv1aHash, isValidSnapshot, extractGroupRowData } = require('../auto-logic.js');
 
 test('normalizeText collapses space runs, converts CRLF, and trims ends', () => {
   // Note: single spaces adjacent to a newline are preserved by design
@@ -43,4 +43,28 @@ test('isValidSnapshot false when a marker is missing', () => {
 test('isValidSnapshot false when arrival and departure headers exist but no date has loaded', () => {
   const text = 'رحلة الوصول '.repeat(6) + 'رحلة المغادرة '.repeat(6);
   assert.strictEqual(isValidSnapshot(text), false);
+});
+
+test('extractGroupRowData captures agency from eaName cell', () => {
+  const cells = {
+    groupNumber: '480900139756',
+    groupName: 'Amirah July Grp 1',
+    mutamerNumber: '6',
+    eaName: 'اميرة ترافيل',
+  };
+  const row = {
+    querySelector(selector) {
+      const match = selector.match(/td\[id="([^"]+)"\]/);
+      const id = match && match[1];
+      return id && cells[id] !== undefined ? { textContent: cells[id] } : null;
+    },
+  };
+  const cellText = (td) => (td ? td.textContent.trim() : '');
+
+  assert.deepStrictEqual(extractGroupRowData(row, cellText), {
+    groupNo: '480900139756',
+    groupName: 'Amirah July Grp 1',
+    agency: 'اميرة ترافيل',
+    count: '6',
+  });
 });

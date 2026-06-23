@@ -24,6 +24,7 @@ const capturedText     = document.getElementById('capturedText');
 const captureHint      = document.getElementById('captureHint');
 const groupNo          = document.getElementById('groupNo');
 const groupName        = document.getElementById('groupName');
+const agency           = document.getElementById('agency');
 const groupCount       = document.getElementById('groupCount');
 const dupWarning       = document.getElementById('dupWarning');
 const dupTitle         = document.getElementById('dupTitle');
@@ -63,12 +64,14 @@ async function init() {
   if (autofillFresh) {
     groupNo.value    = autofill.groupNo    || '';
     groupName.value  = autofill.groupName  || '';
+    agency.value     = autofill.agency     || '';
     groupCount.value = autofill.count      || '';
     chrome.storage.local.remove('umrah_autofill');
   } else if (stored[STORAGE_KEY_GROUP]) {
     const g = stored[STORAGE_KEY_GROUP];
     groupNo.value    = g.groupNo    || '';
     groupName.value  = g.groupName  || '';
+    agency.value     = g.agency     || '';
     groupCount.value = g.groupCount || '';
   }
 
@@ -394,7 +397,7 @@ capturedText.addEventListener('input', () => {
   sendError.classList.add('hidden');
 });
 
-[groupName, groupCount].forEach(el => el.addEventListener('input', updateSendButton));
+[groupName, agency, groupCount].forEach(el => el.addEventListener('input', updateSendButton));
 
 // ══════════════════════════════════════════════════════
 //  Send Button State
@@ -414,6 +417,7 @@ async function doSend(overwrite) {
   const text  = capturedText.value.trim();
   const gNo   = groupNo.value.trim();
   const gName = groupName.value.trim();
+  const gAgency = agency.value.trim();
   const gCnt  = groupCount.value.trim();
   if (!text || !gNo || !gName || !gCnt) return;
 
@@ -426,11 +430,11 @@ async function doSend(overwrite) {
 
   try {
     const res = await fetchApi('/api/ingest/text', 'POST', {
-      text, groupNo: gNo, groupName: gName, count: gCnt, overwrite
+      text, groupNo: gNo, groupName: gName, agency: gAgency, count: gCnt, overwrite
     });
     if (!res.success) throw new Error(res.error || 'فشل الإرسال');
 
-    await chrome.storage.local.set({ [STORAGE_KEY_GROUP]: { groupNo: gNo, groupName: gName, groupCount: gCnt } });
+    await chrome.storage.local.set({ [STORAGE_KEY_GROUP]: { groupNo: gNo, groupName: gName, agency: gAgency, groupCount: gCnt } });
 
     const count = res.rows?.length || 0;
     const action = overwrite ? 'استبدال' : 'إضافة';

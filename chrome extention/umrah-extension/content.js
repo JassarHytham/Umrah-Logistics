@@ -23,9 +23,13 @@
   }
 
   function extractRowData(row) {
+    if (window.UmrahAutoLogic && typeof window.UmrahAutoLogic.extractGroupRowData === 'function') {
+      return window.UmrahAutoLogic.extractGroupRowData(row, cellText);
+    }
     return {
       groupNo:   cellText(row.querySelector('td[id="groupNumber"]')),
       groupName: cellText(row.querySelector('td[id="groupName"]')),
+      agency:    cellText(row.querySelector('td[id="eaName"]')),
       count:     cellText(row.querySelector('td[id="mutamerNumber"]')),
     };
   }

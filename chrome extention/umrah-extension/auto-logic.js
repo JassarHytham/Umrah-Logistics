@@ -46,5 +46,14 @@
     return /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2}/.test(t);
   }
 
-  return { normalizeText, fnv1aHash, isValidSnapshot };
+  function extractGroupRowData(row, cellText) {
+    return {
+      groupNo: cellText(row.querySelector('td[id="groupNumber"]')),
+      groupName: cellText(row.querySelector('td[id="groupName"]')),
+      agency: cellText(row.querySelector('td[id="eaName"]')),
+      count: cellText(row.querySelector('td[id="mutamerNumber"]')),
+    };
+  }
+
+  return { normalizeText, fnv1aHash, isValidSnapshot, extractGroupRowData };
 });

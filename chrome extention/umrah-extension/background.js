@@ -53,6 +53,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
       set({ [GROUP_KEY]: {
         groupNo: af.newValue.groupNo,
         groupName: af.newValue.groupName,
+        agency: af.newValue.agency || '',
         count: af.newValue.count || ''
       }});
     }
@@ -91,6 +92,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${base.token}` },
       body: JSON.stringify({
         text, groupNo: group.groupNo, groupName: group.groupName,
+        agency: group.agency || '',
         count: group.count, overwrite: !!overwrite
       })
     });

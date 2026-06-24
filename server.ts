@@ -266,7 +266,7 @@ const cspDirectives = {
   fontSrc: ["'self'"],
   connectSrc: ["'self'", "ws:", "wss:"],
   formAction: ["'self'"],
-  ...(isProductionLike ? { upgradeInsecureRequests: [] } : {}),
+  upgradeInsecureRequests: null,
 };
 
 app.use(helmet({

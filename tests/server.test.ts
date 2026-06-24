@@ -193,6 +193,7 @@ describe('Security headers and CORS', () => {
     expect(res.headers['x-frame-options']).toBe('DENY');
     expect(res.headers['content-security-policy']).toContain("default-src 'self'");
     expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(res.headers['content-security-policy']).not.toContain('upgrade-insecure-requests');
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 

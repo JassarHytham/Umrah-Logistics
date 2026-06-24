@@ -6,8 +6,10 @@ import Database from "better-sqlite3";
 import cors from "cors";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import helmet from "helmet";
 import http from "http";
 import path from "path";
+import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import { parseDateTime, parseItineraryText, getCarType } from "./utils/parser.js";
@@ -19,7 +21,21 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-const JWT_SECRET = process.env.JWT_SECRET || "umrah-secret-key-2026";
+const isTestEnv = process.env.VITEST === "true" || process.env.NODE_ENV === "test";
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_ISSUER = process.env.JWT_ISSUER || "umrah-logistics";
+const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "umrah-logistics-web";
+const LEGACY_INSECURE_JWT_SECRET = "umrah-secret-key-2026";
+
+if (!JWT_SECRET || JWT_SECRET === LEGACY_INSECURE_JWT_SECRET) {
+  if (isTestEnv) {
+    process.env.JWT_SECRET = "vitest-only-secret-with-32-plus-characters";
+  } else {
+    throw new Error("JWT_SECRET must be set to a strong non-default value");
+  }
+}
+
+const jwtSecret = process.env.JWT_SECRET as string;
 const liveClients = new Map<number, Set<any>>();
 type StoredTelegramConfig = {
   token?: string;
@@ -63,7 +79,7 @@ const decryptJson = <T,>(value: string | null | undefined, fallback: T): T => {
 };
 
 // Database initialization
-const DB_PATH = process.env.VITEST ? ":memory:" : (process.env.DB_PATH || "umrah.db");
+const DB_PATH = isTestEnv ? ":memory:" : (process.env.DB_PATH || "umrah.db");
 const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
@@ -228,9 +244,85 @@ try {
   }
 }
 
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.disable("x-powered-by");
+
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+
+const isProductionLike = ["production", "staging"].includes(process.env.NODE_ENV || "");
+
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  baseUri: ["'self'"],
+  objectSrc: ["'none'"],
+  frameAncestors: ["'none'"],
+  scriptSrc: ["'self'"],
+  styleSrc: ["'self'"],
+  imgSrc: ["'self'", "data:"],
+  fontSrc: ["'self'"],
+  connectSrc: ["'self'", "ws:", "wss:"],
+  formAction: ["'self'"],
+  ...(isProductionLike ? { upgradeInsecureRequests: [] } : {}),
+};
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: cspDirectives,
+  },
+  frameguard: { action: "deny" },
+  hsts: isProductionLike ? {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: false,
+  } : false,
+  referrerPolicy: { policy: "no-referrer" },
+}));
+
+app.use("/api", cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.has(origin)) return callback(null, true);
+    return callback(null, false);
+  },
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: false,
+  maxAge: 600,
+}));
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 600,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: () => isTestEnv,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  skip: () => isTestEnv,
+});
+
+const botLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: () => isTestEnv,
+});
+
+app.use("/api", apiLimiter);
+app.use("/api/auth", authLimiter);
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ limit: "2mb", extended: true }));
 
 // Middleware to verify JWT
 const authenticateToken = (req: any, res: any, next: any) => {
@@ -239,7 +331,11 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
   if (!token) return res.status(401).json({ error: "Unauthorized" });
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+  jwt.verify(token, jwtSecret, {
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
+    algorithms: ["HS256"],
+  }, (err: any, user: any) => {
     if (err) return res.status(403).json({ error: "Forbidden" });
     req.user = user;
     next();
@@ -270,6 +366,8 @@ const sanitizeRowForStorage = (row: any) => {
 const normalizeShareRole = (role: any): ShareRole => role === "viewer" ? "viewer" : "editor";
 const normalizeAgency = (agency: any) => String(agency || "").trim();
 const normalizeUsername = (value: unknown) => String(value || "").trim().toLowerCase();
+const isValidUsername = (value: string) => /^[a-z0-9_][a-z0-9_-]{2,31}$/.test(value);
+const isValidPassword = (value: unknown) => typeof value === "string" && value.length >= 10 && value.length <= 128;
 const asTrimmedString = (value: unknown, maxLength: number) => {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLength);
@@ -431,7 +529,11 @@ const attachLiveUpdates = (server: http.Server) => {
     }
 
     try {
-      const user = jwt.verify(token, JWT_SECRET) as { id: number; username: string };
+      const user = jwt.verify(token, jwtSecret, {
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+        algorithms: ["HS256"],
+      }) as { id: number; username: string };
       wss.handleUpgrade(req, socket, head, (ws) => {
         (ws as any).userId = Number(user.id);
         wss.emit("connection", ws, req);
@@ -458,9 +560,23 @@ const attachLiveUpdates = (server: http.Server) => {
 };
 
 // Auth Routes
+const signAuthToken = (user: { id: number; username: string }) =>
+  jwt.sign(
+    { id: Number(user.id), username: user.username },
+    jwtSecret,
+    {
+      expiresIn: "8h",
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+      algorithm: "HS256",
+    },
+  );
+
 app.post("/api/auth/register", async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: "Username and password required" });
+  const username = normalizeUsername(req.body?.username);
+  const { password } = req.body;
+  if (!isValidUsername(username)) return res.status(400).json({ error: "Username must be 3-32 lowercase letters, numbers, underscores, or hyphens" });
+  if (!isValidPassword(password)) return res.status(400).json({ error: "Password must be 10-128 characters" });
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -468,7 +584,7 @@ app.post("/api/auth/register", async (req, res) => {
     const info = stmt.run(username, hashedPassword);
 
     const userId = Number(info.lastInsertRowid);
-    const token = jwt.sign({ id: userId, username }, JWT_SECRET);
+    const token = signAuthToken({ id: userId, username });
     res.json({ token, user: { id: userId, username } });
   } catch (err: any) {
     if (err.code?.includes("SQLITE_CONSTRAINT")) {
@@ -480,14 +596,16 @@ app.post("/api/auth/register", async (req, res) => {
 });
 
 app.post("/api/auth/login", async (req, res) => {
-  const { username, password } = req.body;
+  const username = normalizeUsername(req.body?.username);
+  const { password } = req.body;
+  if (!username || typeof password !== "string") return res.status(401).json({ error: "Invalid credentials" });
   const user: any = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
 
   if (!user || !(await bcrypt.compare(password, user.password))) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  const token = jwt.sign({ id: Number(user.id), username: user.username }, JWT_SECRET);
+  const token = signAuthToken({ id: Number(user.id), username: user.username });
   res.json({ token, user: { id: Number(user.id), username: user.username } });
 });
 
@@ -1284,14 +1402,26 @@ app.get("/api/download/extension", (_req, res) => {
 });
 
 // Vite middleware for development
-if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !process.env.VITEST) {
+if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEnv) {
   const vite = await createViteServer({
     server: { middlewareMode: true },
     appType: "spa",
   });
   app.use(vite.middlewares);
-} else if (!process.env.VITEST) {
-  app.use(express.static(path.join(__dirname, "dist")));
+} else if (isTestEnv) {
+  app.get("/", (_req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
+  });
+} else if (!isTestEnv) {
+  app.use(express.static(path.join(__dirname, "dist"), {
+    dotfiles: "deny",
+    index: false,
+    setHeaders(res, filePath) {
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  }));
   app.get("/{*splat}", (req, res) => {
     res.sendFile(path.join(__dirname, "dist", "index.html"));
   });
@@ -1418,7 +1548,7 @@ async function checkAndSendAlerts() {
 
 export { app, attachLiveUpdates };
 
-if (!process.env.VITEST) {
+if (!isTestEnv) {
   const server = http.createServer(app);
   attachLiveUpdates(server);
 

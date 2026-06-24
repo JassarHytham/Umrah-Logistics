@@ -180,9 +180,3 @@ export const normalizeDisplaySettings = (settings?: Partial<DisplaySettings> | n
     hiddenColumns: settings?.hiddenColumns ?? DEFAULT_DISPLAY_SETTINGS.hiddenColumns,
   };
 };
-
-declare global {
-  interface Window {
-    XLSX: any;
-  }
-}

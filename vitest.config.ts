@@ -5,7 +5,7 @@ export default defineConfig({
     environment: 'node',
     env: {
       VITEST: 'true',
-      NODE_ENV: 'production', // skip Vite middleware
+      NODE_ENV: 'test',
     },
     globals: true,
     testTimeout: 15000,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users, ChevronDown,
   ClipboardList, Upload, Trash2, History, RotateCcw, XCircle,
@@ -356,7 +357,6 @@ export default function App() {
             try {
               new Notification(`🔔 رحلة قادمة: ${row.flight || row.Column1}`, {
                 body: `المجموعة: ${row.groupName} | الوجهة: ${row.to} | الوقت: ${row.time}`,
-                icon: 'https://cdn-icons-png.flaticon.com/512/3002/3002655.png',
                 tag: row.id
               });
             } catch (e) { console.error("Native Notif Error", e); }
@@ -402,11 +402,6 @@ export default function App() {
   const downloadExcel = () => {
     const rowsToExport = filteredRows.length > 0 ? filteredRows : allRows;
 
-    if (!window.XLSX) {
-      showNotification("جاري تحميل مكتبة التصدير... يرجى المحاولة مرة أخرى", "error");
-      return;
-    }
-
     if (rowsToExport.length === 0) {
       showNotification("لا توجد بيانات لتصديرها", "error");
       return;
@@ -429,10 +424,10 @@ export default function App() {
         "تاريخ": row.date
       }));
 
-      const ws = window.XLSX.utils.json_to_sheet(excelData);
-      const wb = window.XLSX.utils.book_new();
-      window.XLSX.utils.book_append_sheet(wb, ws, "Logistics");
-      window.XLSX.writeFile(wb, `Umrah_Logistics_${getLocalDateString().replace(/\//g, '-')}.xlsx`);
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Logistics");
+      XLSX.writeFile(wb, `Umrah_Logistics_${getLocalDateString().replace(/\//g, '-')}.xlsx`);
       showNotification("تم تصدير الملف بنجاح", "success");
     } catch (error) {
       console.error("Export error:", error);
@@ -453,9 +448,9 @@ export default function App() {
           showNotification("تمت استعادة النسخة الاحتياطية", "success");
         } else {
           const dataArray = evt.target?.result;
-          const wb = window.XLSX.read(dataArray, { type: 'array', cellDates: true });
+          const wb = XLSX.read(dataArray, { type: 'array', cellDates: true });
           const ws = wb.Sheets[wb.SheetNames[0]];
-          const data: any[] = window.XLSX.utils.sheet_to_json(ws, { defval: "" });
+          const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
           const getVal = (obj: any, keys: string[]) => {
             const objKeys = Object.keys(obj);

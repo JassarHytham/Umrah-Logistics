@@ -68,7 +68,7 @@ describe('POST /api/auth/register', () => {
     const unique = `newuser_${Date.now()}`;
     const res = await request(app)
       .post('/api/auth/register')
-      .send({ username: unique, password: 'pass123' });
+      .send({ username: unique, password: 'Password123!' });
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('token');
@@ -87,7 +87,7 @@ describe('POST /api/auth/register', () => {
   it('rejects missing username with 400', async () => {
     const res = await request(app)
       .post('/api/auth/register')
-      .send({ password: 'pass123' });
+      .send({ password: 'Password123!' });
 
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error');
@@ -180,6 +180,52 @@ describe('Auth Middleware', () => {
   it('passes through with valid token', async () => {
     const res = await authGet('/api/data');
     expect(res.status).toBe(200);
+  });
+});
+
+describe('Security headers and CORS', () => {
+  it('hardens the HTML shell response', async () => {
+    const res = await request(app).get('/');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['x-powered-by']).toBeUndefined();
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBe('DENY');
+    expect(res.headers['content-security-policy']).toContain("default-src 'self'");
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('does not allow arbitrary cross-origin API reads', async () => {
+    const res = await request(app)
+      .options('/api/data')
+      .set('Origin', 'https://attacker.example')
+      .set('Access-Control-Request-Method', 'GET');
+
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});
+
+describe('Security limits', () => {
+  it('issues expiring JWTs', async () => {
+    const unique = `jwt_${Date.now()}`;
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ username: unique, password: 'Password123!' });
+
+    const payload = JSON.parse(Buffer.from(res.body.token.split('.')[1], 'base64url').toString('utf8'));
+    expect(payload.exp).toEqual(expect.any(Number));
+    expect(payload.iss).toBe('umrah-logistics');
+    expect(payload.aud).toBe('umrah-logistics-web');
+  });
+
+  it('rejects oversized JSON bodies', async () => {
+    const oversized = 'x'.repeat(2 * 1024 * 1024 + 1);
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ username: oversized, password: 'Password123!' });
+
+    expect(res.status).toBe(413);
   });
 });
 
@@ -305,7 +351,7 @@ describe('POST /api/data/sync', () => {
 
   it('data is user-isolated: another user does not see these rows', async () => {
     // Register a second user
-    const user2 = { username: `user2_${Date.now()}`, password: 'pass' };
+    const user2 = { username: `user2_${Date.now()}`, password: 'Password123!' };
     const regRes = await request(app).post('/api/auth/register').send(user2);
     const token2 = regRes.body.token;
 
@@ -330,7 +376,7 @@ describe('GET /api/settings', () => {
   });
 
   it('returns default settings for new user', async () => {
-    const newUser = { username: `fresh_${Date.now()}`, password: 'pass' };
+    const newUser = { username: `fresh_${Date.now()}`, password: 'Password123!' };
     const reg = await request(app).post('/api/auth/register').send(newUser);
     const token = reg.body.token;
 
@@ -403,7 +449,7 @@ describe('POST /api/settings', () => {
   });
 
   it('defaults fontSize to 100 when not provided', async () => {
-    const fresh = { username: `font_default_${Date.now()}`, password: 'pass' };
+    const fresh = { username: `font_default_${Date.now()}`, password: 'Password123!' };
     const reg = await request(app).post('/api/auth/register').send(fresh);
     const token = reg.body.token;
     const { fontSize: _, ...noFontSize } = sampleSettings;
@@ -422,7 +468,7 @@ describe('POST /api/settings', () => {
     await authPost('/api/settings').send(sampleSettings);
 
     // Register a completely fresh user
-    const fresh = { username: `isolated_${Date.now()}`, password: 'pass' };
+    const fresh = { username: `isolated_${Date.now()}`, password: 'Password123!' };
     const reg = await request(app).post('/api/auth/register').send(fresh);
     const freshToken = reg.body.token;
 
@@ -463,9 +509,11 @@ describe('POST /api/telegram/test', () => {
 // Shared Trips
 // ─────────────────────────────────────────────
 const registerSharedTestUser = async (prefix: string) => {
+  const safePrefix = prefix.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 8) || 'user';
+  const suffix = Math.random().toString(36).slice(2, 10);
   const credentials = {
-    username: `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-    password: 'pass123',
+    username: `${safePrefix}_${suffix}`,
+    password: 'Password123!',
   };
   const res = await request(app).post('/api/auth/register').send(credentials);
   return { ...credentials, token: res.body.token, user: res.body.user };

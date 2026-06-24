@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import Database from "better-sqlite3";
 import cors from "cors";
+import crypto from "crypto";
 import dotenv from "dotenv";
 import http from "http";
 import path from "path";
@@ -20,6 +21,46 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "umrah-secret-key-2026";
 const liveClients = new Map<number, Set<any>>();
+type StoredTelegramConfig = {
+  token?: string;
+  chatId?: string;
+  enabled?: boolean;
+  botName?: string;
+};
+
+const getSettingsEncryptionKey = () => {
+  const raw = process.env.SETTINGS_ENCRYPTION_KEY || "";
+  if (!raw) return null;
+  const key = Buffer.from(raw, "base64");
+  if (key.length !== 32) throw new Error("SETTINGS_ENCRYPTION_KEY must be 32 bytes encoded as base64");
+  return key;
+};
+
+const encryptJson = (value: unknown) => {
+  const key = getSettingsEncryptionKey();
+  const plaintext = JSON.stringify(value);
+  if (!key) return plaintext;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `enc:v1:${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
+};
+
+const decryptJson = <T,>(value: string | null | undefined, fallback: T): T => {
+  if (!value) return fallback;
+  if (!value.startsWith("enc:v1:")) return JSON.parse(value);
+  const key = getSettingsEncryptionKey();
+  if (!key) throw new Error("SETTINGS_ENCRYPTION_KEY is required to read encrypted settings");
+  const [, , iv64, tag64, encrypted64] = value.split(":");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(iv64, "base64"));
+  decipher.setAuthTag(Buffer.from(tag64, "base64"));
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(encrypted64, "base64")),
+    decipher.final(),
+  ]).toString("utf8");
+  return JSON.parse(plaintext);
+};
 
 // Database initialization
 const DB_PATH = process.env.VITEST ? ":memory:" : (process.env.DB_PATH || "umrah.db");
@@ -987,7 +1028,7 @@ app.get("/api/settings", authenticateToken, (req: any, res) => {
   if (!settings) return res.json({ tgConfig: null, templates: [], fontSize: 100 });
 
   res.json({
-    tgConfig: settings.tg_config ? JSON.parse(settings.tg_config) : null,
+    tgConfig: decryptJson<StoredTelegramConfig | null>(settings.tg_config, null),
     templates: settings.templates ? JSON.parse(settings.templates) : [],
     deletedRows: settings.deleted_rows ? JSON.parse(settings.deleted_rows) : [],
     notifiedIds: settings.notified_ids ? JSON.parse(settings.notified_ids) : [],
@@ -1003,7 +1044,7 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
   const existing: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
 
   const merged = {
-    tg_config: tgConfig !== undefined ? (tgConfig ? JSON.stringify(tgConfig) : null)
+    tg_config: tgConfig !== undefined ? (tgConfig ? encryptJson(tgConfig) : null)
       : (existing?.tg_config ?? null),
     templates: templates !== undefined ? (templates ? JSON.stringify(templates) : null)
       : (existing?.templates ?? null),
@@ -1041,12 +1082,28 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
   res.json({ success: true });
 });
 
+app.post("/api/telegram/test", authenticateToken, async (req: any, res) => {
+  const token = String(req.body?.token || "").trim();
+  const chatId = String(req.body?.chatId || "").trim();
+  if (!token || !chatId) return res.status(400).json({ error: "Telegram token and chat ID are required" });
+
+  const testMsg = `<b>اختبار اتصال نظام التفويج</b>\nتم الربط بنجاح! ستصلك التنبيهات هنا تلقائياً.\n<i>الوقت: ${new Date().toLocaleTimeString()}</i>`;
+  const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text: testMsg, parse_mode: "HTML" }),
+  });
+  const data: any = await tgRes.json();
+  if (!data.ok) return res.status(400).json({ error: "Telegram rejected the test message" });
+  res.json({ success: true });
+});
+
 // Debug endpoint — shows what the alert worker sees for the logged-in user
 app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
   const now = new Date();
   const settings: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
 
-  const tgConfig = settings?.tg_config ? JSON.parse(settings.tg_config) : null;
+  const tgConfig = decryptJson<StoredTelegramConfig | null>(settings?.tg_config, null);
   const extraSettings = settings?.extra_settings ? JSON.parse(settings.extra_settings) : {};
   const alertSettings = extraSettings.alertSettings ?? {
     arrivalMinutes: 120,
@@ -1242,7 +1299,7 @@ async function checkAndSendAlerts() {
       const settings: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(userId);
       if (!settings) continue;
 
-      const tgConfig = settings.tg_config ? JSON.parse(settings.tg_config) : null;
+      const tgConfig = decryptJson<StoredTelegramConfig | null>(settings.tg_config, null);
       if (!tgConfig?.enabled || !tgConfig.token || !tgConfig.chatId) continue;
 
       const extraSettings = settings.extra_settings ? JSON.parse(settings.extra_settings) : {};

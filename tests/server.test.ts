@@ -447,6 +447,18 @@ describe('POST /api/settings', () => {
   });
 });
 
+describe('POST /api/telegram/test', () => {
+  it('requires authentication', async () => {
+    const res = await request(app).post('/api/telegram/test').send({ token: 'x', chatId: '1' });
+    expect(res.status).toBe(401);
+  });
+
+  it('validates required token and chat ID before calling Telegram', async () => {
+    const res = await authPost('/api/telegram/test').send({ token: '', chatId: '' });
+    expect(res.status).toBe(400);
+  });
+});
+
 // ─────────────────────────────────────────────
 // Shared Trips
 // ─────────────────────────────────────────────

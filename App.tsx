@@ -316,43 +316,17 @@ export default function App() {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const sendTelegram = async (message: string, overrideChatId?: string) => {
-    const { token, chatId } = tgConfigRef.current;
-    const targetId = overrideChatId || chatId;
-    if (!token || !targetId) return false;
-
-    try {
-      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: targetId,
-          text: message,
-          parse_mode: 'HTML'
-        })
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        console.error("Telegram API Error:", data.description);
-      }
-      return data.ok;
-    } catch (e) {
-      console.error("Telegram Send Error:", e);
-      return false;
-    }
-  };
-
   const handleTestTelegram = async () => {
     if (isTestingTg) return;
     setIsTestingTg(true);
-    const testMsg = `<b>⚡️ اختبار اتصال نظام التفويج</b>\nتم الربط بنجاح! ستصلك التنبيهات هنا تلقائياً.\n<i>الوقت: ${new Date().toLocaleTimeString()}</i>`;
-    const success = await sendTelegram(testMsg);
-    if (success) {
+    try {
+      await api.telegram.test({ token: tgConfigRef.current.token, chatId: tgConfigRef.current.chatId });
       showNotification("تم إرسال رسالة تجريبية بنجاح", "success");
-    } else {
+    } catch {
       showNotification("فشل الاتصال، تحقق من التوكن والمعرف", "error");
+    } finally {
+      setIsTestingTg(false);
     }
-    setIsTestingTg(false);
   };
 
   // --- Proximity Alerts (Browser + Telegram) ---

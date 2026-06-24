@@ -149,5 +149,14 @@ export const api = {
         body: JSON.stringify(settings),
       });
     }
+  },
+
+  telegram: {
+    async test(payload: { token: string; chatId: string }) {
+      return api.request('/telegram/test', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    }
   }
 };

@@ -269,6 +269,17 @@ const sanitizeRowForStorage = (row: any) => {
 
 const normalizeShareRole = (role: any): ShareRole => role === "viewer" ? "viewer" : "editor";
 const normalizeAgency = (agency: any) => String(agency || "").trim();
+const normalizeUsername = (value: unknown) => String(value || "").trim().toLowerCase();
+const asTrimmedString = (value: unknown, maxLength: number) => {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+};
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const validateRowsPayload = (rows: unknown) =>
+  Array.isArray(rows) &&
+  rows.length <= 5000 &&
+  rows.every((row) => isPlainObject(row) && typeof row.id === "string" && row.id.length <= 128);
 
 const canEditAccessRole = (role: AccessRole | null | undefined) => role === "owner" || role === "editor";
 
@@ -491,7 +502,9 @@ app.get("/api/data/deleted", authenticateToken, (req: any, res) => {
 
 app.post("/api/data/sync", authenticateToken, (req: any, res) => {
   const { rows } = req.body;
-  if (!Array.isArray(rows)) return res.status(400).json({ error: "Invalid data" });
+  if (!validateRowsPayload(rows)) {
+    return res.status(400).json({ error: "Rows must be an array of at most 5000 objects with string ids" });
+  }
 
   const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
   const updateStmt = db.prepare("UPDATE logistics_rows SET data = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
@@ -675,7 +688,12 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
   if (!receiverUsername || !scopeType) return res.status(400).json({ error: "Receiver and scope required" });
   if (!["row", "group", "agency"].includes(scopeType)) return res.status(400).json({ error: "Invalid share scope" });
 
-  const receiver = getUserByUsername(String(receiverUsername).trim());
+  const receiverUsernameValue = normalizeUsername(receiverUsername);
+  const normalizedRowIdInput = asTrimmedString(rowId, 128);
+  const normalizedGroupNoInput = asTrimmedString(groupNo, 64);
+  const normalizedAgencyInput = asTrimmedString(agency, 200);
+
+  const receiver = getUserByUsername(receiverUsernameValue);
   if (!receiver) return res.status(404).json({ error: "Receiver account not found" });
   if (Number(receiver.id) === Number(req.user.id)) return res.status(400).json({ error: "Cannot share with yourself" });
 
@@ -684,16 +702,16 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
   let normalizedAgency: string | null = null;
 
   if (scopeType === "row") {
-    if (!rowId) return res.status(400).json({ error: "rowId is required" });
-    const visible = getVisibleRowForUser(req.user.id, String(rowId), true);
+    if (!normalizedRowIdInput) return res.status(400).json({ error: "rowId is required" });
+    const visible = getVisibleRowForUser(req.user.id, normalizedRowIdInput, true);
     if (!visible) return res.status(404).json({ error: "Trip not found" });
     if (!canEditAccessRole(getRowAccessForUser(req.user.id, visible)?.role)) {
       return res.status(403).json({ error: "Insufficient permission" });
     }
-    normalizedRowId = String(rowId);
+    normalizedRowId = normalizedRowIdInput;
   } else if (scopeType === "group") {
-    if (!groupNo) return res.status(400).json({ error: "groupNo is required" });
-    normalizedGroupNo = String(groupNo).trim();
+    if (!normalizedGroupNoInput) return res.status(400).json({ error: "groupNo is required" });
+    normalizedGroupNo = normalizedGroupNoInput;
     const canShareGroup = listVisibleRowsForUser(req.user.id, false)
       .some((row: any) => String(row.groupNo || "").trim() === normalizedGroupNo);
     const hasGroupAccess = db
@@ -705,7 +723,7 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
       return res.status(403).json({ error: "Insufficient permission" });
     }
   } else {
-    normalizedAgency = normalizeAgency(agency);
+    normalizedAgency = normalizeAgency(normalizedAgencyInput);
     if (!normalizedAgency) return res.status(400).json({ error: "agency is required" });
     const canShareAgency = listVisibleRowsForUser(req.user.id, false)
       .some((row: any) => normalizeAgency(row.agency) === normalizedAgency);
@@ -1195,18 +1213,23 @@ app.get("/api/check/group/:groupNo", authenticateToken, (req: any, res) => {
 // Body: { text, groupNo, groupName, agency?, count, overwrite? }
 app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
   const { text, groupNo, groupName, agency = "", count, overwrite = false } = req.body;
+  const textValue = asTrimmedString(text, 250_000);
+  const groupNoValue = asTrimmedString(groupNo, 64);
+  const groupNameValue = asTrimmedString(groupName, 200);
+  const agencyValue = asTrimmedString(agency, 200);
+  const countValue = asTrimmedString(count, 32);
 
-  if (!text || typeof text !== "string" || text.trim().length < 5)
+  if (textValue.length < 5)
     return res.status(400).json({ error: "النص مطلوب ولا يمكن أن يكون فارغاً" });
-  if (!groupNo || !groupName || !count)
+  if (!groupNoValue || !groupNameValue || !countValue)
     return res.status(400).json({ error: "بيانات المجموعة مطلوبة (رقم، اسم، عدد)" });
 
   try {
-    const newRows = parseItineraryText(text.trim(), {
-      groupNo: String(groupNo).trim(),
-      groupName: String(groupName).trim(),
-      agency: String(agency || "").trim(),
-      count: String(count).trim(),
+    const newRows = parseItineraryText(textValue, {
+      groupNo: groupNoValue,
+      groupName: groupNameValue,
+      agency: agencyValue,
+      count: countValue,
     });
 
     if (newRows.length === 0)
@@ -1219,7 +1242,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     let existingRows = existingRaw.map((r) => JSON.parse(r.data));
 
     if (overwrite) {
-      existingRows = existingRows.filter((r) => r.groupNo !== String(groupNo).trim());
+      existingRows = existingRows.filter((r) => r.groupNo !== groupNoValue);
     }
 
     const mergedRows = [...newRows, ...existingRows];

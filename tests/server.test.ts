@@ -1218,6 +1218,23 @@ describe('Recycle bin permanent deletion', () => {
   });
 });
 
+describe('Input validation limits', () => {
+  it('rejects too many synced rows', async () => {
+    const rows = Array.from({ length: 5001 }, (_, index) => ({ id: `row-${index}` }));
+    const res = await authPost('/api/data/sync').send({ rows });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects invalid share target shape', async () => {
+    const res = await authPost('/api/shares/invitations').send({
+      receiverUsername: 'bad target',
+      scopeType: 'group',
+      groupNo: 'G001',
+    });
+    expect([400, 404]).toContain(res.status);
+  });
+});
+
 describe('Live update websocket invalidation', () => {
   it('notifies a receiver when a share invitation is created', async () => {
     const { server, baseUrl, wsUrl } = await startLiveTestServer();

@@ -1,5 +1,5 @@
 name: Deploy to VPS
-#test it works
+
 on:
   push:
     branches:
@@ -19,24 +19,43 @@ jobs:
           envs: BRANCH_NAME
           script: |
             set -e
+
+            migrate_existing_db() {
+              DB_DIR="$1"
+              mkdir -p "$DB_DIR"
+
+              if [ ! -e "$DB_DIR/umrah.db" ] && [ -e "umrah.db" ]; then
+                for file in umrah.db umrah.db-wal umrah.db-shm; do
+                  if [ -e "$file" ]; then
+                    mv "$file" "$DB_DIR/$file"
+                  fi
+                done
+              fi
+            }
+
+            deploy_app() {
+              APP_DIR="$1"
+              BRANCH="$2"
+              APP_NAME="$3"
+              APP_DB_PATH="$4"
+              APP_DB_DIR="$(dirname "$APP_DB_PATH")"
+
+              cd "$APP_DIR"
+              pm2 stop "$APP_NAME" || true
+              migrate_existing_db "$APP_DB_DIR"
+              git fetch origin "$BRANCH"
+              git reset --hard "origin/$BRANCH"
+              rm -rf dist/
+              rm -rf node_modules
+              npm ci
+              npm run build
+              DB_PATH="$APP_DB_PATH" pm2 restart "$APP_NAME" --update-env || DB_PATH="$APP_DB_PATH" pm2 start npm --name "$APP_NAME" -- start
+            }
+
             if [ "$BRANCH_NAME" = "main" ]; then
-              cd /var/www/umrah-prod
-              git fetch origin main
-              git reset --hard origin/main
-              rm -rf dist/
-              rm -rf node_modules
-              npm ci
-              npm run build
-              pm2 restart umrah-prod || pm2 start npm --name umrah-prod -- start
+              deploy_app /var/www/umrah-prod main umrah-prod /var/lib/umrah/prod/umrah.db
             else
-              cd /var/www/umrah-staging
-              git fetch origin staging
-              git reset --hard origin/staging
-              rm -rf dist/
-              rm -rf node_modules
-              npm ci
-              npm run build
-              pm2 restart umrah-staging || pm2 start npm --name umrah-staging -- start
+              deploy_app /var/www/umrah-staging staging umrah-staging /var/lib/umrah/staging/umrah.db
             fi
         env:
           BRANCH_NAME: ${{ github.ref_name }}

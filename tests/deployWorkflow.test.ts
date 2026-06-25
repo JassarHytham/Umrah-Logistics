@@ -9,6 +9,9 @@ describe("deploy workflow database handling", () => {
     expect(workflow).toContain("deploy_app /var/www/umrah-staging staging umrah-staging /var/lib/umrah/staging/umrah.db");
     expect(workflow).toContain('DB_PATH="$APP_DB_PATH" pm2 restart');
     expect(workflow).toContain('DB_PATH="$APP_DB_PATH" pm2 start');
+    expect(workflow).toContain("0 * * * * root cd /var/www/umrah-prod &&");
+    expect(workflow).toContain("0 * * * * root cd /var/www/umrah-staging &&");
+    expect(workflow).toContain('"$NODE_BIN" scripts/db-backup.mjs backup --db /var/lib/umrah/prod/umrah.db --dir /var/backups/umrah/prod --keep 168');
   });
 
   it("migrates an existing in-repo database before resetting the checkout", () => {

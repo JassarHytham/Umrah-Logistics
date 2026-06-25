@@ -153,5 +153,16 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
       })();
       return true;   // async
     }
+
+    if (msg.type === 'UMRAH_AUTO_SEND_DUPLICATE') {
+      (async () => {
+        const s = await get([GROUP_KEY]);
+        const group = s[GROUP_KEY];
+        if (!group || !group.groupNo) { sendResponse({ result: 'no-group' }); return; }
+        if (!group.count) { sendResponse({ result: 'missing-count' }); return; }
+        sendResponse(await doSend(group, msg.text, msg.hash, false));
+      })();
+      return true;   // async
+    }
   });
 })();

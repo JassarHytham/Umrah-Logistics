@@ -92,21 +92,23 @@
       wrap.setAttribute('dir', 'rtl');
       wrap.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:Tahoma,Arial,sans-serif;user-select:none;-webkit-user-select:none;';
       wrap.innerHTML =
-        '<div style="background:#fff;max-width:360px;width:90%;border-radius:12px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3);text-align:center;">' +
+        '<div style="background:#fff;max-width:420px;width:90%;border-radius:12px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3);text-align:center;">' +
           '<div style="font-size:32px">⚠️</div>' +
           '<div style="font-weight:700;margin:8px 0;color:#b45309">المجموعة موجودة مسبقاً</div>' +
           '<div id="umrah-dup-msg" style="font-size:14px;color:#444;margin-bottom:16px"></div>' +
-          '<div style="display:flex;gap:10px;justify-content:center">' +
-            '<button id="umrah-dup-overwrite" style="flex:1;padding:10px;border:0;border-radius:8px;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">🔄 استبدال</button>' +
-            '<button id="umrah-dup-stop" style="flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#333;font-weight:700;cursor:pointer">إيقاف</button>' +
+          '<div style="display:grid;grid-template-columns:1fr;gap:10px;justify-content:center">' +
+            '<button id="umrah-dup-add" style="padding:10px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer">➕ إضافة كنسخة مكررة</button>' +
+            '<button id="umrah-dup-overwrite" style="padding:10px;border:0;border-radius:8px;background:#dc2626;color:#fff;font-weight:700;cursor:pointer">🔄 استبدال القديم</button>' +
+            '<button id="umrah-dup-stop" style="padding:10px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#333;font-weight:700;cursor:pointer">إيقاف</button>' +
           '</div>' +
         '</div>';
       document.body.appendChild(wrap);
       // groupName traces back to untrusted page-scraped text — render as a
       // text node so no HTML in it is interpreted (count is numeric/safe).
       wrap.querySelector('#umrah-dup-msg').textContent =
-        'يوجد ' + count + ' رحلة محفوظة للمجموعة "' + (groupName || '') + '". هل تريد الاستبدال أم الإيقاف؟';
+        'يوجد ' + count + ' رحلة محفوظة للمجموعة "' + (groupName || '') + '". اختر طريقة المتابعة:';
       function close(decision) { wrap.remove(); resolve(decision); }
+      wrap.querySelector('#umrah-dup-add').addEventListener('click', () => close('add'));
       wrap.querySelector('#umrah-dup-overwrite').addEventListener('click', () => close('overwrite'));
       wrap.querySelector('#umrah-dup-stop').addEventListener('click', () => close('stop'));
     });
@@ -130,11 +132,13 @@
     if (res.result === 'duplicate') {
       const decision = await showDupModal(res.count, res.groupName);
       if (decision === 'stop') { setStatus('stopped'); return; }
+      const messageType = decision === 'add' ? 'UMRAH_AUTO_SEND_DUPLICATE' : 'UMRAH_AUTO_SEND_OVERWRITE';
+      const failureLabel = decision === 'add' ? 'duplicate add failed' : 'overwrite failed';
       try {
-        const ov = await chrome.runtime.sendMessage({ type: 'UMRAH_AUTO_SEND_OVERWRITE', text: snap.text, hash: snap.hash });
+        const ov = await chrome.runtime.sendMessage({ type: messageType, text: snap.text, hash: snap.hash });
         if (ov && ov.result === 'sent') setStatus('sent', String(ov.rows || 0));
         else setStatus(ov && ov.result === 'login-required' ? 'login-required' : 'error', ov && ov.message);
-      } catch (_) { setStatus('error', 'overwrite failed'); }
+      } catch (_) { setStatus('error', failureLabel); }
       return;
     }
     // sent | no-group | login-required | error are also persisted by background;

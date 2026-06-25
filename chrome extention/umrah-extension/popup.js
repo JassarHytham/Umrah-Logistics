@@ -161,8 +161,8 @@ function showDupWarning(count, gNo) {
   dupTitle.textContent = `رقم المجموعة موجود مسبقاً`;
   dupDetail.textContent = `يوجد ${count} رحلة محفوظة للمجموعة "${gNo}". اختر كيف تريد المتابعة:`;
 
-  // Rename main button to "إضافة فوق القديم"
-  sendBtnText.textContent = '➕ إضافة فوق القديم';
+  // Rename main button to the non-overwrite duplicate option.
+  sendBtnText.textContent = '➕ إضافة كنسخة مكررة';
   sendBtn.classList.add('has-duplicate');
 
   // Show overwrite button
@@ -437,7 +437,7 @@ async function doSend(overwrite) {
     await chrome.storage.local.set({ [STORAGE_KEY_GROUP]: { groupNo: gNo, groupName: gName, agency: gAgency, groupCount: gCnt } });
 
     const count = res.rows?.length || 0;
-    const action = overwrite ? 'استبدال' : 'إضافة';
+    const action = overwrite ? 'استبدال' : (isDuplicate ? 'إضافة كنسخة مكررة' : 'إضافة');
     sendSuccess.textContent = `✅ تم ${action} ${count} رحلة للمجموعة "${gName}"`;
     sendSuccess.classList.remove('hidden');
     setStatus('connected');
@@ -468,7 +468,7 @@ sendBtn.addEventListener('click',      () => doSend(false));
 overwriteBtn.addEventListener('click', () => doSend(true));
 
 function setSendLoading(on) {
-  sendBtnText.textContent = on ? 'جاري الإرسال...' : (isDuplicate ? '➕ إضافة فوق القديم' : '⚡ إرسال إلى النظام');
+  sendBtnText.textContent = on ? 'جاري الإرسال...' : (isDuplicate ? '➕ إضافة كنسخة مكررة' : '⚡ إرسال إلى النظام');
   sendSpinner.classList.toggle('hidden', !on);
   sendBtn.disabled = on;
 }

@@ -22,4 +22,13 @@ describe("deploy workflow database handling", () => {
     expect(resetIndex).toBeGreaterThan(-1);
     expect(migrateIndex).toBeLessThan(resetIndex);
   });
+
+  it("does not require root privileges to complete deployment", () => {
+    const rootGuardIndex = workflow.indexOf('if [ "$(id -u)" -ne 0 ]; then');
+    const cronWriteIndex = workflow.indexOf("cat >/etc/cron.d/umrah-db-backup <<EOF");
+
+    expect(rootGuardIndex).toBeGreaterThan(-1);
+    expect(cronWriteIndex).toBeGreaterThan(-1);
+    expect(rootGuardIndex).toBeLessThan(cronWriteIndex);
+  });
 });

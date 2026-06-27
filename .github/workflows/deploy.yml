@@ -53,6 +53,11 @@ jobs:
             }
 
             install_backup_cron() {
+              if [ "$(id -u)" -ne 0 ]; then
+                echo "Skipping backup cron install: deploy user is not root."
+                return 0
+              fi
+
               NODE_BIN="$(command -v node)"
               cat >/etc/cron.d/umrah-db-backup <<EOF
 SHELL=/bin/bash

@@ -7,11 +7,13 @@ describe("deploy workflow database handling", () => {
   it("runs production and staging with databases outside the git checkout", () => {
     expect(workflow).toContain("deploy_app /var/www/umrah-prod main umrah-prod /var/lib/umrah/prod/umrah.db");
     expect(workflow).toContain("deploy_app /var/www/umrah-staging staging umrah-staging /var/lib/umrah/staging/umrah.db");
+    expect(workflow).toContain("run_backup_tasks /var/www/umrah-prod /var/lib/umrah/prod/umrah.db /var/backups/umrah/prod");
+    expect(workflow).toContain("run_backup_tasks /var/www/umrah-staging /var/lib/umrah/staging/umrah.db /var/backups/umrah/staging");
     expect(workflow).toContain('DB_PATH="$APP_DB_PATH" pm2 restart');
     expect(workflow).toContain('DB_PATH="$APP_DB_PATH" pm2 start');
     expect(workflow).toContain("0 * * * * root cd /var/www/umrah-prod &&");
     expect(workflow).toContain("0 * * * * root cd /var/www/umrah-staging &&");
-    expect(workflow).toContain('"$NODE_BIN" scripts/db-backup.mjs backup --db /var/lib/umrah/prod/umrah.db --dir /var/backups/umrah/prod --keep 168');
+    expect(workflow).toContain('"$NODE_BIN" scripts/db-backup.mjs backup --db "$DB_PATH_TO_BACKUP" --dir "$BACKUP_DIR" --keep 168');
   });
 
   it("migrates an existing in-repo database before resetting the checkout", () => {
@@ -24,11 +26,9 @@ describe("deploy workflow database handling", () => {
   });
 
   it("does not require root privileges to complete deployment", () => {
-    const rootGuardIndex = workflow.indexOf('if [ "$(id -u)" -ne 0 ]; then');
-    const cronWriteIndex = workflow.indexOf("cat >/etc/cron.d/umrah-db-backup <<EOF");
-
-    expect(rootGuardIndex).toBeGreaterThan(-1);
-    expect(cronWriteIndex).toBeGreaterThan(-1);
-    expect(rootGuardIndex).toBeLessThan(cronWriteIndex);
+    expect(workflow).toContain("run_backup_tasks()");
+    expect(workflow).toContain('echo "Skipping backup setup: deploy user is not root."');
+    expect(workflow).toContain("install_backup_cron");
+    expect(workflow).toContain('"$NODE_BIN" scripts/db-backup.mjs backup --db "$DB_PATH_TO_BACKUP" --dir "$BACKUP_DIR" --keep 168');
   });
 });

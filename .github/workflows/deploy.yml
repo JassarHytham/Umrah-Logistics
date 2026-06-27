@@ -53,11 +53,6 @@ jobs:
             }
 
             install_backup_cron() {
-              if [ "$(id -u)" -ne 0 ]; then
-                echo "Skipping backup cron install: deploy user is not root."
-                return 0
-              fi
-
               NODE_BIN="$(command -v node)"
               cat >/etc/cron.d/umrah-db-backup <<EOF
 SHELL=/bin/bash
@@ -67,18 +62,28 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
 EOF
             }
 
+            run_backup_tasks() {
+              APP_DIR="$1"
+              DB_PATH_TO_BACKUP="$2"
+              BACKUP_DIR="$3"
+
+              if [ "$(id -u)" -ne 0 ]; then
+                echo "Skipping backup setup: deploy user is not root."
+                return 0
+              fi
+
+              NODE_BIN="$(command -v node)"
+              install_backup_cron
+              cd "$APP_DIR"
+              "$NODE_BIN" scripts/db-backup.mjs backup --db "$DB_PATH_TO_BACKUP" --dir "$BACKUP_DIR" --keep 168
+            }
+
             if [ "$BRANCH_NAME" = "main" ]; then
-              NODE_BIN="$(command -v node)"
               deploy_app /var/www/umrah-prod main umrah-prod /var/lib/umrah/prod/umrah.db
-              install_backup_cron
-              cd /var/www/umrah-prod
-              "$NODE_BIN" scripts/db-backup.mjs backup --db /var/lib/umrah/prod/umrah.db --dir /var/backups/umrah/prod --keep 168
+              run_backup_tasks /var/www/umrah-prod /var/lib/umrah/prod/umrah.db /var/backups/umrah/prod
             else
-              NODE_BIN="$(command -v node)"
               deploy_app /var/www/umrah-staging staging umrah-staging /var/lib/umrah/staging/umrah.db
-              install_backup_cron
-              cd /var/www/umrah-staging
-              "$NODE_BIN" scripts/db-backup.mjs backup --db /var/lib/umrah/staging/umrah.db --dir /var/backups/umrah/staging --keep 168
+              run_backup_tasks /var/www/umrah-staging /var/lib/umrah/staging/umrah.db /var/backups/umrah/staging
             fi
         env:
           BRANCH_NAME: ${{ github.ref_name }}

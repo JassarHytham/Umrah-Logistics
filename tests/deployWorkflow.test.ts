@@ -31,4 +31,9 @@ describe("deploy workflow database handling", () => {
     expect(workflow).toContain("install_backup_cron");
     expect(workflow).toContain('"$NODE_BIN" scripts/db-backup.mjs backup --db "$DB_PATH_TO_BACKUP" --dir "$BACKUP_DIR" --keep 168');
   });
+
+  it("writes the cron file without a shell heredoc", () => {
+    expect(workflow).toContain("printf '%s\\n'");
+    expect(workflow).not.toContain("<<EOF");
+  });
 });

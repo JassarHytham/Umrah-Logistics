@@ -54,12 +54,12 @@ jobs:
 
             install_backup_cron() {
               NODE_BIN="$(command -v node)"
-              cat >/etc/cron.d/umrah-db-backup <<EOF
-              SHELL=/bin/bash
-              PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
-              0 * * * * root cd /var/www/umrah-prod && ${NODE_BIN} scripts/db-backup.mjs backup --db /var/lib/umrah/prod/umrah.db --dir /var/backups/umrah/prod --keep 168 >> /var/log/umrah-db-backup.log 2>&1
-              0 * * * * root cd /var/www/umrah-staging && ${NODE_BIN} scripts/db-backup.mjs backup --db /var/lib/umrah/staging/umrah.db --dir /var/backups/umrah/staging --keep 168 >> /var/log/umrah-db-backup.log 2>&1
-              EOF
+              printf '%s\n' \
+                'SHELL=/bin/bash' \
+                'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin' \
+                "0 * * * * root cd /var/www/umrah-prod && ${NODE_BIN} scripts/db-backup.mjs backup --db /var/lib/umrah/prod/umrah.db --dir /var/backups/umrah/prod --keep 168 >> /var/log/umrah-db-backup.log 2>&1" \
+                "0 * * * * root cd /var/www/umrah-staging && ${NODE_BIN} scripts/db-backup.mjs backup --db /var/lib/umrah/staging/umrah.db --dir /var/backups/umrah/staging --keep 168 >> /var/log/umrah-db-backup.log 2>&1" \
+                >/etc/cron.d/umrah-db-backup
             }
 
             run_backup_tasks() {

@@ -19,6 +19,7 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const APP_ROOT = process.cwd();
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
@@ -89,7 +90,7 @@ const getExtensionChannel = () => {
 
 const getExtensionInfo = () => {
   const channel = getExtensionChannel();
-  const channelDir = path.join(__dirname, "public", "extensions", channel);
+  const channelDir = path.join(APP_ROOT, "public", "extensions", channel);
   const crxPath = path.join(channelDir, "umrah-extension.crx");
   const zipPath = path.join(channelDir, "umrah-extension.zip");
   const updateManifestPath = path.join(channelDir, "updates.xml");
@@ -1457,7 +1458,8 @@ app.get("/api/download/extension/zip", (_req, res) => {
     return;
   }
   const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
-  res.download(legacyZipPath, "umrah-extension.zip", (err) => {
+  const fallbackZipPath = path.join(APP_ROOT, "chrome extention", "umrah-extension.zip");
+  res.download(existsSync(fallbackZipPath) ? fallbackZipPath : legacyZipPath, "umrah-extension.zip", (err) => {
     if (err) res.status(404).json({ error: "الملف غير موجود" });
   });
 });
@@ -1469,7 +1471,8 @@ app.get("/api/download/extension", (_req, res) => {
     return;
   }
   const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
-  res.download(legacyZipPath, "umrah-extension.zip", (err) => {
+  const fallbackZipPath = path.join(APP_ROOT, "chrome extention", "umrah-extension.zip");
+  res.download(existsSync(fallbackZipPath) ? fallbackZipPath : legacyZipPath, "umrah-extension.zip", (err) => {
     if (err) res.status(404).json({ error: "الملف غير موجود" });
   });
 });
@@ -1483,10 +1486,11 @@ if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEn
   app.use(vite.middlewares);
 } else if (isTestEnv) {
   app.get("/", (_req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
+    res.sendFile(path.join(APP_ROOT, "index.html"));
   });
 } else if (!isTestEnv) {
-  app.use(express.static(path.join(__dirname, "dist"), {
+  const distDir = path.join(APP_ROOT, "dist");
+  app.use(express.static(distDir, {
     dotfiles: "deny",
     index: false,
     setHeaders(res, filePath) {
@@ -1495,8 +1499,11 @@ if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEn
       }
     },
   }));
+  app.get("/", (_req, res) => {
+    res.sendFile("index.html", { root: distDir });
+  });
   app.get("/{*splat}", (req, res) => {
-    res.sendFile(path.join(__dirname, "dist", "index.html"));
+    res.sendFile("index.html", { root: distDir });
   });
 }
 

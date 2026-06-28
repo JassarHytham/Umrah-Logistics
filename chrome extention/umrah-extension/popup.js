@@ -18,7 +18,10 @@ const loginBtnText     = document.getElementById('loginBtnText');
 const loginSpinner     = document.getElementById('loginSpinner');
 const loginError       = document.getElementById('loginError');
 const serverLabel      = document.getElementById('serverLabel');
+const manifestVersion  = document.getElementById('manifestVersion');
 const logoutBtn        = document.getElementById('logoutBtn');
+const checkUpdateBtn   = document.getElementById('checkUpdateBtn');
+const updateStatus     = document.getElementById('updateStatus');
 const capturePageBtn   = document.getElementById('capturePageBtn');
 const capturedText     = document.getElementById('capturedText');
 const captureHint      = document.getElementById('captureHint');
@@ -51,6 +54,10 @@ let isDuplicate    = false;  // current duplicate state
 //  Init
 // ══════════════════════════════════════════════════════
 async function init() {
+  if (manifestVersion) {
+    manifestVersion.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
+
   const stored = await chrome.storage.local.get([
     STORAGE_KEY_URL, STORAGE_KEY_TOKEN, STORAGE_KEY_GROUP, 'umrah_autofill'
   ]);
@@ -109,6 +116,19 @@ function showCaptureView() {
   }
   openAppBtn.href = serverUrl;
   updateSendButton();
+}
+
+function showUpdateStatus(message, tone = 'info') {
+  if (!updateStatus) return;
+  updateStatus.textContent = message;
+  updateStatus.className = `hint update-status ${tone}`;
+  updateStatus.classList.remove('hidden');
+}
+
+function clearUpdateStatus() {
+  if (!updateStatus) return;
+  updateStatus.textContent = '';
+  updateStatus.className = 'hint update-status hidden';
 }
 
 function setStatus(state) {
@@ -221,8 +241,47 @@ logoutBtn.addEventListener('click', async () => {
   authToken = '';
   serverUrlInput.value = serverUrl;
   loginPassword.value = '';
+  clearUpdateStatus();
   showLoginView();
 });
+
+if (checkUpdateBtn) {
+  checkUpdateBtn.addEventListener('click', () => {
+    if (!chrome.runtime?.requestUpdateCheck) {
+      showUpdateStatus('Chrome لا يدعم فحص التحديث من هذا السياق', 'error');
+      return;
+    }
+
+    showUpdateStatus('جارٍ فحص التحديث...', 'info');
+    checkUpdateBtn.disabled = true;
+
+    chrome.runtime.requestUpdateCheck((status) => {
+      if (chrome.runtime.lastError) {
+        showUpdateStatus(`تعذر فحص التحديث: ${chrome.runtime.lastError.message}`, 'error');
+        checkUpdateBtn.disabled = false;
+        return;
+      }
+
+      if (status === 'update_available') {
+        showUpdateStatus('تم العثور على تحديث. ستُعاد الإضافة الآن.', 'success');
+        setTimeout(() => chrome.runtime.reload(), 1200);
+        return;
+      }
+
+      if (status === 'no_update') {
+        showUpdateStatus('أنت على أحدث إصدار.', 'success');
+      } else if (status === 'throttled') {
+        showUpdateStatus('Chrome أجّل الفحص مؤقتاً. أعد المحاولة لاحقاً.', 'error');
+      } else {
+        showUpdateStatus(`حالة التحديث: ${status}`, 'info');
+      }
+
+      setTimeout(() => {
+        checkUpdateBtn.disabled = false;
+      }, 800);
+    });
+  });
+}
 
 function setLoginLoading(loading) {
   loginBtnText.textContent = loading ? 'جاري الاتصال...' : 'تسجيل الدخول وحفظ';

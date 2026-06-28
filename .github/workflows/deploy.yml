@@ -16,7 +16,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: BRANCH_NAME
+          envs: BRANCH_NAME,PROD_EXTENSION_BASE_URL,STAGING_EXTENSION_BASE_URL,PROD_EXTENSION_PEM_PATH,STAGING_EXTENSION_PEM_PATH
           script: |
             set -e
 
@@ -38,6 +38,9 @@ jobs:
               BRANCH="$2"
               APP_NAME="$3"
               APP_DB_PATH="$4"
+              EXTENSION_ENV="$5"
+              EXTENSION_BASE_URL="$6"
+              EXTENSION_PEM_PATH="$7"
               APP_DB_DIR="$(dirname "$APP_DB_PATH")"
 
               cd "$APP_DIR"
@@ -49,7 +52,8 @@ jobs:
               rm -rf node_modules
               npm ci
               npm run build
-              DB_PATH="$APP_DB_PATH" pm2 restart "$APP_NAME" --update-env || DB_PATH="$APP_DB_PATH" pm2 start npm --name "$APP_NAME" -- start
+              node scripts/package-extension.mjs --env "$EXTENSION_ENV" --base-url "$EXTENSION_BASE_URL" --pem "$EXTENSION_PEM_PATH" --out "$APP_DIR/public/extensions/$EXTENSION_ENV"
+              DB_PATH="$APP_DB_PATH" EXTENSION_CHANNEL="$EXTENSION_ENV" pm2 restart "$APP_NAME" --update-env || DB_PATH="$APP_DB_PATH" EXTENSION_CHANNEL="$EXTENSION_ENV" pm2 start npm --name "$APP_NAME" -- start
             }
 
             install_backup_cron() {
@@ -64,16 +68,20 @@ EOF
 
             if [ "$BRANCH_NAME" = "main" ]; then
               NODE_BIN="$(command -v node)"
-              deploy_app /var/www/umrah-prod main umrah-prod /var/lib/umrah/prod/umrah.db
+              deploy_app /var/www/umrah-prod main umrah-prod /var/lib/umrah/prod/umrah.db prod "$PROD_EXTENSION_BASE_URL" "$PROD_EXTENSION_PEM_PATH"
               install_backup_cron
               cd /var/www/umrah-prod
               "$NODE_BIN" scripts/db-backup.mjs backup --db /var/lib/umrah/prod/umrah.db --dir /var/backups/umrah/prod --keep 168
             else
               NODE_BIN="$(command -v node)"
-              deploy_app /var/www/umrah-staging staging umrah-staging /var/lib/umrah/staging/umrah.db
+              deploy_app /var/www/umrah-staging staging umrah-staging /var/lib/umrah/staging/umrah.db staging "$STAGING_EXTENSION_BASE_URL" "$STAGING_EXTENSION_PEM_PATH"
               install_backup_cron
               cd /var/www/umrah-staging
               "$NODE_BIN" scripts/db-backup.mjs backup --db /var/lib/umrah/staging/umrah.db --dir /var/backups/umrah/staging --keep 168
             fi
         env:
           BRANCH_NAME: ${{ github.ref_name }}
+          PROD_EXTENSION_BASE_URL: ${{ secrets.PROD_EXTENSION_BASE_URL || 'http://157.173.122.139:3000' }}
+          STAGING_EXTENSION_BASE_URL: ${{ secrets.STAGING_EXTENSION_BASE_URL || 'http://157.173.122.139:3001' }}
+          PROD_EXTENSION_PEM_PATH: ${{ secrets.PROD_EXTENSION_PEM_PATH || '/var/lib/umrah/prod/keys/umrah-extension.pem' }}
+          STAGING_EXTENSION_PEM_PATH: ${{ secrets.STAGING_EXTENSION_PEM_PATH || '/var/lib/umrah/staging/keys/umrah-extension.pem' }}

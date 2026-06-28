@@ -617,12 +617,20 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
 
               <a
-                href="/api/download/extension"
-                download="umrah-extension.zip"
+                href="/api/download/extension/crx"
                 className="flex items-center justify-center gap-3 w-full p-4 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-violet-200"
               >
                 <Download size={20} />
-                تحميل الإضافة (ZIP)
+                تثبيت الإضافة (.CRX)
+              </a>
+
+              <a
+                href="/api/download/extension"
+                download="umrah-extension.zip"
+                className="flex items-center justify-center gap-3 w-full p-4 bg-white hover:bg-gray-50 text-violet-700 rounded-2xl font-bold text-sm transition-all active:scale-95 border border-violet-100"
+              >
+                <Package size={20} />
+                تنزيل نسخة ZIP الاحتياطية
               </a>
 
               <div className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
@@ -631,12 +639,12 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
                 <div className="p-5 space-y-4">
                   {[
-                    { Icon: Download,   step: '١', title: 'حمّل الملف المضغوط', desc: 'انقر على زر التحميل أعلاه للحصول على ملف umrah-extension.zip' },
-                    { Icon: Package,    step: '٢', title: 'فك ضغط الملف',       desc: 'استخرج محتويات الملف المضغوط في مجلد على جهازك' },
-                    { Icon: Monitor,    step: '٣', title: 'افتح صفحة الإضافات', desc: <>اكتب <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-xs" dir="ltr">chrome://extensions</span> في شريط العنوان واضغط Enter</> },
-                    { Icon: SlidersHorizontal, step: '٤', title: 'فعّل وضع المطور', desc: 'شغّل مفتاح "Developer mode" في الزاوية اليمنى العليا من الصفحة' },
-                    { Icon: FolderOpen, step: '٥', title: 'حمّل الإضافة',        desc: 'انقر على "Load unpacked" واختر المجلد الذي فككت فيه الضغط' },
-                    { Icon: CheckCircle2, step: '٦', title: 'جاهز!',             desc: 'ستظهر أيقونة الإضافة في شريط الأدوات — انقر عليها عند فتح صفحة الحجوزات' },
+                    { Icon: Download,   step: '١', title: 'حمّل ملف CRX', desc: 'استخدم زر التثبيت أعلاه لتنزيل النسخة الموقعة من الإضافة.' },
+                    { Icon: Monitor,    step: '٢', title: 'افتح صفحة الإضافات', desc: <>اكتب <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-xs" dir="ltr">chrome://extensions</span> في شريط العنوان واضغط Enter</> },
+                    { Icon: CheckCircle2, step: '٣', title: 'أكمل التثبيت', desc: 'إذا سمح Chrome بتثبيت الملف مباشرة فوافق على رسالة "Add extension".' },
+                    { Icon: SlidersHorizontal, step: '٤', title: 'عند حظر التثبيت', desc: 'إذا رفض Chrome تثبيت CRX مباشرة فاستخدم زر ZIP الاحتياطي واتبع التثبيت اليدوي.' },
+                    { Icon: FolderOpen, step: '٥', title: 'النسخة اليدوية', desc: 'بعد فك ضغط ZIP اختر "Load unpacked" وحدد مجلد الإضافة.' },
+                    { Icon: Package,    step: '٦', title: 'التحديثات', desc: 'الإصدار المثبّت من CRX يتحقق من التحديثات تلقائياً، ويمكنك أيضاً الضغط على "فحص التحديث" من داخل نافذة الإضافة.' },
                   ].map(({ Icon, step, title, desc }) => (
                     <div key={step} className="flex gap-4">
                       <div className="shrink-0 w-8 h-8 bg-violet-100 text-violet-700 rounded-xl flex items-center justify-center font-black text-sm">
@@ -654,7 +662,7 @@ export const Settings: React.FC<SettingsProps> = ({
               <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
                 <Info size={16} className="text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 leading-relaxed">
-                  الإضافة تعمل على متصفح Chrome فقط. بعد التثبيت لا تحتاج لإعادة التثبيت — ستُحدَّث يدوياً عند صدور نسخة جديدة.
+                  الإضافة تعمل على Chrome فقط. التثبيت عبر ملف CRX قد يختلف حسب نظام التشغيل وسياسات Chrome، لذلك أبقينا نسخة ZIP اليدوية كخطة احتياطية. بعد تثبيت نسخة CRX ستصل التحديثات تلقائياً من الخادم.
                 </p>
               </div>
             </div>

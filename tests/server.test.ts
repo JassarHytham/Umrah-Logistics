@@ -183,6 +183,30 @@ describe('Auth Middleware', () => {
   });
 });
 
+describe('GET /api/extension/info', () => {
+  it('returns production extension metadata by default', async () => {
+    delete process.env.EXTENSION_CHANNEL;
+    const res = await request(app).get('/api/extension/info');
+
+    expect(res.status).toBe(200);
+    expect(res.body.channel).toBe('prod');
+    expect(res.body.crxUrl).toBe('/extensions/prod/umrah-extension.crx');
+    expect(res.body.updateManifestUrl).toBe('/extensions/prod/updates.xml');
+    expect(res.body.zipUrl).toBe('/api/download/extension');
+  });
+
+  it('returns staging extension metadata when explicitly configured', async () => {
+    process.env.EXTENSION_CHANNEL = 'staging';
+    const res = await request(app).get('/api/extension/info');
+
+    expect(res.status).toBe(200);
+    expect(res.body.channel).toBe('staging');
+    expect(res.body.crxUrl).toBe('/extensions/staging/umrah-extension.crx');
+    expect(res.body.updateManifestUrl).toBe('/extensions/staging/updates.xml');
+
+    delete process.env.EXTENSION_CHANNEL;
+  });
+});
 // ─────────────────────────────────────────────
 // GET /api/data
 // ─────────────────────────────────────────────

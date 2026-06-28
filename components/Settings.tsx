@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  Send, Zap, Bell, BellRing, Smartphone, CheckCircle2, Info,
-  Loader2, SlidersHorizontal, Eye, EyeOff, GripVertical, Type, Minus, PlusCircle,
-  LayoutList, AlignJustify, Download, Puzzle, ChevronLeft,
+  Send, Zap, Bell, Smartphone, CheckCircle2, Info,
+  Loader2, SlidersHorizontal, Eye, EyeOff, GripVertical,
+  LayoutList, AlignJustify, Download, Puzzle,
   Monitor, Package, FolderOpen, StickyNote, Users, Trash2, ShieldCheck
 } from 'lucide-react';
 import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings, NoteHighlightColor, COLUMN_LABELS, DEFAULT_COLUMN_ORDER, ShareAccessGrant, ShareRole } from '../types';

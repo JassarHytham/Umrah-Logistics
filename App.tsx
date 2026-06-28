@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
-  Download, Edit3, FileText, AlertCircle, Save, Plane, Bus, Users, ChevronDown,
-  ClipboardList, Upload, Trash2, History, RotateCcw, XCircle,
-  Eraser, Calendar, Clock, Check, FileJson, Database, AlertTriangle,
+  Download, Edit3, FileText, AlertCircle, Plane, Users, ChevronDown,
+  Upload, Trash2, History, RotateCcw, XCircle,
+  Eraser, Clock,
   LayoutDashboard, Settings as SettingsIcon, Share2,
-  CheckSquare, Square, Type, Minus, PlusCircle, RotateCw, Bell, BellRing, Smartphone, Bot, Send, ShieldCheck, SlidersHorizontal,
-  Info,
-  ExternalLink,
-  Zap,
-  CheckCircle2,
+  Type, RotateCw, SlidersHorizontal,
   Loader2,
-  MapPin,
   Menu,
   X
 } from 'lucide-react';

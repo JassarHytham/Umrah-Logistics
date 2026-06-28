@@ -13,7 +13,7 @@ import path from "path";
 import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
-import { parseDateTime, parseItineraryText, getCarType } from "./utils/parser.js";
+import { parseDateTime, parseItineraryText } from "./utils/parser.js";
 import { DEFAULT_ALERT_SETTINGS } from "./types.js";
 
 dotenv.config();

@@ -40,7 +40,6 @@ Copy `.env.example` to `.env.local` and set:
 ### Key Components
 - `components/Auth.tsx` — login/register form
 - `components/TableEditor.tsx` — main data grid with filtering, sorting, inline editing
-- `components/LogisticsBot.tsx` — Google Gemini AI chatbot for logistics queries
 - `components/OperationsIntelligence.tsx` — KPI analytics dashboard
 - `utils/parser.ts` — date/text parsing for trip data
 
@@ -48,6 +47,3 @@ Copy `.env.example` to `.env.local` and set:
 `types.ts` defines all shared types. Core type is `LogisticsRow` (group, date, flight, route, status, etc.). `TripStatus` is a string enum: `'Planned' | 'Confirmed' | 'Driver Assigned' | 'In Progress' | 'Completed' | 'Delayed' | 'Cancelled'`.
 
 Settings (stored per-user in SQLite) include: Telegram bot config, saved templates, deleted rows (soft-delete trash), and notified row IDs for proximity alerts.
-
-### AI Integration
-`LogisticsBot` uses `@google/genai`. The API key is injected at build time via `vite.config.ts` (`process.env.API_KEY` → `VITE_GEMINI_API_KEY` fallback chain).

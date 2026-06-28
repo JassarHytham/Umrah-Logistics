@@ -55,6 +55,12 @@ export interface TelegramConfig {
   botName?: string;
 }
 
+export const DEFAULT_TELEGRAM_CONFIG: TelegramConfig = {
+  token: '',
+  chatId: '',
+  enabled: false,
+};
+
 export interface LogisticsTemplate {
   id: string;
   name: string;
@@ -89,13 +95,6 @@ export interface ShareInvitation {
   createdAt: string;
 }
 
-export interface BotMessage {
-  id: string;
-  role: 'user' | 'model';
-  text: string;
-  timestamp: Date;
-}
-
 export interface AlertSettings {
   arrivalMinutes: number;       // default 120
   departureMinutes: number;     // default 60
@@ -111,6 +110,17 @@ export interface PreviewSettings {
   requiredFields: string[];     // field keys that highlight red in preview
   defaultStatus: TripStatus;   // status assigned to new empty rows
 }
+
+export const DEFAULT_ALERT_SETTINGS: AlertSettings = {
+  arrivalMinutes: 120,
+  departureMinutes: 60,
+  messageFields: { flight: true, carType: true, count: false, tafweej: false },
+};
+
+export const DEFAULT_PREVIEW_SETTINGS: PreviewSettings = {
+  requiredFields: ['groupName', 'groupNo', 'flight', 'date', 'time', 'from', 'to'],
+  defaultStatus: 'Planned',
+};
 
 export const DEFAULT_COLUMN_ORDER: string[] = [
   'status', 'groupNo', 'groupName', 'agency', 'Column1', 'tafweej',

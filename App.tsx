@@ -15,8 +15,9 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_COLUMN_ORDER, ShareInvitation, ShareAccessGrant, ShareRole, normalizeDisplaySettings } from './types';
+import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_ALERT_SETTINGS, DEFAULT_PREVIEW_SETTINGS, DEFAULT_DISPLAY_SETTINGS, DEFAULT_TELEGRAM_CONFIG, ShareInvitation, ShareAccessGrant, ShareRole, normalizeDisplaySettings } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
+import { getLocalDateString } from './utils/date';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
 import { Auth } from './components/Auth';
@@ -36,27 +37,6 @@ const loadFromStorage = (key: string, defaultValue: any) => {
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 
-/**
- * Escapes characters for Telegram HTML parse_mode
- */
-const escapeHTML = (str: string) => {
-  if (!str) return "";
-  return str.replace(/[&<>"']/g, (m) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  }[m] || m));
-};
-
-export const getLocalDateString = (date: Date = new Date()) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${d}/${m}/${y}`;
-};
-
 const STATUS_LABELS: Record<TripStatus, string> = {
   'Planned': 'مخطط', 'Confirmed': 'مؤكد', 'Driver Assigned': 'تم تعيين السائق',
   'In Progress': 'قيد التنفيذ', 'Completed': 'مكتمل', 'Delayed': 'متأخر', 'Cancelled': 'ملغي', 'Uncompleted': 'لم يكتمل',
@@ -71,7 +51,7 @@ export default function App() {
   const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
   const [shareInvitations, setShareInvitations] = useState<ShareInvitation[]>([]);
   const [shareAccessGrants, setShareAccessGrants] = useState<ShareAccessGrant[]>([]);
-  const [tgConfig, setTgConfig] = useState<TelegramConfig>({ token: '', chatId: '', enabled: false });
+  const [tgConfig, setTgConfig] = useState<TelegramConfig>(DEFAULT_TELEGRAM_CONFIG);
 
   const [inputs, setInputs] = useState<InputState>({ groupNo: '', groupName: '', agency: '', count: '', text: '' });
   const [previewRows, setPreviewRows] = useState<LogisticsRow[]>([]);
@@ -84,25 +64,9 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [filteredRows, setFilteredRows] = useState<LogisticsRow[]>([]);
   const [fontSize, setFontSize] = useState<number>(100);
-  const [alertSettings, setAlertSettings] = useState<AlertSettings>({
-    arrivalMinutes: 120,
-    departureMinutes: 60,
-    messageFields: { flight: true, carType: true, count: false, tafweej: false },
-  });
-  const [previewSettings, setPreviewSettings] = useState<PreviewSettings>({
-    requiredFields: ['groupName', 'groupNo', 'flight', 'date', 'time', 'from', 'to'],
-    defaultStatus: 'Planned',
-  });
-  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>({
-    density: 'compact',
-    tableFontSize: 100,
-    borderStyle: 'thin',
-    noteHighlightEnabled: true,
-    noteHighlightColor: 'amber',
-    wrapCells: true,
-    columnOrder: DEFAULT_COLUMN_ORDER,
-    hiddenColumns: [],
-  });
+  const [alertSettings, setAlertSettings] = useState<AlertSettings>(DEFAULT_ALERT_SETTINGS);
+  const [previewSettings, setPreviewSettings] = useState<PreviewSettings>(DEFAULT_PREVIEW_SETTINGS);
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(DEFAULT_DISPLAY_SETTINGS);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [isTestingTg, setIsTestingTg] = useState(false);
 
@@ -152,17 +116,10 @@ export default function App() {
       setShareInvitations(invitations || []);
       setShareAccessGrants(accessGrants || []);
       setNotifiedIds(settings.notifiedIds || []);
-      setTgConfig(settings.tgConfig || { token: '', chatId: '', enabled: false });
+      setTgConfig(settings.tgConfig || DEFAULT_TELEGRAM_CONFIG);
       setFontSize(settings.fontSize || 100);
-      setAlertSettings(settings.alertSettings || {
-        arrivalMinutes: 120,
-        departureMinutes: 60,
-        messageFields: { flight: true, carType: true, count: false, tafweej: false },
-      });
-      setPreviewSettings(settings.previewSettings || {
-        requiredFields: ['groupName', 'groupNo', 'flight', 'date', 'time', 'from', 'to'],
-        defaultStatus: 'Planned',
-      });
+      setAlertSettings(settings.alertSettings || DEFAULT_ALERT_SETTINGS);
+      setPreviewSettings(settings.previewSettings || DEFAULT_PREVIEW_SETTINGS);
       setDisplaySettings(normalizeDisplaySettings(settings.displaySettings));
 
       // Legacy Migration: If backend is empty but local storage has data, offer to import
@@ -172,7 +129,7 @@ export default function App() {
           if (window.confirm("تم العثور على بيانات قديمة في هذا المتصفح. هل تريد استيرادها إلى حسابك الجديد؟")) {
             setAllRows(localRows);
             setDeletedRows(loadFromStorage('umrah_logistics_deleted', []));
-            setTgConfig(loadFromStorage('umrah_tg_config', { token: '', chatId: '', enabled: false }));
+            setTgConfig(loadFromStorage('umrah_tg_config', DEFAULT_TELEGRAM_CONFIG));
             setNotifiedIds(loadFromStorage('umrah_notified_trip_ids', []));
             // Clear local storage to prevent repeated prompts
             ['umrah_logistics_rows', 'umrah_logistics_deleted', 'umrah_logistics_templates', 'umrah_tg_config', 'umrah_notified_trip_ids'].forEach(k => localStorage.removeItem(k));

@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertTriangle, Info
 } from 'lucide-react';
 import { LogisticsRow } from '../types';
-import { getLocalDateString } from '../App';
+import { getLocalDateString } from '../utils/date';
 import { countUniqueGroups } from '../utils/operationsStats';
 
 interface AnalyticsProps {

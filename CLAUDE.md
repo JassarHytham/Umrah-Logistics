@@ -17,7 +17,6 @@ npm run preview   # Preview Vite production build
 
 Copy `.env.example` to `.env.local` and set:
 - `JWT_SECRET` — secret for signing JWT tokens
-- `GEMINI_API_KEY` — Google Generative AI key (also accepted as `API_KEY` or `VITE_GEMINI_API_KEY`)
 - `PORT` — defaults to 3000
 
 ## Architecture

@@ -14,6 +14,7 @@ import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import { parseDateTime, parseItineraryText, getCarType } from "./utils/parser.js";
+import { DEFAULT_ALERT_SETTINGS } from "./types.js";
 
 dotenv.config();
 
@@ -518,6 +519,18 @@ const sendLiveEvent = (userIds: Iterable<number>, type: LiveEventType, actorUser
     }
   }
 };
+
+const parseStoredJson = <T,>(value: string | null | undefined, fallback: T): T => {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+const parseExtraSettings = (value: string | null | undefined) =>
+  parseStoredJson<Record<string, any>>(value, {});
 
 const getVisibleUserIdsForRowRecord = (record: LogisticsRowRecord) => {
   const userIds = new Set<number>([Number(record.user_id)]);
@@ -1206,14 +1219,15 @@ app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
 app.get("/api/settings", authenticateToken, (req: any, res) => {
   const settings: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
   if (!settings) return res.json({ tgConfig: null, templates: [], fontSize: 100 });
+  const extraSettings = parseExtraSettings(settings.extra_settings);
 
   res.json({
     tgConfig: decryptJson<StoredTelegramConfig | null>(settings.tg_config, null),
-    templates: settings.templates ? JSON.parse(settings.templates) : [],
-    deletedRows: settings.deleted_rows ? JSON.parse(settings.deleted_rows) : [],
-    notifiedIds: settings.notified_ids ? JSON.parse(settings.notified_ids) : [],
+    templates: parseStoredJson(settings.templates, []),
+    deletedRows: parseStoredJson(settings.deleted_rows, []),
+    notifiedIds: parseStoredJson(settings.notified_ids, []),
     fontSize: settings.font_size || 100,
-    ...(settings.extra_settings ? JSON.parse(settings.extra_settings) : {})
+    ...extraSettings
   });
 });
 
@@ -1222,6 +1236,7 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
 
   // Merge with existing settings so partial saves never wipe unrelated fields
   const existing: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
+  const existingExtraSettings = parseExtraSettings(existing?.extra_settings);
 
   const merged = {
     tg_config: tgConfig !== undefined ? (tgConfig ? encryptJson(tgConfig) : null)
@@ -1233,9 +1248,9 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
     notified_ids: existing?.notified_ids ?? null,
     font_size: fontSize !== undefined ? fontSize : (existing?.font_size ?? 100),
     extra_settings: JSON.stringify({
-      alertSettings: alertSettings !== undefined ? alertSettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).alertSettings : undefined),
-      previewSettings: previewSettings !== undefined ? previewSettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).previewSettings : undefined),
-      displaySettings: displaySettings !== undefined ? displaySettings : (existing?.extra_settings ? JSON.parse(existing.extra_settings).displaySettings : undefined),
+      alertSettings: alertSettings !== undefined ? alertSettings : existingExtraSettings.alertSettings,
+      previewSettings: previewSettings !== undefined ? previewSettings : existingExtraSettings.previewSettings,
+      displaySettings: displaySettings !== undefined ? displaySettings : existingExtraSettings.displaySettings,
     }),
   };
 
@@ -1284,13 +1299,9 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
   const settings: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
 
   const tgConfig = decryptJson<StoredTelegramConfig | null>(settings?.tg_config, null);
-  const extraSettings = settings?.extra_settings ? JSON.parse(settings.extra_settings) : {};
-  const alertSettings = extraSettings.alertSettings ?? {
-    arrivalMinutes: 120,
-    departureMinutes: 60,
-    messageFields: { flight: true, carType: true, count: false, tafweej: false },
-  };
-  const notifiedIds: string[] = settings?.notified_ids ? JSON.parse(settings.notified_ids) : [];
+  const extraSettings = parseExtraSettings(settings?.extra_settings);
+  const alertSettings = extraSettings.alertSettings ?? DEFAULT_ALERT_SETTINGS;
+  const notifiedIds: string[] = parseStoredJson(settings?.notified_ids, []);
   const notifiedSet = new Set(notifiedIds);
 
   const rawRows = db
@@ -1535,16 +1546,10 @@ async function checkAndSendAlerts() {
       const tgConfig = decryptJson<StoredTelegramConfig | null>(settings.tg_config, null);
       if (!tgConfig?.enabled || !tgConfig.token || !tgConfig.chatId) continue;
 
-      const extraSettings = settings.extra_settings ? JSON.parse(settings.extra_settings) : {};
-      const alertSettings = extraSettings.alertSettings ?? {
-        arrivalMinutes: 120,
-        departureMinutes: 60,
-        messageFields: { flight: true, carType: true, count: false, tafweej: false },
-      };
+      const extraSettings = parseExtraSettings(settings.extra_settings);
+      const alertSettings = extraSettings.alertSettings ?? DEFAULT_ALERT_SETTINGS;
 
-      const notifiedSet = new Set<string>(
-        settings.notified_ids ? JSON.parse(settings.notified_ids) : []
-      );
+      const notifiedSet = new Set<string>(parseStoredJson(settings.notified_ids, []));
 
       const rows = db
         .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")

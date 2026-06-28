@@ -52,9 +52,16 @@
   <div id="captureView" class="view hidden">
 
     <div class="server-bar">
-      <span id="serverLabel" class="server-label">—</span>
-      <button id="logoutBtn" class="btn-link">تغيير</button>
+      <div class="server-meta">
+        <span id="serverLabel" class="server-label">—</span>
+        <span id="manifestVersion" class="manifest-version">v-</span>
+      </div>
+      <div class="server-actions">
+        <button id="checkUpdateBtn" class="btn-link" type="button">فحص التحديث</button>
+        <button id="logoutBtn" class="btn-link" type="button">تغيير</button>
+      </div>
     </div>
+    <div id="updateStatus" class="hint update-status hidden"></div>
 
     <!-- Step 1 -->
     <div class="section-label">① النص المراد تحليله</div>

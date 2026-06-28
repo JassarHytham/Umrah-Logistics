@@ -9,8 +9,8 @@ describe("deploy workflow database handling", () => {
     expect(workflow).toContain("deploy_app /var/www/umrah-staging staging umrah-staging /var/lib/umrah/staging/umrah.db");
     expect(workflow).toContain("run_backup_tasks /var/www/umrah-prod /var/lib/umrah/prod/umrah.db /var/backups/umrah/prod");
     expect(workflow).toContain("run_backup_tasks /var/www/umrah-staging /var/lib/umrah/staging/umrah.db /var/backups/umrah/staging");
-    expect(workflow).toContain('DB_PATH="$APP_DB_PATH" pm2 restart');
-    expect(workflow).toContain('DB_PATH="$APP_DB_PATH" pm2 start');
+    expect(workflow).toContain('DB_PATH="$APP_DB_PATH" EXTENSION_CHANNEL="$EXTENSION_ENV" pm2 restart');
+    expect(workflow).toContain('DB_PATH="$APP_DB_PATH" EXTENSION_CHANNEL="$EXTENSION_ENV" pm2 start');
     expect(workflow).toContain("0 * * * * root cd /var/www/umrah-prod &&");
     expect(workflow).toContain("0 * * * * root cd /var/www/umrah-staging &&");
     expect(workflow).toContain('"$NODE_BIN" scripts/db-backup.mjs backup --db "$DB_PATH_TO_BACKUP" --dir "$BACKUP_DIR" --keep 168');
@@ -35,5 +35,14 @@ describe("deploy workflow database handling", () => {
   it("writes the cron file without a shell heredoc", () => {
     expect(workflow).toContain("printf '%s\\n'");
     expect(workflow).not.toContain("<<EOF");
+  });
+
+  it("packages the extension for both production and staging", () => {
+    expect(workflow).toContain("scripts/package-extension.mjs");
+    expect(workflow).toContain('--env "$EXTENSION_ENV"');
+    expect(workflow).toContain('--out "$APP_DIR/public/extensions/$EXTENSION_ENV"');
+    expect(workflow).toContain("EXTENSION_PEM_PATH");
+    expect(workflow).toContain('deploy_app /var/www/umrah-prod main umrah-prod /var/lib/umrah/prod/umrah.db prod "$PROD_EXTENSION_BASE_URL" "$PROD_EXTENSION_PEM_PATH"');
+    expect(workflow).toContain('deploy_app /var/www/umrah-staging staging umrah-staging /var/lib/umrah/staging/umrah.db staging "$STAGING_EXTENSION_BASE_URL" "$STAGING_EXTENSION_PEM_PATH"');
   });
 });

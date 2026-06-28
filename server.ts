@@ -8,6 +8,7 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import helmet from "helmet";
 import http from "http";
+import { existsSync } from "node:fs";
 import path from "path";
 import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
@@ -76,6 +77,36 @@ const decryptJson = <T,>(value: string | null | undefined, fallback: T): T => {
     decipher.final(),
   ]).toString("utf8");
   return JSON.parse(plaintext);
+};
+
+const getExtensionChannel = () => {
+  if (process.env.EXTENSION_CHANNEL === "staging") return "staging";
+  if (process.env.EXTENSION_CHANNEL === "prod") return "prod";
+  if (process.env.NODE_ENV === "staging") return "staging";
+  if (String(process.env.PORT || PORT) === "3001") return "staging";
+  return "prod";
+};
+
+const getExtensionInfo = () => {
+  const channel = getExtensionChannel();
+  const channelDir = path.join(__dirname, "public", "extensions", channel);
+  const crxPath = path.join(channelDir, "umrah-extension.crx");
+  const zipPath = path.join(channelDir, "umrah-extension.zip");
+  const updateManifestPath = path.join(channelDir, "updates.xml");
+
+  return {
+    channel,
+    crxPath,
+    zipPath,
+    updateManifestPath,
+    crxUrl: `/extensions/${channel}/umrah-extension.crx`,
+    zipUrl: "/api/download/extension",
+    directZipUrl: `/extensions/${channel}/umrah-extension.zip`,
+    updateManifestUrl: `/extensions/${channel}/updates.xml`,
+    hasCrx: existsSync(crxPath),
+    hasZip: existsSync(zipPath),
+    hasUpdateManifest: existsSync(updateManifestPath),
+  };
 };
 
 // Database initialization
@@ -323,6 +354,18 @@ app.use("/api", apiLimiter);
 app.use("/api/auth", authLimiter);
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ limit: "2mb", extended: true }));
+app.use("/extensions", express.static(path.join(__dirname, "public", "extensions"), {
+  dotfiles: "deny",
+  index: false,
+  setHeaders(res, filePath) {
+    if (filePath.endsWith(".crx")) {
+      res.setHeader("Content-Type", "application/x-chrome-extension");
+    }
+    if (filePath.endsWith(".xml")) {
+      res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    }
+  },
+}));
 
 // Middleware to verify JWT
 const authenticateToken = (req: any, res: any, next: any) => {
@@ -1394,9 +1437,39 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
 });
 
 // GET /api/download/extension — serve Chrome extension zip (public, no auth required)
+app.get("/api/extension/info", (_req, res) => {
+  res.json(getExtensionInfo());
+});
+
+app.get("/api/download/extension/crx", (_req, res) => {
+  const info = getExtensionInfo();
+  if (info.hasCrx) {
+    res.redirect(info.crxUrl);
+    return;
+  }
+  res.status(404).json({ error: "ملف الإضافة غير موجود" });
+});
+
+app.get("/api/download/extension/zip", (_req, res) => {
+  const info = getExtensionInfo();
+  if (info.hasZip) {
+    res.redirect(info.directZipUrl);
+    return;
+  }
+  const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
+  res.download(legacyZipPath, "umrah-extension.zip", (err) => {
+    if (err) res.status(404).json({ error: "الملف غير موجود" });
+  });
+});
+
 app.get("/api/download/extension", (_req, res) => {
-  const zipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
-  res.download(zipPath, "umrah-extension.zip", (err) => {
+  const info = getExtensionInfo();
+  if (info.hasZip) {
+    res.redirect(info.directZipUrl);
+    return;
+  }
+  const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
+  res.download(legacyZipPath, "umrah-extension.zip", (err) => {
     if (err) res.status(404).json({ error: "الملف غير موجود" });
   });
 });

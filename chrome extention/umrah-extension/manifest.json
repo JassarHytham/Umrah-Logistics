@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Umrah Logistics Capture",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Capture itinerary text from any page -> send directly to Umrah Logistics Pro",
   "permissions": [
     "activeTab",

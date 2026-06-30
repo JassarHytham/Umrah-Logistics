@@ -45,7 +45,7 @@
   // ── DOM text extraction (TreeWalker; no clipboard) ──────
   function extractText(root) {
     const BLOCK = new Set(['P','DIV','H1','H2','H3','H4','H5','H6','LI','TD','TH','TR','BLOCKQUOTE','SECTION','ARTICLE','ASIDE','MAIN','BR','FIGURE','FIGCAPTION','DT','DD','LABEL']);
-    const SKIP  = new Set(['SCRIPT','STYLE','NOSCRIPT','HEAD','BUTTON','NAV','FOOTER','HEADER']);
+    const SKIP  = new Set(['SCRIPT','STYLE','NOSCRIPT','HEAD','NAV','FOOTER','HEADER']);
     const SKIP_INPUT = new Set(['hidden','submit','button','reset','image','file','checkbox','radio']);
     function shouldSkip(el) {
       if (SKIP.has(el.tagName)) return true;

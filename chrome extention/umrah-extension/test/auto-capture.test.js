@@ -33,7 +33,7 @@ function makeElement(tagName, children = [], options = {}) {
   };
 }
 
-function makeHarness() {
+function makeHarness(options = {}) {
   const observers = [];
   const sentMessages = [];
   const validTripText = [
@@ -46,9 +46,10 @@ function makeHarness() {
     'تاريخ المغادرة: 2026-07-15',
   ].join('\n');
   const tripRoot = makeElement('APP-TRIP-INFO', [makeTextNode(validTripText)]);
+  const serviceTagName = options.serviceTagName || 'DIV';
   const routeRoot = makeElement('MAIN', [
     tripRoot,
-    makeElement('DIV', [
+    makeElement(serviceTagName, [
       makeTextNode([
         'الخدمات الإثرائية',
         'الخدمة نوع الخدمة تاريخ الزيارة الوقت المرشد السعر',
@@ -73,9 +74,10 @@ function makeHarness() {
     createTextNode(value) {
       return makeTextNode(value);
     },
-    createTreeWalker(root) {
+    createTreeWalker(root, _whatToShow, filter) {
       const nodes = [];
       function visit(node) {
+        if (filter && filter.acceptNode(node) === 2) return;
         nodes.push(node);
         if (node.children) node.children.forEach(visit);
       }
@@ -181,6 +183,16 @@ test('auto capture keeps enrichment services when app-trip-info is detached befo
   const harness = makeHarness();
 
   await harness.detachAndLeaveTripPage();
+
+  assert.strictEqual(harness.sentMessages.length, 1);
+  assert.match(harness.sentMessages[0].text, /الخدمات الإثرائية/);
+  assert.match(harness.sentMessages[0].text, /متحف السيرة النبوية والحضارية الإسلامية/);
+});
+
+test('auto capture includes enrichment services rendered inside clickable controls', async () => {
+  const harness = makeHarness({ serviceTagName: 'BUTTON' });
+
+  await harness.leaveTripPage();
 
   assert.strictEqual(harness.sentMessages.length, 1);
   assert.match(harness.sentMessages[0].text, /الخدمات الإثرائية/);

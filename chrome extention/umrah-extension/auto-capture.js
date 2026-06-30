@@ -20,6 +20,7 @@
   let onPage   = false;
   let snapshot = null;     // { text, hash }
   let activeTripRoot = null;
+  let activeSnapshotRoot = null;
   let debounce = null;
   let dataMo   = null;     // focused MO on tripRoot with characterData
   let badgeEl  = null;     // on-page "saving to group" pill
@@ -92,7 +93,7 @@
   function captureLatestSnapshot() {
     clearTimeout(debounce);
     debounce = null;
-    takeSnapshot(activeTripRoot || tripRoot());
+    takeSnapshot(activeSnapshotRoot || activeTripRoot || tripRoot());
   }
 
   // ── In-page duplicate-confirm modal ─────────────────────
@@ -228,14 +229,18 @@
     const present = !!root;
     if (present && !onPage) {
       activeTripRoot = root;
+      activeSnapshotRoot = snapshotRoot(root);
       onPage = true;
       setStatus('monitoring');
+      takeSnapshot(activeSnapshotRoot);
       scheduleSnapshot();
       startDataWatch();
       showBadge();
     }
     else if (present) {
       activeTripRoot = root;
+      activeSnapshotRoot = snapshotRoot(root);
+      takeSnapshot(activeSnapshotRoot);
     }
     else if (!present && onPage) {
       captureLatestSnapshot();
@@ -244,6 +249,7 @@
       stopDataWatch();
       finalize();
       activeTripRoot = null;
+      activeSnapshotRoot = null;
     }
   }
 
@@ -254,7 +260,7 @@
   });
 
   function start() { mo.observe(document.body, { childList: true, subtree: true }); evaluatePresence(); }
-  function stop()  { mo.disconnect(); stopDataWatch(); clearTimeout(debounce); debounce = null; onPage = false; activeTripRoot = null; snapshot = null; hideBadge(); setStatus('disabled'); }
+  function stop()  { mo.disconnect(); stopDataWatch(); clearTimeout(debounce); debounce = null; onPage = false; activeTripRoot = null; activeSnapshotRoot = null; snapshot = null; hideBadge(); setStatus('disabled'); }
 
   function finalizeBeforeUnload() {
     if (!enabled || !onPage) return;

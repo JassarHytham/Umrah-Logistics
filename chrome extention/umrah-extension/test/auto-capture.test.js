@@ -147,6 +147,12 @@ function makeHarness() {
       observers.forEach((observer) => observer.callback([]));
       await new Promise((resolve) => setImmediate(resolve));
     },
+    async detachAndLeaveTripPage() {
+      routeRoot.children = routeRoot.children.filter(child => child !== tripRoot);
+      document.currentTripRoot = null;
+      observers.forEach((observer) => observer.callback([]));
+      await new Promise((resolve) => setImmediate(resolve));
+    },
   };
 }
 
@@ -165,6 +171,16 @@ test('auto capture includes enrichment services rendered outside app-trip-info',
   const harness = makeHarness();
 
   await harness.leaveTripPage();
+
+  assert.strictEqual(harness.sentMessages.length, 1);
+  assert.match(harness.sentMessages[0].text, /الخدمات الإثرائية/);
+  assert.match(harness.sentMessages[0].text, /متحف السيرة النبوية والحضارية الإسلامية/);
+});
+
+test('auto capture keeps enrichment services when app-trip-info is detached before finalize', async () => {
+  const harness = makeHarness();
+
+  await harness.detachAndLeaveTripPage();
 
   assert.strictEqual(harness.sentMessages.length, 1);
   assert.match(harness.sentMessages[0].text, /الخدمات الإثرائية/);

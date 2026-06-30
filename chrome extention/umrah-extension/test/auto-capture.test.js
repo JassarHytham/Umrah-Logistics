@@ -19,6 +19,7 @@ function makeElement(tagName, children = [], options = {}) {
     children,
     className: options.className || '',
     id: options.id || '',
+    innerText: options.innerText || '',
     type: '',
     value: '',
     style: {},
@@ -47,6 +48,7 @@ function makeHarness(options = {}) {
   ].join('\n');
   const tripRoot = makeElement('APP-TRIP-INFO', [makeTextNode(validTripText)]);
   const serviceTagName = options.serviceTagName || 'DIV';
+  const renderedText = options.renderedText || '';
   const routeRoot = makeElement('MAIN', [
     tripRoot,
     makeElement(serviceTagName, [
@@ -56,7 +58,7 @@ function makeHarness(options = {}) {
         'متحف السيرة النبوية والحضارية الإسلامية (برج متحف الساعة) وجهات الإثرائية 2026-07-07 08:00:00 15 ر.س',
       ].join('\n')),
     ]),
-  ], { id: 'content' });
+  ], { id: 'content', innerText: renderedText });
   const body = makeElement('BODY', [routeRoot]);
 
   const document = {
@@ -191,6 +193,29 @@ test('auto capture keeps enrichment services when app-trip-info is detached befo
 
 test('auto capture includes enrichment services rendered inside clickable controls', async () => {
   const harness = makeHarness({ serviceTagName: 'BUTTON' });
+
+  await harness.leaveTripPage();
+
+  assert.strictEqual(harness.sentMessages.length, 1);
+  assert.match(harness.sentMessages[0].text, /الخدمات الإثرائية/);
+  assert.match(harness.sentMessages[0].text, /متحف السيرة النبوية والحضارية الإسلامية/);
+});
+
+test('auto capture prefers rendered page text when available', async () => {
+  const harness = makeHarness({
+    serviceTagName: 'SCRIPT',
+    renderedText: [
+      'رحلة الوصول',
+      'تاريخ الوصول',
+      '2026-07-08',
+      'الخدمات الإثرائية',
+      'الخدمة\tنوع الخدمة\tتاريخ الزيارة\tالوقت\tالمرشد\tالسعر',
+      'متحف السيرة النبوية والحضارية الإسلامية (برج متحف الساعة)\tوجهات الإثرائية\t2026-07-07\t08:00:00\t\t15 ر.س',
+      'رحلة المغادرة',
+      'تاريخ المغادرة',
+      '2026-07-15',
+    ].join('\n'),
+  });
 
   await harness.leaveTripPage();
 

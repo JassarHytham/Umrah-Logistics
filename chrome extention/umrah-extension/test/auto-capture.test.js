@@ -12,19 +12,23 @@ function makeTextNode(value) {
   return { nodeType: 3, nodeValue: value };
 }
 
-function makeElement(tagName, children = []) {
+function makeElement(tagName, children = [], options = {}) {
   return {
     nodeType: 1,
     tagName,
     children,
-    className: '',
-    id: '',
+    className: options.className || '',
+    id: options.id || '',
     type: '',
     value: '',
     style: {},
     setAttribute() {},
     appendChild(child) { this.children.push(child); },
     remove() {},
+    contains(node) {
+      if (this === node) return true;
+      return this.children.some(child => child === node || (child.contains && child.contains(node)));
+    },
     querySelector() { return null; },
   };
 }
@@ -42,13 +46,26 @@ function makeHarness() {
     'تاريخ المغادرة: 2026-07-15',
   ].join('\n');
   const tripRoot = makeElement('APP-TRIP-INFO', [makeTextNode(validTripText)]);
-  const body = makeElement('BODY');
+  const routeRoot = makeElement('MAIN', [
+    tripRoot,
+    makeElement('DIV', [
+      makeTextNode([
+        'الخدمات الإثرائية',
+        'الخدمة نوع الخدمة تاريخ الزيارة الوقت المرشد السعر',
+        'متحف السيرة النبوية والحضارية الإسلامية (برج متحف الساعة) وجهات الإثرائية 2026-07-07 08:00:00 15 ر.س',
+      ].join('\n')),
+    ]),
+  ], { id: 'content' });
+  const body = makeElement('BODY', [routeRoot]);
 
   const document = {
     body,
     currentTripRoot: tripRoot,
     querySelector(selector) {
-      return selector === 'app-trip-info' ? this.currentTripRoot : null;
+      if (selector === 'app-trip-info') return this.currentTripRoot;
+      if (selector === 'main') return routeRoot;
+      if (selector === '#content') return routeRoot;
+      return null;
     },
     createElement(tagName) {
       return makeElement(tagName.toUpperCase());
@@ -142,4 +159,14 @@ test('auto capture sends current trip text when leaving before debounce snapshot
   assert.strictEqual(harness.sentMessages[0].type, 'UMRAH_AUTO_FINALIZE');
   assert.match(harness.sentMessages[0].text, /رحلة الوصول/);
   assert.match(harness.sentMessages[0].text, /رحلة المغادرة/);
+});
+
+test('auto capture includes enrichment services rendered outside app-trip-info', async () => {
+  const harness = makeHarness();
+
+  await harness.leaveTripPage();
+
+  assert.strictEqual(harness.sentMessages.length, 1);
+  assert.match(harness.sentMessages[0].text, /الخدمات الإثرائية/);
+  assert.match(harness.sentMessages[0].text, /متحف السيرة النبوية والحضارية الإسلامية/);
 });

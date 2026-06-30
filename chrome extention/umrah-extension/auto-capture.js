@@ -29,6 +29,17 @@
   }
 
   function tripRoot() { return document.querySelector('app-trip-info'); }
+  function snapshotRoot(anchor) {
+    if (!anchor) return null;
+    const selectors = ['main','article','[role="main"]','#content','#main','.content','.main-content','.booking-details','.itinerary','.trip-details','[class*="itinerary"]','[class*="booking"]'];
+    for (const selector of selectors) {
+      try {
+        const candidate = document.querySelector(selector);
+        if (candidate && candidate.contains && candidate.contains(anchor)) return candidate;
+      } catch (_) {}
+    }
+    return anchor;
+  }
 
   // ── DOM text extraction (TreeWalker; no clipboard) ──────
   function extractText(root) {
@@ -65,7 +76,7 @@
   }
 
   function takeSnapshot(rootOverride) {
-    const root = rootOverride || tripRoot();
+    const root = snapshotRoot(rootOverride || tripRoot());
     if (!root) return;
     const text = extractText(root);
     if (!L.isValidSnapshot(text)) return;

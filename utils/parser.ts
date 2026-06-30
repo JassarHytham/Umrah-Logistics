@@ -119,7 +119,12 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   const destBlocks: { city: string; startDate: string; hotel: string; index: number; services: { name: string; date: string; time: string }[] }[] = [];
   const extractEnrichmentServices = (blockText: string): { name: string; date: string; time: string }[] => {
     const services: { name: string; date: string; time: string }[] = [];
-    const enrichmentStart = blockText.search(/الخدمات\s+الإثرائية/);
+    const enrichmentLabel = /الخدمات\s+ال[إا]ثرائية/;
+    const enrichmentType = /(وجهات|خدمات)\s+ال[إا]ثرائية/;
+    const cleanServiceName = (raw: string): string => raw
+      .replace(new RegExp(`\\s+${enrichmentType.source}\\s*$`), "")
+      .trim();
+    const enrichmentStart = blockText.search(enrichmentLabel);
     if (enrichmentStart === -1) return services;
 
     const enrichmentText = blockText
@@ -131,8 +136,8 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       .filter(Boolean);
     const datePattern = /\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}/;
     const timePattern = /\d{1,2}:\d{2}(?::\d{2})?/;
-    const headerPattern = /^(الخدمات\s+الإثرائية|الخدمة|نوع الخدمة|تاريخ الزيارة|الوقت|المرشد|السعر)$/;
-    const typePattern = /^(وجهات\s+الإثرائية|خدمات\s+الإثرائية)$/;
+    const headerPattern = new RegExp(`^(${enrichmentLabel.source}|الخدمة|نوع الخدمة|تاريخ الزيارة|الوقت|المرشد|السعر)$`);
+    const typePattern = new RegExp(`^${enrichmentType.source}$`);
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -142,7 +147,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const timeMatch = line.match(timePattern);
       if (dateMatch && timeMatch) {
         const cells = line.split(/\t+|\s{2,}/).map(cell => cell.trim()).filter(Boolean);
-        const serviceName = cells.length > 1 ? cells[0] : line.slice(0, dateMatch.index).trim();
+        const serviceName = cleanServiceName(cells.length > 1 ? cells[0] : line.slice(0, dateMatch.index).trim());
         if (serviceName) {
           services.push({ name: serviceName, date: formatDate(dateMatch[0]), time: timeMatch[0] });
         }
@@ -158,7 +163,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
           !timePattern.test(candidate)
         );
         if (serviceName) {
-          services.push({ name: serviceName, date: formatDate(line.match(datePattern)![0]), time: lines[i + 1].match(timePattern)![0] });
+          services.push({ name: cleanServiceName(serviceName), date: formatDate(line.match(datePattern)![0]), time: lines[i + 1].match(timePattern)![0] });
         }
       }
     }

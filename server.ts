@@ -381,7 +381,10 @@ const authenticateToken = (req: any, res: any, next: any) => {
     audience: JWT_AUDIENCE,
     algorithms: ["HS256"],
   }, (err: any, user: any) => {
-    if (err) return res.status(403).json({ error: "Forbidden" });
+    if (err) {
+      const status = err.name === "TokenExpiredError" ? 401 : 403;
+      return res.status(status).json({ error: status === 401 ? "Unauthorized" : "Forbidden" });
+    }
     req.user = user;
     next();
   });

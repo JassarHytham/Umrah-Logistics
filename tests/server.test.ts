@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import { createServer, type Server } from 'http';
 import WebSocket from 'ws';
+import jwt from 'jsonwebtoken';
 import { app, attachLiveUpdates } from '../server';
 
 // ─────────────────────────────────────────────
@@ -168,6 +169,25 @@ describe('Auth Middleware', () => {
       .get('/api/data')
       .set('Authorization', 'Bearer this.is.not.valid');
     expect(res.status).toBe(403);
+  });
+
+  it('returns 401 when token is expired', async () => {
+    const expiredToken = jwt.sign(
+      { id: userId, username: TEST_USER.username },
+      process.env.JWT_SECRET as string,
+      {
+        expiresIn: '-1s',
+        issuer: 'umrah-logistics',
+        audience: 'umrah-logistics-web',
+        algorithm: 'HS256',
+      },
+    );
+
+    const res = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${expiredToken}`);
+
+    expect(res.status).toBe(401);
   });
 
   it('returns 403 for malformed Authorization header (no Bearer prefix)', async () => {

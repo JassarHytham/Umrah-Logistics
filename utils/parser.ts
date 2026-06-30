@@ -116,14 +116,64 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   const rowGroupInfo = { ...groupInfo, agency: groupInfo.agency || "" };
   
   // Extract Destination Blocks
-  const destBlocks: { city: string; startDate: string; hotel: string; index: number }[] = [];
+  const destBlocks: { city: string; startDate: string; hotel: string; index: number; services: { name: string; date: string; time: string }[] }[] = [];
+  const extractEnrichmentServices = (blockText: string): { name: string; date: string; time: string }[] => {
+    const services: { name: string; date: string; time: string }[] = [];
+    const enrichmentStart = blockText.search(/الخدمات\s+الإثرائية/);
+    if (enrichmentStart === -1) return services;
+
+    const enrichmentText = blockText
+      .slice(enrichmentStart)
+      .split(/اضف خدمات إضافية|إضافة خدمات إضافية|اضافة خدمات إضافية|اضافة محطه للرحلة|رحلة المغادرة/)[0] || "";
+    const lines = enrichmentText
+      .split(/\r?\n/)
+      .map(line => line.trim())
+      .filter(Boolean);
+    const datePattern = /\d{4}-\d{1,2}-\d{1,2}|\d{1,2}\/\d{1,2}\/\d{4}/;
+    const timePattern = /\d{1,2}:\d{2}(?::\d{2})?/;
+    const headerPattern = /^(الخدمات\s+الإثرائية|الخدمة|نوع الخدمة|تاريخ الزيارة|الوقت|المرشد|السعر)$/;
+    const typePattern = /^(وجهات\s+الإثرائية|خدمات\s+الإثرائية)$/;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (headerPattern.test(line)) continue;
+
+      const dateMatch = line.match(datePattern);
+      const timeMatch = line.match(timePattern);
+      if (dateMatch && timeMatch) {
+        const cells = line.split(/\t+|\s{2,}/).map(cell => cell.trim()).filter(Boolean);
+        const serviceName = cells.length > 1 ? cells[0] : line.slice(0, dateMatch.index).trim();
+        if (serviceName) {
+          services.push({ name: serviceName, date: formatDate(dateMatch[0]), time: timeMatch[0] });
+        }
+        continue;
+      }
+
+      if (datePattern.test(line) && lines[i + 1] && timePattern.test(lines[i + 1])) {
+        const serviceName = [...lines.slice(0, i)].reverse().find(candidate =>
+          candidate &&
+          !headerPattern.test(candidate) &&
+          !typePattern.test(candidate) &&
+          !datePattern.test(candidate) &&
+          !timePattern.test(candidate)
+        );
+        if (serviceName) {
+          services.push({ name: serviceName, date: formatDate(line.match(datePattern)![0]), time: lines[i + 1].match(timePattern)![0] });
+        }
+      }
+    }
+
+    return services;
+  };
   const destRegex = /الوجهة\s*\(([^)]+)\)/g;
   let match;
   while ((match = destRegex.exec(text)) !== null) {
       const city = match[1].trim();
       const searchStart = match.index;
-      const searchEnd = text.indexOf("الوجهة", searchStart + 1);
-      const blockText = text.substring(searchStart, searchEnd === -1 ? text.length : searchEnd);
+      const nextDestination = text.indexOf("الوجهة", searchStart + 1);
+      const departureStart = text.indexOf("رحلة المغادرة", searchStart);
+      const searchEnd = [nextDestination, departureStart].filter(index => index !== -1).sort((a, b) => a - b)[0];
+      const blockText = text.substring(searchStart, searchEnd === undefined ? text.length : searchEnd);
       const dateMatch = blockText.match(/(\d{1,2}\/\d{1,2}\/\d{4})|(\d{4}-\d{1,2}-\d{1,2})/);
       const startDate = dateMatch ? formatDate(dateMatch[0]) : "";
       // The hotel name is the first real data cell after the "اسم الفندق"
@@ -145,7 +195,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
           .trim();
         if (candidate) { hotel = candidate; break; }
       }
-      destBlocks.push({ city, startDate, hotel, index: match.index });
+      destBlocks.push({ city, startDate, hotel, index: match.index, services: extractEnrichmentServices(blockText) });
   }
 
   const isLandTransport = (block: string): boolean =>
@@ -246,7 +296,28 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       } as LogisticsRow);
   }
 
-  for (let i = 0; i < destBlocks.length - 1; i++) {
+  const pushEnrichmentRows = (destination: typeof destBlocks[number]) => {
+      const fromLabel = destination.hotel ? `${destination.hotel} (${destination.city})` : destination.city;
+      for (const service of destination.services) {
+          rows.push({
+              id: uid(),
+              ...rowGroupInfo,
+              Column1: "الخدمات الإثرائية",
+              date: service.date,
+              time: service.time,
+              flight: "-",
+              from: fromLabel,
+              to: service.name,
+              carType,
+              tafweej: `الخدمات الإثرائية — ${fromLabel} → ${service.name}`,
+              status: 'Planned'
+          });
+      }
+  };
+
+  for (let i = 0; i < destBlocks.length; i++) {
+      pushEnrichmentRows(destBlocks[i]);
+      if (i >= destBlocks.length - 1) continue;
       const from = destBlocks[i];
       const to = destBlocks[i+1];
       if (from.city !== to.city) {

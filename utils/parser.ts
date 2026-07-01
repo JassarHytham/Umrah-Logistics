@@ -218,26 +218,44 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const blockText = text.substring(searchStart, searchEnd === undefined ? text.length : searchEnd);
       const dateMatch = blockText.match(/(\d{1,2}\/\d{1,2}\/\d{4})|(\d{4}-\d{1,2}-\d{1,2})/);
       const startDate = dateMatch ? formatDate(dateMatch[0]) : "";
-      // The hotel name is the first real data cell after the "اسم الفندق"
-      // header. Tolerate two capture layouts:
-      //   • clipboard / row-per-line: "<hotel>  <date>  <date> ..." on the next line
-      //   • DOM walk / cell-per-line: each column header then the hotel on its own line
-      const afterHeader = blockText.split(/اسم الفندق[^\r\n]*\r?\n/)[1] || "";
-      const HOTEL_COL_HEADERS = /^(?:(?:تاريخ\s+الدخول|تاريخ\s+المغادرة|مدة\s+ال[إا]?قامة|سعة\s+الغرفة|السعر)(?:\s+|$))+$/;
+      // The hotel name is the first real data cell after the hotel table
+      // header. Tolerate flattened captures where header labels and the first
+      // hotel/host name may be split across multiple lines.
+      const hotelSectionStart = blockText.indexOf("الفنادق");
+      const hotelSection = (hotelSectionStart === -1 ? "" : blockText.slice(hotelSectionStart + "الفنادق".length))
+        .split(/الخدمات\s+ال[إا]ثرائية|الخدمات\s+الإضافية|اضف خدمات إضافية|إضافة خدمات إضافية|اضافة خدمات إضافية|اضف خدمات إثرائية|إضافة خدمات إثرائية|اضافة محطه للرحلة|الوجهة\s*\(|رحلة المغادرة/)[0];
+      const HOTEL_COL_HEADERS = /^(?:(?:اسم\s+الفندق\/\s*المستضيف|تاريخ\s+الدخول|تاريخ\s+المغادرة|مدة\s+ال[إا]?قامة|سعة\s+الغرفة|السعر)(?:\s+|$))+$/;
       const HOTEL_DATE_CELL = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2}/;
+      const LEADING_HOTEL_HEADERS = /^(?:(?:اسم\s+الفندق\/\s*المستضيف|تاريخ\s+الدخول|تاريخ\s+المغادرة|مدة\s+ال[إا]?قامة|سعة\s+الغرفة|السعر)\s*)+/;
+      const HOTEL_VALUE_CELL = /^\d+(?:\s+\d+)*(?:\s*ر\.س)?$/;
       let hotel = "";
-      for (const rawLine of afterHeader.split(/\r?\n/)) {
+      const hotelParts: string[] = [];
+      for (const rawLine of hotelSection.split(/\r?\n/)) {
         const line = rawLine.trim();
         if (!line) continue;
-        if (/الخدمة|الخدمات/.test(line)) break;        // reached the enrichment table → no hotel row
         if (HOTEL_COL_HEADERS.test(line)) continue;     // skip leftover column headers (cell-per-line)
-        const dStart = line.search(HOTEL_DATE_CELL);
+        const cleanedLine = line.replace(LEADING_HOTEL_HEADERS, "").trim();
+        if (!cleanedLine) continue;
+        const dStart = cleanedLine.search(HOTEL_DATE_CELL);
+        if (hotelParts.length && (dStart === 0 || HOTEL_VALUE_CELL.test(cleanedLine))) {
+          hotel = hotelParts.join(" ");
+          break;
+        }
         if (dStart === 0) continue;                     // a pure date cell → not the hotel name
-        const candidate = (dStart > 0 ? line.slice(0, dStart) : line)
+        const candidate = (dStart > 0 ? cleanedLine.slice(0, dStart) : cleanedLine)
           .replace(/[\s\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]+$/, "")
           .trim();
-        if (candidate) { hotel = candidate; break; }
+        if (candidate) hotelParts.push(candidate);
+        if (dStart > 0 && hotelParts.length) {
+          hotel = hotelParts.join(" ");
+          break;
+        }
+        if (hotelParts.length && HOTEL_DATE_CELL.test(line)) {
+          hotel = hotelParts.join(" ");
+          break;
+        }
       }
+      if (!hotel && hotelParts.length) hotel = hotelParts.join(" ");
       destBlocks.push({ city, startDate, hotel, index: match.index, services: extractEnrichmentServices(blockText) });
   }
 

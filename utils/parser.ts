@@ -70,7 +70,7 @@ const formatAirportLabel = (rawName: string): string => {
 };
 
 const normalizeFlattenedCapture = (raw: string): string => {
-  return String(raw || "")
+  return String(raw || "").normalize("NFC")
     .replace(/\u00A0/g, " ")
     .replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, "")
     .replace(/(السفر الجوي)(النقل البحري)(النقل البري)/g, "$1\n$2\n$3")
@@ -79,9 +79,11 @@ const normalizeFlattenedCapture = (raw: string): string => {
     .replace(/([^\s\n\d])(\d{1,2}\/\d{1,2}\/\d{4})/g, "$1\n$2")
     .replace(/([^\s\n\d])(\d{4}-\d{1,2}-\d{1,2})/g, "$1\n$2")
     .replace(/(\d{1,2}\/\d{1,2}\/\d{4})(?=\d{1,2}\/\d{1,2}\/\d{4})/g, "$1\n")
-    .replace(/(\d{4}-\d{1,2}-\d{1,2})(?=\d{1,2}:\d{2})/g, "$1\n")
-    .replace(/(ر\.س)(?=الخدمات\s+ال[إا]ثرائية|اضف|إضافة|اضافة|الوجهة|رحلة المغادرة)/g, "$1\n")
-    .replace(/(معلومات الرحلة|رحلة الوصول|تاريخ الوصول|وسيلة السفر|packages\.journey|قادم من|مغادر من|ذاهب إلى|رقم الرحلة|المطار|الخطوط الجوية|الصالة|وقت الوصول|وقت المغادرة|نوع الرحلة|استعراض الرحلات|الوجهة\s*\([^)]+\)|الخدمات\s+ال[إا]ثرائية|اضف خدمات إضافية|إضافة خدمات إضافية|اضافة خدمات إضافية|اضافة محطه للرحلة|رحلة المغادرة|تاريخ المغادرة|ملخص معلومات الرحلة|مسار الرحلة)/g, "\n$1")
+    .replace(/(\d{4}-\d{2}-\d{2})(?=\d{1,2}:\d{2})/g, "$1\n")
+    .replace(/(\d{4}-\d{2}-\d{2})(\d{1,2})\s*\n\s*(\d{2}:\d{2})/g, "$1\n$2:$3")
+    .replace(/(\d{4}-\d{2}-\d{2})(\d{1,2}:\d{2}(?::\d{2})?)/g, "$1\n$2")
+    .replace(/(ر\.س)(?=الخدمات\s+ال[إا]ثرائية|الخدمات\s+الإضافية|اضف|إضافة|اضافة|الوجهة|رحلة المغادرة|[^\s\n])/g, "$1\n")
+    .replace(/(معلومات الرحلة|رحلة الوصول|تاريخ الوصول|وسيلة السفر|packages\.journey|قادم من|مغادر من|ذاهب إلى|رقم الرحلة|المطار|الخطوط الجوية|الصالة|وقت الوصول|وقت المغادرة|نوع الرحلة|استعراض الرحلات|الوجهة\s*\([^)]+\)|الخدمات\s+ال[إا]ثرائية|الخدمات\s+الإضافية|اضف خدمات إضافية|إضافة خدمات إضافية|اضافة خدمات إضافية|اضافة محطه للرحلة|رحلة المغادرة|تاريخ المغادرة|ملخص معلومات الرحلة|مسار الرحلة)/g, "\n$1")
     .replace(/[ \t]+/g, " ")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
@@ -143,9 +145,10 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   const extractEnrichmentServices = (blockText: string): { name: string; date: string; time: string }[] => {
     const services: { name: string; date: string; time: string }[] = [];
     const enrichmentLabel = /الخدمات\s+ال[إا]ثرائية/;
-    const enrichmentType = /(وجهات|خدمات)\s+ال[إا]ثرائية/;
+    const enrichmentType = /(?:(?:وجهات|خدمات)\s+ال[إا]ثرائية|مواقع\s+التاريخية)/;
     const cleanServiceName = (raw: string): string => raw
-      .replace(new RegExp(`\\s*${enrichmentType.source}\\s*$`), "")
+      .replace(new RegExp(`\\s*(?:${enrichmentType.source})\\s*$`), "")
+      .replace(/(?:^|\s)\d+\s*ر\.س\s*/g, "")
       .trim();
     const enrichmentStart = blockText.search(enrichmentLabel);
     if (enrichmentStart === -1) return services;
@@ -161,6 +164,17 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
     const timePattern = /\d{1,2}:\d{2}(?::\d{2})?/;
     const headerPattern = new RegExp(`^(${enrichmentLabel.source}|الخدمة|نوع الخدمة|تاريخ الزيارة|الوقت|المرشد|السعر)$`);
     const typePattern = new RegExp(`^${enrichmentType.source}$`);
+    const rowPattern = new RegExp(`([\\s\\S]*?)\\s*(?:${enrichmentType.source})\\s*(${datePattern.source})\\s*(${timePattern.source})`, "g");
+    const rowText = lines.filter(line => !headerPattern.test(line)).join("\n");
+    let rowMatch;
+    while ((rowMatch = rowPattern.exec(rowText)) !== null) {
+      const nameCandidates = rowMatch[1].split(/\r?\n/).map(candidate => candidate.trim()).filter(Boolean);
+      const serviceName = cleanServiceName(nameCandidates[nameCandidates.length - 1] || rowMatch[1]);
+      if (serviceName) {
+        services.push({ name: serviceName, date: formatDate(rowMatch[2]), time: rowMatch[3] });
+      }
+    }
+    if (services.length) return services;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];

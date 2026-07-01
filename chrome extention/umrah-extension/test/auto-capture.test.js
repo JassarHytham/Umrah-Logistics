@@ -46,10 +46,10 @@ function makeHarness(options = {}) {
     'رحلة المغادرة',
     'تاريخ المغادرة: 2026-07-15',
   ].join('\n');
-  const tripRoot = makeElement('APP-TRIP-INFO', [makeTextNode(validTripText)]);
+  const tripRoot = options.tripRoot || makeElement('APP-TRIP-INFO', [makeTextNode(validTripText)]);
   const serviceTagName = options.serviceTagName || 'DIV';
   const renderedText = options.renderedText || '';
-  const routeRoot = makeElement('MAIN', [
+  const routeChildren = options.routeChildren || [
     tripRoot,
     makeElement(serviceTagName, [
       makeTextNode([
@@ -58,7 +58,8 @@ function makeHarness(options = {}) {
         'متحف السيرة النبوية والحضارية الإسلامية (برج متحف الساعة) وجهات الإثرائية 2026-07-07 08:00:00 15 ر.س',
       ].join('\n')),
     ]),
-  ], { id: 'content', innerText: renderedText });
+  ];
+  const routeRoot = makeElement('MAIN', routeChildren, { id: 'content', innerText: renderedText });
   const body = makeElement('BODY', [routeRoot]);
 
   const document = {
@@ -222,4 +223,80 @@ test('auto capture prefers rendered page text when available', async () => {
   assert.strictEqual(harness.sentMessages.length, 1);
   assert.match(harness.sentMessages[0].text, /الخدمات الإثرائية/);
   assert.match(harness.sentMessages[0].text, /متحف السيرة النبوية والحضارية الإسلامية/);
+});
+
+test('auto capture serializes DOM structure instead of flattened rendered text', async () => {
+  const tripRoot = makeElement('APP-TRIP-INFO', [
+    makeElement('DIV', [makeTextNode('رحلة الوصول')]),
+    makeElement('DIV', [makeTextNode('تاريخ الوصول')]),
+    makeElement('DIV', [makeTextNode('2026-07-03')]),
+    makeElement('DIV', [makeTextNode('المطار')]),
+    makeElement('DIV', [makeTextNode('مطار الامير محمد')]),
+    makeElement('DIV', [makeTextNode('الخطوط الجوية')]),
+    makeElement('DIV', [makeTextNode('الخطوط اندونيسية')]),
+    makeElement('DIV', [makeTextNode('الصالة')]),
+    makeElement('DIV', [makeTextNode('T1')]),
+    makeElement('DIV', [makeTextNode('وقت الوصول')]),
+    makeElement('DIV', [makeTextNode('20:00')]),
+    makeElement('DIV', [makeTextNode('رقم الرحلة')]),
+    makeElement('DIV', [makeTextNode('GA-980')]),
+    makeElement('DIV', [makeTextNode('الوجهة (المدينة المنورة)')]),
+    makeElement('DIV', [makeTextNode('(2026-07-03 - 2026-07-06)')]),
+    makeElement('DIV', [makeTextNode('الفنادق')]),
+    makeElement('TABLE', [
+      makeElement('TR', [
+        makeElement('TH', [makeTextNode('اسم الفندق/ المستضيف')]),
+        makeElement('TH', [makeTextNode('تاريخ الدخول')]),
+        makeElement('TH', [makeTextNode('تاريخ المغادرة')]),
+      ]),
+      makeElement('TR', [
+        makeElement('TD', [makeTextNode('فندق المدينة هيلتون')]),
+        makeElement('TD', [makeTextNode('2026-07-03')]),
+        makeElement('TD', [makeTextNode('2026-07-06')]),
+      ]),
+    ]),
+    makeElement('DIV', [makeTextNode('الخدمات الإثرائية')]),
+    makeElement('TABLE', [
+      makeElement('TR', [
+        makeElement('TH', [makeTextNode('الخدمة')]),
+        makeElement('TH', [makeTextNode('نوع الخدمة')]),
+        makeElement('TH', [makeTextNode('تاريخ الزيارة')]),
+        makeElement('TH', [makeTextNode('الوقت')]),
+      ]),
+      makeElement('TR', [
+        makeElement('TD', [makeTextNode('متحف المخطوطات الإسلامية (مكتبة الملك عبدالله — جامعة أم القرى)')]),
+        makeElement('TD', [makeTextNode('وجهات الإثرائية')]),
+        makeElement('TD', [makeTextNode('2026-07-04')]),
+        makeElement('TD', [makeTextNode('08:00:00')]),
+      ]),
+    ]),
+    makeElement('DIV', [makeTextNode('رحلة المغادرة')]),
+    makeElement('DIV', [makeTextNode('تاريخ المغادرة')]),
+    makeElement('DIV', [makeTextNode('2026-07-11')]),
+  ]);
+
+  const harness = makeHarness({
+    tripRoot,
+    routeChildren: [tripRoot],
+    renderedText: [
+      'رحلة الوصول',
+      'تاريخ الوصول 2026-07-03',
+      'المطار مطار الامير محمد الخطوط الجوية الخطوط اندونيسية الصالة T1 وقت الوصول 20:00',
+      'رقم الرحلة GA-980',
+      'الوجهة (المدينة المنورة)',
+      'الفنادق اسم الفندق/ المستضيف تاريخ الدخول تاريخ المغادرة فندق المدينة هيلتون 2026-07-03 2026-07-06',
+      'الخدمات الإثرائية الخدمة نوع الخدمة تاريخ الزيارة الوقت المرشد السعر متحف المخطوطات الإسلامية (مكتبة الملك عبدالله — جامعة أم القرى)وجهات الإثرائية 2026-07-04 08:00:00',
+      'رحلة المغادرة',
+      'تاريخ المغادرة 2026-07-11',
+    ].join('\n'),
+  });
+
+  await harness.leaveTripPage();
+
+  assert.strictEqual(harness.sentMessages.length, 1);
+  assert.doesNotMatch(harness.sentMessages[0].text, /مطار الامير محمد الخطوط الجوية/);
+  assert.doesNotMatch(harness.sentMessages[0].text, /أم القرى\)وجهات الإثرائية/);
+  assert.match(harness.sentMessages[0].text, /المطار\nمطار الامير محمد/);
+  assert.match(harness.sentMessages[0].text, /فندق المدينة هيلتون\n2026-07-03/);
+  assert.match(harness.sentMessages[0].text, /أم القرى\)\nوجهات الإثرائية/);
 });

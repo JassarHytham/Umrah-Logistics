@@ -45,7 +45,6 @@
   // ── DOM text extraction (TreeWalker; no clipboard) ──────
   function extractText(root) {
     const renderedText = L.normalizeText(root && root.innerText ? root.innerText : '');
-    if (L.isValidSnapshot(renderedText)) return renderedText;
 
     const BLOCK = new Set(['P','DIV','H1','H2','H3','H4','H5','H6','LI','TD','TH','TR','BLOCKQUOTE','SECTION','ARTICLE','ASIDE','MAIN','BR','FIGURE','FIGCAPTION','DT','DD','LABEL']);
     const SKIP  = new Set(['SCRIPT','STYLE','NOSCRIPT','HEAD','NAV','FOOTER','HEADER']);
@@ -62,7 +61,11 @@
     let n;
     while ((n = w.nextNode())) {
       if (n.nodeType === Node.TEXT_NODE) {
-        if (n.nodeValue.trim()) out += n.nodeValue;
+        const value = n.nodeValue.trim();
+        if (value) {
+          if (out.length && !/[\s\n]$/.test(out)) out += ' ';
+          out += value;
+        }
       } else {
         if (BLOCK.has(n.tagName) && out.length && !out.endsWith('\n')) out += '\n';
         if (n.tagName === 'INPUT') {
@@ -76,7 +79,12 @@
         }
       }
     }
-    return L.normalizeText(out);
+    const domText = L.normalizeText(out);
+    if (L.isValidSnapshot(domText) && (domText.includes('الخدمات الإثرائية') || !renderedText.includes('الخدمات الإثرائية'))) {
+      return domText;
+    }
+    if (L.isValidSnapshot(renderedText)) return renderedText;
+    return domText;
   }
 
   function takeSnapshot(rootOverride) {

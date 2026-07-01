@@ -332,6 +332,67 @@ SV456
     expect(arrival?.flight).toBe('SV123');
   });
 
+  it('rendered text capture: ignores unselected land transport option labels when flight numbers exist', () => {
+    const renderedText = `
+رحلة الوصول
+تاريخ الوصول
+2026-07-03
+وسيلة السفر
+Air transport
+السفر الجوي
+Sea transport
+النقل البحري
+Land transport
+النقل البري
+رقم الرحلة
+EK-0807
+المطار
+مطار الامير محمد
+وقت الوصول
+03:00
+
+الوجهة (المدينة المنورة)
+(2026-07-03 - 2026-07-06)
+الفنادق
+اسم الفندق/ المستضيف تاريخ الدخول تاريخ المغادرة مدة الاقامة سعة الغرفة السعر
+فندق المدينة هيلتون 2026-07-03 2026-07-06 3 4 1410 ر.س
+
+الوجهة (مكة المكرمة)
+(2026-07-06 - 2026-07-10)
+الفنادق
+اسم الفندق/ المستضيف تاريخ الدخول تاريخ المغادرة مدة الاقامة سعة الغرفة السعر
+فندق دار التوحيد انتركونتننتال الفندقية 2026-07-06 2026-07-10 4 4 1410 ر.س
+
+رحلة المغادرة
+تاريخ المغادرة
+2026-07-11
+وسيلة السفر
+Air transport
+السفر الجوي
+Sea transport
+النقل البحري
+Land transport
+النقل البري
+رقم الرحلة
+EK-0802
+المطار
+مطار الملك عبد العزيز الدولي
+وقت المغادرة
+04:05
+`;
+    const rows = parseItineraryText(renderedText, groupInfo);
+    const arrival = rows.find(r => r.Column1 === 'وصول');
+    const intercity = rows.find(r => r.Column1 === 'بين المدن');
+    const departure = rows.find(r => r.Column1 === 'مغادرة');
+
+    expect(arrival?.flight).toBe('EK-0807');
+    expect(arrival?.to).toBe('فندق المدينة هيلتون (المدينة المنورة)');
+    expect(intercity?.from).toBe('فندق المدينة هيلتون (المدينة المنورة)');
+    expect(intercity?.to).toBe('فندق دار التوحيد انتركونتننتال الفندقية (مكة المكرمة)');
+    expect(departure?.flight).toBe('EK-0802');
+    expect(departure?.from).toBe('فندق دار التوحيد انتركونتننتال الفندقية (مكة المكرمة)');
+  });
+
   it('inter-city row uses default time 10:00', () => {
     const rows = parseItineraryText(sampleItinerary, groupInfo);
     const intercity = rows.find(r => r.Column1 === 'بين المدن');

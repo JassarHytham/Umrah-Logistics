@@ -205,7 +205,10 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   }
 
   const isLandTransport = (block: string): boolean =>
-    /النقل البري/.test(block) || /Land transport/.test(block);
+    /المنفذ/.test(block) || /(?:نوع الناقل|شركة النقل)/.test(block);
+
+  const hasLandTransportSummary = (label: "الوصول" | "المغادرة"): boolean =>
+    new RegExp(`تاريخ\\s+${label}\\s*\\([^)]*النقل\\s+البري[^)]*\\)`).test(text);
 
   const findBorderCrossing = (block: string): string => {
     const lines = block.split(/\r?\n/);
@@ -250,7 +253,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const arrivalTo = firstDest?.hotel
           ? `${firstDest.hotel} (${firstDest.city})`
           : (firstDest?.city || "مكة المكرمة");
-      const landArrival = isLandTransport(block) || /تاريخ الوصول[^(]*\(النقل البري\)/.test(text);
+      const landArrival = isLandTransport(block) || hasLandTransportSummary("الوصول");
       const borderArrival = landArrival ? findBorderCrossing(block) : "";
       arrivalData = {
           Column1: "وصول",
@@ -277,7 +280,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const departureFrom = lastDest?.hotel
           ? `${lastDest.hotel} (${lastDest.city})`
           : (lastDest?.city || "مكة المكرمة");
-      const landDeparture = isLandTransport(block);
+      const landDeparture = isLandTransport(block) || hasLandTransportSummary("المغادرة");
       const borderDeparture = landDeparture ? findBorderCrossing(block) : "";
       departureData = {
           Column1: "مغادرة",

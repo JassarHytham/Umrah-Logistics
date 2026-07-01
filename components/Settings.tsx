@@ -452,6 +452,19 @@ export const Settings: React.FC<SettingsProps> = ({
                 </button>
               </div>
 
+              <div className="flex items-center justify-between py-4 border-t border-gray-100">
+                <div>
+                  <p className="text-sm font-bold text-gray-700">عرض الخدمات الإثرائية</p>
+                  <p className="text-xs text-gray-400 mt-0.5">إخفاؤها من جميع الشاشات بدون حذفها من البيانات</p>
+                </div>
+                <button
+                  onClick={() => onDisplaySettingsChange({ ...displaySettings, showEnrichmentTrips: !(displaySettings.showEnrichmentTrips ?? true) })}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${(displaySettings.showEnrichmentTrips ?? true) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}
+                >
+                  {(displaySettings.showEnrichmentTrips ?? true) ? 'مفعّل' : 'مخفي'}
+                </button>
+              </div>
+
               {/* Column visibility & order */}
               <div className="border-t border-gray-100 pt-5">
                 <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">أعمدة الجدول</label>

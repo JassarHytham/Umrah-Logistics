@@ -153,6 +153,7 @@ export interface DisplaySettings {
   noteHighlightEnabled: boolean;             // default true
   noteHighlightColor: NoteHighlightColor;   // default 'amber'
   wrapCells: boolean;                        // default true
+  showEnrichmentTrips: boolean;              // default true
   columnOrder: string[];                    // ordered array of column keys
   hiddenColumns: string[];                  // keys of columns to hide
 }
@@ -164,6 +165,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   noteHighlightEnabled: true,
   noteHighlightColor: 'amber',
   wrapCells: true,
+  showEnrichmentTrips: true,
   columnOrder: DEFAULT_COLUMN_ORDER,
   hiddenColumns: [],
 };

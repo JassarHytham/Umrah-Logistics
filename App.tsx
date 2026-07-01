@@ -19,7 +19,7 @@ import { Auth } from './components/Auth';
 import { Settings } from './components/Settings';
 import { api } from './services/api';
 import { createRowUpdateQueue } from './utils/rowUpdateQueue';
-import { markRowsDeleted, removeDeletedRows, restoreRows } from './utils/rowStateActions';
+import { isPersistedRow, markRowsDeleted, removeDeletedRows, restoreRows } from './utils/rowStateActions';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
   try {
@@ -36,6 +36,12 @@ const STATUS_LABELS: Record<TripStatus, string> = {
   'Planned': 'مخطط', 'Confirmed': 'مؤكد', 'Driver Assigned': 'تم تعيين السائق',
   'In Progress': 'قيد التنفيذ', 'Completed': 'مكتمل', 'Delayed': 'متأخر', 'Cancelled': 'ملغي', 'Uncompleted': 'لم يكتمل',
 };
+
+const isEnrichmentTrip = (row: LogisticsRow) => row.Column1 === 'الخدمات الإثرائية';
+
+const applyDisplayFilters = (rows: LogisticsRow[], displaySettings: DisplaySettings) => (
+  displaySettings.showEnrichmentTrips ? rows : rows.filter(row => !isEnrichmentTrip(row))
+);
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -72,6 +78,10 @@ export default function App() {
   const [shareReceiverUsername, setShareReceiverUsername] = useState('');
   const [shareRole, setShareRole] = useState<ShareRole>('editor');
   const [isSharing, setIsSharing] = useState(false);
+  const visibleAllRows = applyDisplayFilters(allRows, displaySettings);
+  const visibleDeletedRows = applyDisplayFilters(deletedRows, displaySettings);
+  const visiblePreviewRows = applyDisplayFilters(previewRows, displaySettings);
+  const visibleFilteredRows = applyDisplayFilters(filteredRows, displaySettings);
 
   useEffect(() => {
     notifiedIdsRef.current = new Set(notifiedIds);
@@ -352,7 +362,7 @@ export default function App() {
   };
 
   const downloadExcel = () => {
-    const rowsToExport = filteredRows.length > 0 ? filteredRows : allRows;
+    const rowsToExport = visibleFilteredRows.length > 0 ? visibleFilteredRows : visibleAllRows;
 
     if (rowsToExport.length === 0) {
       showNotification("لا توجد بيانات لتصديرها", "error");
@@ -501,6 +511,9 @@ export default function App() {
     }
     try {
       rowUpdateQueueRef.current?.cancel(id);
+      if (!isPersistedRow(rowToDelete)) {
+        await api.data.syncRows([rowToDelete]);
+      }
       await api.data.deleteRow(id);
       const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, [id], user?.username);
       setAllRows(next.activeRows);
@@ -513,11 +526,15 @@ export default function App() {
   };
 
   const deleteAllRows = async () => {
-    const rowsToDelete = allRowsRef.current;
+    const rowsToDelete = applyDisplayFilters(allRowsRef.current, displaySettings);
     if (rowsToDelete.length === 0) return;
     if (window.confirm("هل أنت متأكد من حذف جميع السجلات؟ سيتم نقلها لسلة المحذوفات.")) {
       try {
         rowsToDelete.forEach(row => rowUpdateQueueRef.current?.cancel(row.id));
+        const localOnlyRows = rowsToDelete.filter(row => !isPersistedRow(row));
+        if (localOnlyRows.length > 0) {
+          await api.data.syncRows(localOnlyRows);
+        }
         await Promise.all(rowsToDelete.map(row => api.data.deleteRow(row.id)));
         const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, rowsToDelete.map(row => row.id), user?.username);
         setAllRows(next.activeRows);
@@ -531,7 +548,7 @@ export default function App() {
   };
 
   const restoreAllRows = async () => {
-    const rowsToRestore = deletedRowsRef.current;
+    const rowsToRestore = applyDisplayFilters(deletedRowsRef.current, displaySettings);
     if (rowsToRestore.length === 0) return;
     try {
       await Promise.all(rowsToRestore.map(row => api.data.restoreRow(row.id)));
@@ -557,11 +574,12 @@ export default function App() {
   };
 
   const permanentlyDeleteAllRows = async () => {
-    if (deletedRows.length === 0) return;
+    const rowsToDelete = applyDisplayFilters(deletedRowsRef.current, displaySettings);
+    if (rowsToDelete.length === 0) return;
     if (!window.confirm("هل أنت متأكد من الحذف النهائي لجميع العناصر؟ لا يمكن التراجع عن هذا الإجراء.")) return;
     try {
-      await api.data.clearDeletedRows();
-      setDeletedRows([]);
+      await Promise.all(rowsToDelete.map(row => api.data.permanentlyDeleteRow(row.id)));
+      setDeletedRows(prev => removeDeletedRows(prev, rowsToDelete.map(row => row.id)));
       showNotification("تم حذف سلة المحذوفات نهائياً", "success");
     } catch (err) {
       console.error("Permanent delete all failed", err);
@@ -828,13 +846,13 @@ export default function App() {
             notifPermission={notifPermission}
             onRequestNotifPermission={requestNotificationPermission}
             notifiedCount={notifiedCount}
-            allRowsCount={allRows.length}
+            allRowsCount={visibleAllRows.length}
             shareAccessGrants={shareAccessGrants}
             onUpdateShareAccessRole={updateShareAccessRole}
             onRevokeShareAccess={revokeShareAccess}
           />
         ) : view === 'analytics' ? (
-          <OperationsIntelligence rows={allRows} onNavigateToTable={() => setView('operational')} />
+          <OperationsIntelligence rows={visibleAllRows} onNavigateToTable={() => setView('operational')} />
         ) : (
           <>
             <section className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
@@ -878,7 +896,7 @@ export default function App() {
                     <button onClick={() => { setAllRows([...previewRows, ...allRows]); setShowPreview(false); setInputs({ ...inputs, text: '' }); showNotification("تم اعتماد الرحلات", "success"); }} className="bg-white text-blue-600 px-6 py-1.5 rounded-lg font-bold">حفظ واعتماد</button>
                   </div>
                 </div>
-                <div className="p-4"><TableEditor rows={previewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))} isPreview={true} requiredFields={previewSettings.requiredFields} /></div>
+                <div className="p-4"><TableEditor rows={visiblePreviewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))} isPreview={true} requiredFields={previewSettings.requiredFields} /></div>
               </section>
             )}
 
@@ -909,7 +927,7 @@ export default function App() {
               </div>
               <div className="mt-2">
                 <TableEditor
-                  rows={allRows}
+                  rows={visibleAllRows}
                   onChange={updateRowField}
                   onDelete={softDeleteRow}
                   isPreview={false}
@@ -1095,7 +1113,7 @@ export default function App() {
             <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center gap-4 bg-red-50/50">
               <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-start">
                 <h3 className="text-lg sm:text-xl font-bold flex items-center gap-2 text-red-700"><Trash2 /> سلة المحذوفات</h3>
-                {deletedRows.length > 0 && (
+                {visibleDeletedRows.length > 0 && (
                   <div className="flex gap-2">
                     <button
                       onClick={restoreAllRows}
@@ -1115,12 +1133,12 @@ export default function App() {
               <button onClick={() => setShowRecycleBin(false)} className="p-2 sm:p-2 hover:bg-white rounded-full transition-colors self-end sm:self-auto min-h-[44px] min-w-[44px] flex items-center justify-center -mt-12 sm:mt-0"><XCircle size={24} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              {deletedRows.length > 0 ? (
+              {visibleDeletedRows.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[600px]">
                     <thead className="bg-gray-50 text-gray-500 font-bold"><tr className="border-b"> <th className="p-3">المجموعة</th> <th className="p-3">الحركة</th> <th className="p-3">الإجراء</th> </tr></thead>
                     <tbody className="divide-y divide-gray-100">
-                      {deletedRows.map(row => (
+                      {visibleDeletedRows.map(row => (
                         <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                           <td className="p-4">
                             <div className="font-bold">{row.groupName} ({row.groupNo})</div>

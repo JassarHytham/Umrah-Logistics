@@ -310,7 +310,11 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   const departureIndex = text.indexOf("رحلة المغادرة");
   if (departureIndex !== -1) {
       const block = text.substring(departureIndex);
-      const dateMatch = block.match(/تاريخ المغادرة\s*[\r\n]*\s*([\d-/]{8,10})/) || block.match(/(\d{4}-\d{1,2}-\d{1,2})|(\d{1,2}\/\d{1,2}\/\d{4})/);
+      const beforeDeparture = text.substring(Math.max(0, departureIndex - 80), departureIndex);
+      const dateMatch =
+          block.match(/تاريخ المغادرة\s*[\r\n]*\s*((?:\d{4}-\d{1,2}-\d{1,2})|(?:\d{1,2}\/\d{1,2}\/\d{4}))/) ||
+          beforeDeparture.match(/\((\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2})\)\s*$/) ||
+          text.match(/تاريخ المغادرة\s*\([^)]*\)\s*(\d{1,2}[-/]\d{1,2}[-/]\d{4})/);
       const departureTime = findLabeledTime(block, "وقت المغادرة");
       const airport = findLabelValue(block, "المطار", ["الخطوط الجوية", "الصالة", "وقت المغادرة", "نوع الرحلة", "استعراض الرحلات", "عودة", "التالي", "ملخص معلومات الرحلة"]);
 
@@ -322,7 +326,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const borderDeparture = landDeparture ? findBorderCrossing(block) : "";
       departureData = {
           Column1: "مغادرة",
-          date: dateMatch ? formatDate(dateMatch[0]) : "",
+          date: dateMatch ? formatDate(dateMatch[1] || dateMatch[0]) : "",
           time: departureTime,
           flight: landDeparture ? "النقل البري" : findFlight(block),
           to: landDeparture

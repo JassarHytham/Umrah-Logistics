@@ -417,6 +417,7 @@ EK-0802
     expect(secondService?.from).toBe('فندق دار التوحيد انتركونتننتال الفندقية (مكة المكرمة)');
     expect(secondService?.to).toBe('متحف السيرة النبوية والحضارية الإسلامية (برج متحف الساعة)');
     expect(departure?.flight).toBe('EK-0802');
+    expect(departure?.date).toBe('11/07/2026');
     expect(departure?.time).toBe('04:05');
     expect(departure?.from).toBe('فندق دار التوحيد انتركونتننتال الفندقية (مكة المكرمة)');
   });

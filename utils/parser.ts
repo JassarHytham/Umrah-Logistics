@@ -248,6 +248,12 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
     new RegExp(`تاريخ\\s+${label}\\s*\\([^)]*النقل\\s+البري[^)]*\\)`).test(text);
 
   const findBorderCrossing = (block: string): string => {
+    const inlineMatch = block.match(/المنفذ\s*\*?\s*([\s\S]*?)(?=\s*(?:وقت الوصول|وقت المغادرة|نوع الناقل|شركة النقل|حفظ|$))/);
+    if (inlineMatch) {
+      const inline = inlineMatch[1].replace(/\s+/g, " ").trim();
+      if (inline) return inline;
+    }
+
     const lines = block.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       if (/المنفذ/.test(lines[i])) {
@@ -285,9 +291,9 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
 
   const findLabeledTime = (block: string, label: string): string => {
     const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const standard = block.match(new RegExp(`${escapedLabel}\\s*[\\r\\n:]*\\s*(\\d{1,2}:\\d{2})(?::\\d{2})?`));
+    const standard = block.match(new RegExp(`${escapedLabel}\\s*\\*?\\s*[\\r\\n:]*\\s*(\\d{1,2}:\\d{2})(?::\\d{2})?`));
     if (standard) return standard[1];
-    const splitColon = block.match(new RegExp(`${escapedLabel}\\s*[\\r\\n:]*\\s*(\\d{1,2})\\s*\\n\\s*(\\d{2})`));
+    const splitColon = block.match(new RegExp(`${escapedLabel}\\s*\\*?\\s*[\\r\\n:]*\\s*(\\d{1,2})\\s*\\n\\s*(\\d{2})`));
     if (splitColon) return `${splitColon[1].padStart(2, "0")}:${splitColon[2]}`;
     return "";
   };

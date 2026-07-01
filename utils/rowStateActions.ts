@@ -59,3 +59,5 @@ export const removeDeletedRows = (
   const idSet = new Set(Array.from(ids));
   return deletedRows.filter(row => !idSet.has(row.id));
 };
+
+export const isPersistedRow = (row: LogisticsRow): boolean => row._version !== undefined;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LogisticsRow } from '../types';
-import { markRowsDeleted, removeDeletedRows, restoreRows } from '../utils/rowStateActions';
+import { isPersistedRow, markRowsDeleted, removeDeletedRows, restoreRows } from '../utils/rowStateActions';
 
 const row = (id: string, extras: Partial<LogisticsRow> = {}): LogisticsRow => ({
   id,
@@ -48,5 +48,10 @@ describe('row state actions', () => {
 
   it('removes permanently deleted rows from the recycle bin only', () => {
     expect(removeDeletedRows([row('a'), row('b')], ['a']).map(r => r.id)).toEqual(['b']);
+  });
+
+  it('treats rows without a server version as local-only rows', () => {
+    expect(isPersistedRow(row('local'))).toBe(false);
+    expect(isPersistedRow(row('server', { _version: 1 }))).toBe(true);
   });
 });

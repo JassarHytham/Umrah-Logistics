@@ -69,6 +69,28 @@ const formatAirportLabel = (rawName: string): string => {
   return name;
 };
 
+const normalizeFlattenedCapture = (raw: string): string => {
+  return String(raw || "")
+    .replace(/\u00A0/g, " ")
+    .replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, "")
+    .replace(/(السفر الجوي)(النقل البحري)(النقل البري)/g, "$1\n$2\n$3")
+    .replace(/(اسم الفندق\/ المستضيف\s+تاريخ الدخول\s+تاريخ المغادرة\s+مدة الاقامة\s+سعة الغرفة\s+السعر)\s+/g, "$1\n")
+    .replace(/(الخدمة\s+نوع الخدمة\s+تاريخ الزيارة\s+الوقت\s+المرشد\s+السعر)\s+/g, "$1\n")
+    .replace(/([^\s\n\d])(\d{1,2}\/\d{1,2}\/\d{4})/g, "$1\n$2")
+    .replace(/([^\s\n\d])(\d{4}-\d{1,2}-\d{1,2})/g, "$1\n$2")
+    .replace(/(\d{1,2}\/\d{1,2}\/\d{4})(?=\d{1,2}\/\d{1,2}\/\d{4})/g, "$1\n")
+    .replace(/(\d{4}-\d{1,2}-\d{1,2})(?=\d{1,2}:\d{2})/g, "$1\n")
+    .replace(/(ر\.س)(?=الخدمات\s+ال[إا]ثرائية|اضف|إضافة|اضافة|الوجهة|رحلة المغادرة)/g, "$1\n")
+    .replace(/(معلومات الرحلة|رحلة الوصول|تاريخ الوصول|وسيلة السفر|packages\.journey|قادم من|مغادر من|ذاهب إلى|رقم الرحلة|المطار|الخطوط الجوية|الصالة|وقت الوصول|وقت المغادرة|نوع الرحلة|استعراض الرحلات|الوجهة\s*\([^)]+\)|الخدمات\s+ال[إا]ثرائية|اضف خدمات إضافية|إضافة خدمات إضافية|اضافة خدمات إضافية|اضافة محطه للرحلة|رحلة المغادرة|تاريخ المغادرة|ملخص معلومات الرحلة|مسار الرحلة)/g, "\n$1")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
 export const parseDateTime = (dateStr: string, timeStr: string) => {
   if (!dateStr) return null;
   const cleanDate = dateStr.trim();
@@ -111,6 +133,7 @@ export const parseDateTime = (dateStr: string, timeStr: string) => {
 };
 
 export const parseItineraryText = (text: string, groupInfo: GroupInfo): LogisticsRow[] => {
+  text = normalizeFlattenedCapture(text);
   const rows: LogisticsRow[] = [];
   const carType = getCarType(groupInfo.count);
   const rowGroupInfo = { ...groupInfo, agency: groupInfo.agency || "" };
@@ -122,7 +145,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
     const enrichmentLabel = /الخدمات\s+ال[إا]ثرائية/;
     const enrichmentType = /(وجهات|خدمات)\s+ال[إا]ثرائية/;
     const cleanServiceName = (raw: string): string => raw
-      .replace(new RegExp(`\\s+${enrichmentType.source}\\s*$`), "")
+      .replace(new RegExp(`\\s*${enrichmentType.source}\\s*$`), "")
       .trim();
     const enrichmentStart = blockText.search(enrichmentLabel);
     if (enrichmentStart === -1) return services;
@@ -186,7 +209,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       //   • clipboard / row-per-line: "<hotel>  <date>  <date> ..." on the next line
       //   • DOM walk / cell-per-line: each column header then the hotel on its own line
       const afterHeader = blockText.split(/اسم الفندق[^\r\n]*\r?\n/)[1] || "";
-      const HOTEL_COL_HEADERS = /^(تاريخ\s+الدخول|تاريخ\s+المغادرة|مدة\s+ال[إا]?قامة|سعة\s+الغرفة|السعر)\s*$/;
+      const HOTEL_COL_HEADERS = /^(?:(?:تاريخ\s+الدخول|تاريخ\s+المغادرة|مدة\s+ال[إا]?قامة|سعة\s+الغرفة|السعر)(?:\s+|$))+$/;
       const HOTEL_DATE_CELL = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2}/;
       let hotel = "";
       for (const rawLine of afterHeader.split(/\r?\n/)) {
@@ -240,14 +263,29 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
     return "-";
   };
 
+  const findLabelValue = (block: string, label: string, stopLabels: string[]): string => {
+    const stopPattern = stopLabels.map(stop => stop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    const match = block.match(new RegExp(`${label}\\s*[\\r\\n:]*\\s*([\\s\\S]*?)(?=\\s*(?:${stopPattern})|$)`));
+    return match ? match[1].replace(/\s+/g, " ").trim() : "";
+  };
+
+  const findLabeledTime = (block: string, label: string): string => {
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const standard = block.match(new RegExp(`${escapedLabel}\\s*[\\r\\n:]*\\s*(\\d{1,2}:\\d{2})(?::\\d{2})?`));
+    if (standard) return standard[1];
+    const splitColon = block.match(new RegExp(`${escapedLabel}\\s*[\\r\\n:]*\\s*(\\d{1,2})\\s*\\n\\s*(\\d{2})`));
+    if (splitColon) return `${splitColon[1].padStart(2, "0")}:${splitColon[2]}`;
+    return "";
+  };
+
   // Parse Arrival
   let arrivalData: Partial<LogisticsRow> | null = null;
   const arrivalIndex = text.indexOf("رحلة الوصول");
   if (arrivalIndex !== -1) {
       const block = text.substring(arrivalIndex, text.indexOf("رحلة المغادرة", arrivalIndex) === -1 ? text.length : text.indexOf("رحلة المغادرة", arrivalIndex));
       const dateMatch = block.match(/تاريخ الوصول\s*[\r\n]*\s*([\d-/]{8,10})/) || block.match(/(\d{4}-\d{1,2}-\d{1,2})|(\d{1,2}\/\d{1,2}\/\d{4})/);
-      const timeMatch = block.match(/وقت الوصول\s*[\r\n]*\s*(\d{1,2}:\d{2})/);
-      const airportMatch = block.match(/المطار\s*[\r\n]*\s*([^\r\n]+)/);
+      const arrivalTime = findLabeledTime(block, "وقت الوصول");
+      const airport = findLabelValue(block, "المطار", ["الخطوط الجوية", "الصالة", "وقت الوصول", "نوع الرحلة", "استعراض الرحلات", "الوجهة"]);
 
       const firstDest = destBlocks[0];
       const arrivalTo = firstDest?.hotel
@@ -258,11 +296,11 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       arrivalData = {
           Column1: "وصول",
           date: dateMatch ? formatDate(dateMatch[0]) : (firstDest?.startDate || ""),
-          time: timeMatch ? timeMatch[1] : "",
+          time: arrivalTime,
           flight: landArrival ? "النقل البري" : findFlight(block),
           from: landArrival
               ? borderArrival
-              : (airportMatch ? formatAirportLabel(airportMatch[1]) : "جدة"),
+              : (airport ? formatAirportLabel(airport) : "جدة"),
           to: arrivalTo
       };
   }
@@ -273,8 +311,8 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   if (departureIndex !== -1) {
       const block = text.substring(departureIndex);
       const dateMatch = block.match(/تاريخ المغادرة\s*[\r\n]*\s*([\d-/]{8,10})/) || block.match(/(\d{4}-\d{1,2}-\d{1,2})|(\d{1,2}\/\d{1,2}\/\d{4})/);
-      const timeMatch = block.match(/وقت المغادرة\s*[\r\n]*\s*(\d{1,2}:\d{2})/);
-      const airportMatch = block.match(/المطار\s*[\r\n]*\s*([^\r\n]+)/);
+      const departureTime = findLabeledTime(block, "وقت المغادرة");
+      const airport = findLabelValue(block, "المطار", ["الخطوط الجوية", "الصالة", "وقت المغادرة", "نوع الرحلة", "استعراض الرحلات", "عودة", "التالي", "ملخص معلومات الرحلة"]);
 
       const lastDest = destBlocks[destBlocks.length - 1];
       const departureFrom = lastDest?.hotel
@@ -285,11 +323,11 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       departureData = {
           Column1: "مغادرة",
           date: dateMatch ? formatDate(dateMatch[0]) : "",
-          time: timeMatch ? timeMatch[1] : "",
+          time: departureTime,
           flight: landDeparture ? "النقل البري" : findFlight(block),
           to: landDeparture
               ? borderDeparture
-              : (airportMatch ? formatAirportLabel(airportMatch[1]) : "جدة"),
+              : (airport ? formatAirportLabel(airport) : "جدة"),
           from: departureFrom
       };
   }

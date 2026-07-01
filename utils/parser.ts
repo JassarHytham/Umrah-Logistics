@@ -187,13 +187,14 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       //   • DOM walk / cell-per-line: each column header then the hotel on its own line
       const afterHeader = blockText.split(/اسم الفندق[^\r\n]*\r?\n/)[1] || "";
       const HOTEL_COL_HEADERS = /^(تاريخ\s+الدخول|تاريخ\s+المغادرة|مدة\s+ال[إا]?قامة|سعة\s+الغرفة|السعر)\s*$/;
+      const HOTEL_DATE_CELL = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2}/;
       let hotel = "";
       for (const rawLine of afterHeader.split(/\r?\n/)) {
         const line = rawLine.trim();
         if (!line) continue;
         if (/الخدمة|الخدمات/.test(line)) break;        // reached the enrichment table → no hotel row
         if (HOTEL_COL_HEADERS.test(line)) continue;     // skip leftover column headers (cell-per-line)
-        const dStart = line.search(/\d{1,2}\/\d{1,2}\/\d{4}/);
+        const dStart = line.search(HOTEL_DATE_CELL);
         if (dStart === 0) continue;                     // a pure date cell → not the hotel name
         const candidate = (dStart > 0 ? line.slice(0, dStart) : line)
           .replace(/[\s\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]+$/, "")

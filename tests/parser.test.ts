@@ -454,6 +454,31 @@ describe('parseItineraryText — hotel name extraction layouts', () => {
     const arrival = rows.find(r => r.Column1 === 'وصول');
     expect(arrival?.to).toBe('شركة فجر النسك لتشغيل الفنادق (مكة المكرمة)');
   });
+
+  it('rendered text capture: extracts hotel name before ISO dates', () => {
+    const renderedText = `
+رحلة الوصول
+تاريخ الوصول
+2026-07-03
+المطار
+مطار الامير محمد
+
+الوجهة (المدينة المنورة)
+(2026-07-03 - 2026-07-06)
+الفنادق
+اسم الفندق/ المستضيف تاريخ الدخول تاريخ المغادرة مدة الاقامة سعة الغرفة السعر
+فندق المدينة هيلتون 2026-07-03 2026-07-06 3 4 1410 ر.س
+
+رحلة المغادرة
+تاريخ المغادرة
+2026-07-11
+المطار
+مطار الملك عبد العزيز الدولي
+`;
+    const rows = parseItineraryText(renderedText, groupInfo);
+    const arrival = rows.find(r => r.Column1 === 'وصول');
+    expect(arrival?.to).toBe('فندق المدينة هيلتون (المدينة المنورة)');
+  });
 });
 
 describe('parseItineraryText — enrichment services', () => {

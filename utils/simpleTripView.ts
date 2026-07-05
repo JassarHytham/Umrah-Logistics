@@ -29,6 +29,7 @@ const DEPARTURE_TYPE = 'مغادرة';
 
 const MECCA_MARKERS = ['مكة المكرمة', 'مكة', 'مكه'];
 const MADINA_MARKERS = ['المدينة المنورة', 'المدينة'];
+const MADINA_SHORT_FORM_PATTERN = /(?:^|\()\s*مدينة\s*(?:$|\))/;
 
 const includesAny = (value: string, markers: string[]) =>
   markers.some(marker => value.includes(marker));
@@ -40,6 +41,7 @@ const detectCity = (value: unknown): 'mecca' | 'madina' | null => {
   if (!text) return null;
   if (includesAny(text, MECCA_MARKERS)) return 'mecca';
   if (includesAny(text, MADINA_MARKERS)) return 'madina';
+  if (MADINA_SHORT_FORM_PATTERN.test(text)) return 'madina';
   return null;
 };
 
@@ -125,16 +127,15 @@ const buildStay = (rows: LogisticsRow[], city: 'mecca' | 'madina'): SimpleTripSt
   const entryRow = relevantRows[entryIndex];
   const hotel = getHotelFromCityChain(relevantRows, city, entryIndex);
   const entryDate = normalize(entryRow.date) || '-';
-  const lastKnownDate = normalize(relevantRows[relevantRows.length - 1]?.date) || '-';
 
-  let leavingDate = lastKnownDate;
+  let leavingDate = '-';
   for (let index = entryIndex + 1; index < relevantRows.length; index += 1) {
     const row = relevantRows[index];
     const fromCity = detectCity(row.from);
 
     if (fromCity !== city) continue;
     if (row.Column1 === INTERCITY_TYPE || row.Column1 === DEPARTURE_TYPE) {
-      leavingDate = normalize(row.date) || leavingDate;
+      leavingDate = normalize(row.date) || '-';
       break;
     }
   }
@@ -171,11 +172,10 @@ export function buildSimpleTripSummaries(rows: LogisticsRow[]): SimpleTripSummar
         }))
         .filter(item => item.date);
 
-      const entryDate = formatDateOnly(datedRows[0]?.date ?? null) ?? normalize(itinerary[0]?.date) ?? '-';
+      const entryDate = formatDateOnly(datedRows[0]?.date ?? null) ?? (normalize(itinerary[0]?.date) || '-');
       const leavingDate =
         formatDateOnly(datedRows[datedRows.length - 1]?.date ?? null) ??
-        normalize(itinerary[itinerary.length - 1]?.date) ??
-        '-';
+        (normalize(itinerary[itinerary.length - 1]?.date) || '-');
 
       const mecca = buildStay(itinerary, 'mecca');
       const madina = buildStay(itinerary, 'madina');

@@ -114,6 +114,33 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries[0].madinaDuration).toBe('-');
   });
 
+  it('keeps stay leaving date and duration blank when no explicit exit row exists', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'arrive-madina',
+        groupNo: 'G-7A',
+        Column1: 'وصول',
+        date: '01/08/2026',
+        time: '12:00',
+        from: 'مطار الامير محمد (المدينة المنورة)',
+        to: 'فندق المدينة هيلتون (المدينة المنورة)',
+      }),
+      row({
+        id: 'service-madina',
+        groupNo: 'G-7A',
+        Column1: 'الخدمات الإثرائية',
+        date: '02/08/2026',
+        time: '19:00',
+        from: 'فندق المدينة هيلتون (المدينة المنورة)',
+        to: 'معرض عمارة المسجد النبوي',
+      }),
+    ]);
+
+    expect(summaries[0].madinaHotel).toBe('فندق المدينة هيلتون (المدينة المنورة)');
+    expect(summaries[0].madinaDuration).toBe('-');
+    expect(summaries[0].itinerary).toHaveLength(2);
+  });
+
   it('does not treat parenthesized airports or generic city text as a hotel stay', () => {
     const summaries = buildSimpleTripSummaries([
       row({
@@ -282,6 +309,46 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries[0].madinaDuration).toBe('3');
     expect(summaries[1].madinaHotel).toBe('-');
     expect(summaries[1].madinaDuration).toBe('-');
+  });
+
+  it('accepts genuine Madina locations that use the bare short form مدينة', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'arrive-madina-short',
+        groupNo: 'G-12A',
+        Column1: 'وصول',
+        date: '16/11/2026',
+        time: '08:00',
+        from: 'مطار الامير محمد (مدينة)',
+        to: 'فندق طيبة (مدينة)',
+      }),
+      row({
+        id: 'depart-madina-short',
+        groupNo: 'G-12A',
+        Column1: 'مغادرة',
+        date: '19/11/2026',
+        time: '18:00',
+        from: 'فندق طيبة (مدينة)',
+        to: 'مطار الملك عبد العزيز الدولي (جدة)',
+      }),
+    ]);
+
+    expect(summaries[0].madinaHotel).toBe('فندق طيبة (مدينة)');
+    expect(summaries[0].madinaDuration).toBe('3');
+  });
+
+  it('renders missing summary entry and leaving dates as dashes', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'undated-row',
+        groupNo: 'G-14',
+        date: '',
+        time: '',
+      }),
+    ]);
+
+    expect(summaries[0].entryDate).toBe('-');
+    expect(summaries[0].leavingDate).toBe('-');
   });
 
   it('keeps summaries sorted by earliest itinerary date', () => {

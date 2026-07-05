@@ -262,13 +262,13 @@ SV456
   it('arrival row has correct airport mapped to city', () => {
     const rows = parseItineraryText(sampleItinerary, groupInfo);
     const arrival = rows.find(r => r.Column1 === 'وصول');
-    expect(arrival?.from).toBe('جدة');
+    expect(arrival?.from).toBe('مطار الملك عبد العزيز (جدة)');
   });
 
   it('departure row has airport mapped to city', () => {
     const rows = parseItineraryText(sampleItinerary, groupInfo);
     const departure = rows.find(r => r.Column1 === 'مغادرة');
-    expect(departure?.to).toBe('المدينة المنورة');
+    expect(departure?.to).toBe('مطار الأمير محمد (المدينة المنورة)');
   });
 
   it('all rows carry group info', () => {

@@ -17,5 +17,10 @@
     "jsx": "react-jsx"
   },
   "include": ["./**/*.ts", "./**/*.tsx"],
-  "exclude": ["node_modules", "dist", "chrome extention/umrah-extension/SERVER_ENDPOINT.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "chrome extention/umrah-extension/SERVER_ENDPOINT.ts",
+    "chrome extention/umrah-extension 2/SERVER_ENDPOINT.ts"
+  ]
 }

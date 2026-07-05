@@ -17,3 +17,9 @@
 - Fixed Madina city detection so it no longer relies on the bare generic marker `مدينة`.
 - Re-ran: `npm test -- tests/simpleTripView.test.ts`
 - Result: passed
+
+## Update 2
+- Updated stay extraction to scan forward through the same-city itinerary chain and pick the first real hotel instead of only reading the entry row.
+- Added a regression for airport entry followed by a later same-city hotel row.
+- Re-ran: `npm test -- tests/simpleTripView.test.ts`
+- Result: passed

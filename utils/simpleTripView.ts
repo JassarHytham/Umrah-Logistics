@@ -95,6 +95,19 @@ const getHotelForCity = (row: LogisticsRow, city: 'mecca' | 'madina') => {
   return '-';
 };
 
+const getHotelFromCityChain = (rows: LogisticsRow[], city: 'mecca' | 'madina', startIndex: number) => {
+  for (let index = startIndex; index < rows.length; index += 1) {
+    const row = rows[index];
+    const rowCity = detectCity(row.to) ?? detectCity(row.from);
+    if (rowCity && rowCity !== city) break;
+
+    const hotel = getHotelForCity(row, city);
+    if (hotel !== '-') return hotel;
+  }
+
+  return '-';
+};
+
 const buildStay = (rows: LogisticsRow[], city: 'mecca' | 'madina'): SimpleTripStay => {
   const relevantRows = rows.filter(row => !isEnrichmentRow(row));
   const entryIndex = relevantRows.findIndex(row => detectCity(row.to) === city);
@@ -110,7 +123,7 @@ const buildStay = (rows: LogisticsRow[], city: 'mecca' | 'madina'): SimpleTripSt
   }
 
   const entryRow = relevantRows[entryIndex];
-  const hotel = getHotelForCity(entryRow, city);
+  const hotel = getHotelFromCityChain(relevantRows, city, entryIndex);
   const entryDate = normalize(entryRow.date) || '-';
   const lastKnownDate = normalize(relevantRows[relevantRows.length - 1]?.date) || '-';
 

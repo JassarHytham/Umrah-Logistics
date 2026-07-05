@@ -175,4 +175,39 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries[0].madinaHotel).toBe('-');
     expect(summaries[0].madinaDuration).toBe('3');
   });
+
+  it('finds the hotel later in the same-city chain after an airport arrival', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'arrive-airport',
+        groupNo: 'G-10',
+        Column1: 'وصول',
+        date: '01/11/2026',
+        time: '09:30',
+        from: 'مطار الملك عبد العزيز الدولي (جدة)',
+        to: 'مطار الامير محمد (المدينة المنورة)',
+      }),
+      row({
+        id: 'transfer-to-hotel',
+        groupNo: 'G-10',
+        Column1: 'نقل داخلي',
+        date: '01/11/2026',
+        time: '11:00',
+        from: 'مطار الامير محمد (المدينة المنورة)',
+        to: 'فندق المدينة هيلتون (المدينة المنورة)',
+      }),
+      row({
+        id: 'depart-city',
+        groupNo: 'G-10',
+        Column1: 'مغادرة',
+        date: '04/11/2026',
+        time: '18:00',
+        from: 'فندق المدينة هيلتون (المدينة المنورة)',
+        to: 'مطار الملك عبد العزيز الدولي (جدة)',
+      }),
+    ]);
+
+    expect(summaries[0].madinaHotel).toBe('فندق المدينة هيلتون (المدينة المنورة)');
+    expect(summaries[0].madinaDuration).toBe('3');
+  });
 });

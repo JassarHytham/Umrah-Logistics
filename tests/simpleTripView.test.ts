@@ -282,4 +282,13 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries[1].madinaHotel).toBe('-');
     expect(summaries[1].madinaDuration).toBe('-');
   });
+
+  it('keeps summaries sorted by earliest itinerary date', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({ id: 'late', groupNo: 'G-2', date: '10/08/2026' }),
+      row({ id: 'early', groupNo: 'G-1', date: '01/08/2026' }),
+    ]);
+
+    expect(summaries.map(summary => summary.groupNo)).toEqual(['G-1', 'G-2']);
+  });
 });

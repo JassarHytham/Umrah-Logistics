@@ -1,26 +1,54 @@
-## Task 2: Wire Agency Through App UI, Import, And Export
+# Task 2 Report: Add The Simple View Toggle And Summary Table
 
-Files changed:
-- `App.tsx`
-- `tests/tableColumns.test.ts`
-- `tests/rowStateActions.test.ts` (minimal `LogisticsRow.agency` fixture addition for TypeScript)
+## Scope
 
-Tests run:
-- `npm test -- tests/tableColumns.test.ts` before app wiring: passed, 2 tests.
-- `npm run lint`: failed due to unrelated pre-existing `chrome extention/umrah-extension/SERVER_ENDPOINT.ts` undefined symbols (`app`, `authenticateToken`, `db`, `parseItineraryText`); the agency fixture error was fixed and did not recur.
-- `npm test -- tests/tableColumns.test.ts` after implementation: passed, 2 tests.
+- Modified `components/TableEditor.tsx`
+- Modified `tests/simpleTripView.test.ts`
+- Preserved the existing local `showPastTrips` auto-expand behavior when filters are active
 
-Results:
-- Manual input state now initializes and preserves `agency`.
-- Manual extraction passes `agency: inputs.agency || ''` to `parseItineraryText`.
-- The manual form includes visible label `الوكيل`.
-- Excel export writes `الوكيل` after `اسم المجموعة`.
-- Excel import accepts `الوكيل`, `اسم الوكيل الرئيسي`, `Agency`, `Main Agent`, and `اسم_الوكيل_الرئيسي`.
-- New empty rows include `agency: ''`.
-- Group sharing semantics were not changed.
+## What Changed
 
-Commit hash:
-- `c40db7406342b37f5b2c97ef869a828f6eada291`
+- Added the required summary ordering test to `tests/simpleTripView.test.ts`
+- Added local `viewMode` state in `TableEditor` to switch between `detailed` and `simple`
+- Added local `selectedSimpleTrip` state and a details overlay for simple summaries
+- Wired `buildSimpleTripSummaries(filteredRows)` through `useMemo`
+- Added the toolbar toggle with the exact `Detailed` / `Simple` labels from the brief
+- Rendered the existing detailed table only in detailed mode
+- Added the simple summary table with the required Arabic headers and `عرض التفاصيل` action
 
-Concerns:
-- `npm run lint` remains blocked by extension endpoint TypeScript errors outside Task 2 scope.
+## Verification
+
+### RED
+
+- Ran: `npm test -- tests/simpleTripView.test.ts`
+- Result: `PASS`
+- Observation: the helper already satisfied the new ordering expectation, so no helper change was needed before UI work
+
+### GREEN / Final Verification
+
+- Ran: `npm run lint`
+- Result: `FAIL`
+- Failure source: pre-existing TypeScript errors in `chrome extention/umrah-extension 2/SERVER_ENDPOINT.ts`
+- Relevant errors:
+  - `Cannot find name 'app'`
+  - `Cannot find name 'authenticateToken'`
+  - `Cannot find name 'db'`
+  - `Cannot find name 'parseItineraryText'`
+
+- Ran: `npm test -- tests/simpleTripView.test.ts`
+- Result: `PASS` (`1` file, `8` tests)
+
+- Ran extra targeted check to isolate this task from the repo-wide lint failure:
+  - `npx tsc --noEmit --pretty false --jsx react-jsx --target ESNext --lib DOM,DOM.Iterable,ESNext --module ESNext --moduleResolution Node --strict --skipLibCheck --allowSyntheticDefaultImports components/TableEditor.tsx`
+  - Result: `PASS`
+
+## Self-Review
+
+- Confirmed the simple view uses `filteredRows`, so it stays aligned with current filters/sorting inputs
+- Confirmed the existing detailed table path remains intact behind the mode toggle
+- Confirmed the local auto-expand effect for past trips was preserved
+- Confirmed the new details button opens a usable overlay rather than setting dead state
+
+## Concerns
+
+- `npm run lint` is not clean on this branch because of unrelated pre-existing TypeScript errors outside task scope

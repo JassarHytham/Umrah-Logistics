@@ -2,12 +2,13 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar,
-  Plane, Info, Plus, Copy, Share2,
+  Plane, Info, Plus, Copy, Share2, Eye, MapPinned,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
   History as HistoryIcon, StickyNote, Users
 } from 'lucide-react';
 import { LogisticsRow, TripStatus, DEFAULT_COLUMN_ORDER, COLUMN_LABELS } from '../types';
 import { parseDateTime } from '../utils/parser';
+import { buildSimpleTripSummaries, type SimpleTripSummary } from '../utils/simpleTripView';
 
 interface TableEditorProps {
   rows: LogisticsRow[];
@@ -77,6 +78,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const [sortConfig, setSortConfig] = useState<{ key: keyof LogisticsRow; direction: 'asc' | 'desc' } | null>(null);
     const [showPastTrips, setShowPastTrips] = useState(false);
     const [expandedNoteRowId, setExpandedNoteRowId] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'detailed' | 'simple'>('detailed');
+    const [selectedSimpleTrip, setSelectedSimpleTrip] = useState<SimpleTripSummary | null>(null);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const tbodyId = useRef(`tbl-${Math.random().toString(36).slice(2)}`).current;
@@ -171,6 +174,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         return result;
     }, [rows, filters, enableFiltering, sortConfig]);
 
+    const simpleRows = useMemo(() => buildSimpleTripSummaries(filteredRows), [filteredRows]);
+
     const { activeRows, pastRows } = useMemo(() => {
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -189,6 +194,13 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
         return { activeRows: active, pastRows: past };
     }, [filteredRows]);
+
+    useEffect(() => {
+        const hasActiveFilters = Object.values(filters).some(values => values.length > 0);
+        if (hasActiveFilters && pastRows.length > 0) {
+            setShowPastTrips(true);
+        }
+    }, [filters, pastRows.length]);
 
     useEffect(() => {
         if (onFilteredRowsChange) {
@@ -410,10 +422,102 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             إضافة رحلة جديدة
                         </button>
                     </div>
+                    <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('detailed')}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                                viewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                            }`}
+                        >
+                            Detailed
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('simple')}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                                viewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                            }`}
+                        >
+                            Simple
+                        </button>
+                    </div>
+                </div>
+            )}
+            {(isPreview || readOnly) && (
+                <div className="mb-4 flex justify-end px-1">
+                    <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('detailed')}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                                viewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                            }`}
+                        >
+                            Detailed
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('simple')}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                                viewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                            }`}
+                        >
+                            Simple
+                        </button>
+                    </div>
                 </div>
             )}
 
             <style>{`#${tbodyId}{font-size:${tableFontSize}%}#${tbodyId} *{font-size:inherit!important}`}</style>
+            {viewMode === 'simple' ? (
+                <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white min-h-[450px]">
+                    <table className="w-full min-w-[1200px] border-collapse text-right text-sm">
+                        <thead className="bg-gray-100 text-gray-700">
+                            <tr>
+                                {['الحالة', 'رقم م', 'اسم المجموعة', 'الوكيل', 'تاريخ الدخول', 'تاريخ المغادرة', 'فندق مكة', 'مدة مكة', 'فندق المدينة', 'مدة المدينة', 'التفاصيل'].map(label => (
+                                    <th key={label} className={`px-3 py-3 ${borderHeaderClass}`}>{label}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {simpleRows.map(summary => {
+                                const status = (summary.status || 'Planned') as TripStatus;
+                                const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.Planned;
+
+                                return (
+                                    <tr key={summary.groupNo} className="align-top transition-colors hover:bg-blue-50/40">
+                                        <td className={`${cellPad} ${borderCellClass}`}>
+                                            <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${config.color}`}>
+                                                {config.label}
+                                            </span>
+                                        </td>
+                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.groupNo}</td>
+                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.groupName}</td>
+                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.agency}</td>
+                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.entryDate}</td>
+                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.leavingDate}</td>
+                                        <td className={`${cellPad} ${borderCellClass} whitespace-normal`}>{summary.meccaHotel}</td>
+                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.meccaDuration}</td>
+                                        <td className={`${cellPad} ${borderCellClass} whitespace-normal`}>{summary.madinaHotel}</td>
+                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.madinaDuration}</td>
+                                        <td className={`${cellPad} ${borderCellClass} last:border-l-0`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedSimpleTrip(summary)}
+                                                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-100"
+                                            >
+                                                <Eye size={14} />
+                                                عرض التفاصيل
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            ) : (
             <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
                 <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
@@ -587,6 +691,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     </tbody>
                 </table>
             </div>
+            )}
 
             {enableFiltering && Object.keys(filters).length > 0 && (
                  <div className="absolute bottom-2 right-4 flex gap-2 z-10">
@@ -598,6 +703,67 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     ))}
                     <button onClick={() => setFilters({})} className="text-xs text-gray-500 underline">مسح الكل</button>
                  </div>
+            )}
+
+            {selectedSimpleTrip && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
+                    <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedSimpleTrip(null)}
+                                className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                                aria-label="إغلاق"
+                            >
+                                <X size={18} />
+                            </button>
+                            <div className="text-right">
+                                <div className="text-sm font-bold text-gray-900">{selectedSimpleTrip.groupName}</div>
+                                <div className="text-xs text-gray-500">رقم المجموعة: {selectedSimpleTrip.groupNo}</div>
+                            </div>
+                        </div>
+                        <div className="grid gap-4 border-b border-gray-100 px-5 py-4 md:grid-cols-2">
+                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-right">
+                                <div className="mb-2 flex items-center justify-end gap-2 text-sm font-bold text-gray-800">
+                                    <span>إقامة مكة</span>
+                                    <MapPinned size={16} className="text-blue-600" />
+                                </div>
+                                <div className="text-sm text-gray-700">{selectedSimpleTrip.meccaHotel}</div>
+                                <div className="mt-2 text-xs text-gray-500">المدة: {selectedSimpleTrip.meccaDuration}</div>
+                            </div>
+                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-right">
+                                <div className="mb-2 flex items-center justify-end gap-2 text-sm font-bold text-gray-800">
+                                    <span>إقامة المدينة</span>
+                                    <MapPinned size={16} className="text-blue-600" />
+                                </div>
+                                <div className="text-sm text-gray-700">{selectedSimpleTrip.madinaHotel}</div>
+                                <div className="mt-2 text-xs text-gray-500">المدة: {selectedSimpleTrip.madinaDuration}</div>
+                            </div>
+                        </div>
+                        <div className="max-h-[50vh] overflow-auto px-5 py-4">
+                            <table className="w-full border-collapse text-right text-sm">
+                                <thead className="bg-gray-50 text-gray-600">
+                                    <tr>
+                                        {['النوع', 'التاريخ', 'الوقت', 'من', 'إلى'].map(label => (
+                                            <th key={label} className="border-b border-gray-100 px-3 py-2">{label}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {selectedSimpleTrip.itinerary.map(item => (
+                                        <tr key={item.id}>
+                                            <td className="px-3 py-2">{item.Column1 || '-'}</td>
+                                            <td className="px-3 py-2">{item.date || '-'}</td>
+                                            <td className="px-3 py-2">{item.time || '-'}</td>
+                                            <td className="px-3 py-2 whitespace-normal">{item.from || '-'}</td>
+                                            <td className="px-3 py-2 whitespace-normal">{item.to || '-'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

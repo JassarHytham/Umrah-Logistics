@@ -212,6 +212,12 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     }, [filters, pastRows.length]);
 
     useEffect(() => {
+        if (viewMode !== 'simple' && selectedSimpleTrip) {
+            setSelectedSimpleTrip(null);
+        }
+    }, [viewMode, selectedSimpleTrip]);
+
+    useEffect(() => {
         if (onFilteredRowsChange) {
             onFilteredRowsChange(filteredRows);
         }
@@ -715,64 +721,72 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             )}
 
             {selectedSimpleTrip && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-                    <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl">
-                        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-                            <button
-                                type="button"
-                                onClick={() => setSelectedSimpleTrip(null)}
-                                className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                                aria-label="إغلاق"
-                            >
-                                <X size={18} />
-                            </button>
-                            <div className="text-right">
-                                <div className="text-sm font-bold text-gray-900">{selectedSimpleTrip.groupName}</div>
-                                <div className="text-xs text-gray-500">رقم المجموعة: {selectedSimpleTrip.groupNo}</div>
-                            </div>
-                        </div>
-                        <div className="grid gap-4 border-b border-gray-100 px-5 py-4 md:grid-cols-2">
-                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-right">
-                                <div className="mb-2 flex items-center justify-end gap-2 text-sm font-bold text-gray-800">
-                                    <span>إقامة مكة</span>
-                                    <MapPinned size={16} className="text-blue-600" />
-                                </div>
-                                <div className="text-sm text-gray-700">{selectedSimpleTrip.meccaHotel}</div>
-                                <div className="mt-2 text-xs text-gray-500">المدة: {selectedSimpleTrip.meccaDuration}</div>
-                            </div>
-                            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-right">
-                                <div className="mb-2 flex items-center justify-end gap-2 text-sm font-bold text-gray-800">
-                                    <span>إقامة المدينة</span>
-                                    <MapPinned size={16} className="text-blue-600" />
-                                </div>
-                                <div className="text-sm text-gray-700">{selectedSimpleTrip.madinaHotel}</div>
-                                <div className="mt-2 text-xs text-gray-500">المدة: {selectedSimpleTrip.madinaDuration}</div>
-                            </div>
-                        </div>
-                        <div className="max-h-[50vh] overflow-auto px-5 py-4">
-                            <table className="w-full border-collapse text-right text-sm">
-                                <thead className="bg-gray-50 text-gray-600">
-                                    <tr>
-                                        {['النوع', 'التاريخ', 'الوقت', 'من', 'إلى'].map(label => (
-                                            <th key={label} className="border-b border-gray-100 px-3 py-2">{label}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {selectedSimpleTrip.itinerary.map(item => (
-                                        <tr key={item.id}>
-                                            <td className="px-3 py-2">{item.Column1 || '-'}</td>
-                                            <td className="px-3 py-2">{item.date || '-'}</td>
-                                            <td className="px-3 py-2">{item.time || '-'}</td>
-                                            <td className="px-3 py-2 whitespace-normal">{item.from || '-'}</td>
-                                            <td className="px-3 py-2 whitespace-normal">{item.to || '-'}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+              <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4">
+                <div className="flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:h-auto sm:max-h-[85vh] sm:rounded-3xl">
+                  <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-4 py-4 sm:px-6">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <MapPinned size={16} />
+                        <span className="text-xs font-bold">مسار الرحلة</span>
+                      </div>
+                      <h3 className="mt-1 text-base font-extrabold text-gray-900 sm:text-lg">
+                        {selectedSimpleTrip.groupName}
+                      </h3>
+                      <p className="mt-1 text-xs text-gray-500">
+                        رقم المجموعة: {selectedSimpleTrip.groupNo} | الوكيل: {selectedSimpleTrip.agency}
+                      </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSimpleTrip(null)}
+                      className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+                      aria-label="إغلاق"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="overflow-y-auto px-4 py-4 sm:px-6">
+                    <div className="space-y-3">
+                      {selectedSimpleTrip.itinerary.map((item, index) => (
+                        <div key={item.id} className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[11px] font-bold text-blue-700">المحطة {index + 1}</div>
+                              <div className="mt-1 text-sm font-bold text-gray-900">{item.Column1 || '-'}</div>
+                            </div>
+                            <div className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-bold text-gray-600">
+                              {item.date || '-'} {item.time || ''}
+                            </div>
+                          </div>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
+                              <div className="text-[10px] font-bold text-gray-400">من</div>
+                              <div className="mt-1 text-xs font-medium text-gray-800 break-words">{item.from || '-'}</div>
+                            </div>
+                            <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
+                              <div className="text-[10px] font-bold text-gray-400">إلى</div>
+                              <div className="mt-1 text-xs font-medium text-gray-800 break-words">{item.to || '-'}</div>
+                            </div>
+                          </div>
+                          {(item.flight || item.notes) && (
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
+                                <div className="text-[10px] font-bold text-gray-400">الرحلة</div>
+                                <div className="mt-1 text-xs font-medium text-gray-800">{item.flight || '-'}</div>
+                              </div>
+                              <div className="rounded-xl bg-white p-3 ring-1 ring-gray-100">
+                                <div className="text-[10px] font-bold text-gray-400">ملاحظات</div>
+                                <div className="mt-1 text-xs font-medium text-gray-800 break-words">{item.notes || '-'}</div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+              </div>
             )}
         </div>
     );

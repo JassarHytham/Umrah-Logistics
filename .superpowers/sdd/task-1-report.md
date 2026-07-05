@@ -11,3 +11,9 @@
 ## Notes
 - Only the two requested files were created.
 - `components/TableEditor.tsx` and other unrelated worktree changes were left untouched.
+
+## Update
+- Fixed hotel detection so parenthesized airports and landmarks are no longer treated as hotels.
+- Fixed Madina city detection so it no longer relies on the bare generic marker `مدينة`.
+- Re-ran: `npm test -- tests/simpleTripView.test.ts`
+- Result: passed

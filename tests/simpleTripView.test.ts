@@ -112,4 +112,67 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries[0].madinaHotel).toBe('-');
     expect(summaries[0].madinaDuration).toBe('-');
   });
+
+  it('does not treat parenthesized airports or generic city text as a hotel stay', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'arrive-mecca',
+        groupNo: 'G-8',
+        Column1: 'وصول',
+        date: '01/09/2026',
+        time: '09:30',
+        from: 'مطار الملك عبد العزيز الدولي (جدة)',
+        to: 'فندق زمزم بولمان (مكة المكرمة)',
+      }),
+      row({
+        id: 'generic-city-text',
+        groupNo: 'G-8',
+        Column1: 'تنقل',
+        date: '02/09/2026',
+        time: '08:15',
+        from: 'فندق زمزم بولمان (مكة المكرمة)',
+        to: 'مركز مدينة المعرفة الاقتصادية (الرياض)',
+      }),
+      row({
+        id: 'depart-mecca',
+        groupNo: 'G-8',
+        Column1: 'مغادرة',
+        date: '03/09/2026',
+        time: '18:00',
+        from: 'فندق زمزم بولمان (مكة المكرمة)',
+        to: 'مطار الملك عبد العزيز الدولي (جدة)',
+      }),
+    ]);
+
+    expect(summaries[0].madinaHotel).toBe('-');
+    expect(summaries[0].madinaDuration).toBe('-');
+    expect(summaries[0].meccaHotel).toBe('فندق زمزم بولمان (مكة المكرمة)');
+    expect(summaries[0].meccaDuration).toBe('2');
+  });
+
+  it('does not use a parenthesized airport as the hotel for Madina stays', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'arrive-madina-airport',
+        groupNo: 'G-9',
+        Column1: 'وصول',
+        date: '01/10/2026',
+        time: '09:30',
+        from: 'مطار الملك عبد العزيز الدولي (جدة)',
+        to: 'مطار الامير محمد (المدينة المنورة)',
+      }),
+      row({
+        id: 'depart-madina-airport',
+        groupNo: 'G-9',
+        Column1: 'مغادرة',
+        date: '04/10/2026',
+        time: '18:00',
+        from: 'مطار الامير محمد (المدينة المنورة)',
+        to: 'مطار الملك عبد العزيز الدولي (جدة)',
+      }),
+    ]);
+
+    expect(summaries[0].madinaHotel).toBe('-');
+    expect(summaries[0].madinaDuration).toBe('3');
+  });
 });

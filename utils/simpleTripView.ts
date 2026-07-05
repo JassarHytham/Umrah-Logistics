@@ -28,7 +28,7 @@ const INTERCITY_TYPE = 'بين المدن';
 const DEPARTURE_TYPE = 'مغادرة';
 
 const MECCA_MARKERS = ['مكة المكرمة', 'مكة', 'مكه'];
-const MADINA_MARKERS = ['المدينة المنورة', 'المدينة', 'مدينة'];
+const MADINA_MARKERS = ['المدينة المنورة'];
 
 const includesAny = (value: string, markers: string[]) =>
   markers.some(marker => value.includes(marker));
@@ -45,7 +45,9 @@ const detectCity = (value: unknown): 'mecca' | 'madina' | null => {
 
 const isEnrichmentRow = (row: LogisticsRow) => row.Column1 === ENRICHMENT_TYPE;
 
-const isHotelLike = (value: string) => value.includes('فندق') || /\(.+\)/.test(value);
+const isHotelLike = (value: string) =>
+  value.includes('فندق') ||
+  /\b(?:hotel|inn|resort|suites?|palace|plaza|tower|motel|hostel|aparthotel)\b/i.test(value);
 
 const sortRows = (rows: LogisticsRow[]) =>
   [...rows]
@@ -90,8 +92,6 @@ const getHotelForCity = (row: LogisticsRow, city: 'mecca' | 'madina') => {
 
   if (detectCity(to) === city && isHotelLike(to)) return to;
   if (detectCity(from) === city && isHotelLike(from)) return from;
-  if (detectCity(to) === city) return to || '-';
-  if (detectCity(from) === city) return from || '-';
   return '-';
 };
 

@@ -51,6 +51,9 @@ const isHotelLike = (value: string) =>
   value.includes('فندق') ||
   /\b(?:hotel|inn|resort|suites?|palace|plaza|tower|motel|hostel|aparthotel)\b/i.test(value);
 
+const isAirportLike = (value: string) =>
+  value.includes('مطار') || /\bairport\b/i.test(value);
+
 const sortRows = (rows: LogisticsRow[]) =>
   [...rows]
     .map((row, index) => ({ row, index }))
@@ -94,6 +97,8 @@ const getHotelForCity = (row: LogisticsRow, city: 'mecca' | 'madina') => {
 
   if (detectCity(to) === city && isHotelLike(to)) return to;
   if (detectCity(from) === city && isHotelLike(from)) return from;
+  if (detectCity(to) === city && !isAirportLike(to)) return to;
+  if (detectCity(from) === city && !isAirportLike(from)) return from;
   return '-';
 };
 
@@ -165,6 +170,7 @@ export function buildSimpleTripSummaries(rows: LogisticsRow[]): SimpleTripSummar
   return Array.from(groups.entries())
     .map(([groupNo, groupRows]) => {
       const itinerary = sortRows(groupRows);
+      const displayGroupNo = normalize(itinerary[0]?.groupNo) || '-';
       const datedRows = itinerary
         .map(row => ({
           row,
@@ -181,7 +187,7 @@ export function buildSimpleTripSummaries(rows: LogisticsRow[]): SimpleTripSummar
       const madina = buildStay(itinerary, 'madina');
 
       return {
-        groupNo,
+        groupNo: displayGroupNo,
         groupName: normalize(itinerary[0]?.groupName) || '-',
         agency: normalize(itinerary[0]?.agency) || '-',
         status: String(pickSummaryStatus(itinerary) || 'Planned'),

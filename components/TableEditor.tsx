@@ -48,9 +48,7 @@ const getSimpleTripGroupKey = (row: LogisticsRow) => String(row.groupNo || '').t
 
 export function buildSimpleViewSummaries(rows: LogisticsRow[], filteredRows: LogisticsRow[]) {
     if (filteredRows.length === 0) return [];
-
-    const visibleGroupKeys = new Set(filteredRows.map(getSimpleTripGroupKey));
-    return buildSimpleTripSummaries(rows.filter(row => visibleGroupKeys.has(getSimpleTripGroupKey(row))));
+    return buildSimpleTripSummaries(filteredRows);
 }
 
 export const TableEditor: React.FC<TableEditorProps> = ({ 

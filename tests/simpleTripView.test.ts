@@ -337,6 +337,32 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries[0].madinaDuration).toBe('3');
   });
 
+  it('falls back to a host-style city location when no hotel token exists', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'arrive-mecca-host',
+        groupNo: 'G-12B',
+        Column1: 'وصول',
+        date: '20/11/2026',
+        time: '08:00',
+        from: 'مطار الملك عبد العزيز الدولي (جدة)',
+        to: 'سكن الضيافة - العزيزية (مكة المكرمة)',
+      }),
+      row({
+        id: 'depart-mecca-host',
+        groupNo: 'G-12B',
+        Column1: 'مغادرة',
+        date: '23/11/2026',
+        time: '18:00',
+        from: 'سكن الضيافة - العزيزية (مكة المكرمة)',
+        to: 'مطار الملك عبد العزيز الدولي (جدة)',
+      }),
+    ]);
+
+    expect(summaries[0].meccaHotel).toBe('سكن الضيافة - العزيزية (مكة المكرمة)');
+    expect(summaries[0].meccaDuration).toBe('3');
+  });
+
   it('renders missing summary entry and leaving dates as dashes', () => {
     const summaries = buildSimpleTripSummaries([
       row({
@@ -360,7 +386,7 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries.map(summary => summary.groupNo)).toEqual(['G-1', 'G-2']);
   });
 
-  it('keeps full group itineraries in simple view even when filters match only one segment', () => {
+  it('builds simple view summaries from the filtered itinerary subset so summary fields stay aligned', () => {
     const allRows = [
       row({
         id: 'g-50-arrive',
@@ -403,8 +429,22 @@ describe('buildSimpleTripSummaries', () => {
 
     expect(summaries).toHaveLength(1);
     expect(summaries[0].groupNo).toBe('G-50');
-    expect(summaries[0].status).toBe('Completed');
-    expect(summaries[0].madinaDuration).toBe('3');
-    expect(summaries[0].itinerary.map(item => item.id)).toEqual(['g-50-arrive', 'g-50-depart']);
+    expect(summaries[0].status).toBe('Confirmed');
+    expect(summaries[0].entryDate).toBe('01/12/2026');
+    expect(summaries[0].leavingDate).toBe('01/12/2026');
+    expect(summaries[0].madinaDuration).toBe('-');
+    expect(summaries[0].itinerary.map(item => item.id)).toEqual(['g-50-arrive']);
+  });
+
+  it('renders missing group numbers as a dash instead of exposing row ids', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'internal-row-id',
+        groupNo: '',
+        groupName: 'بدون رقم',
+      }),
+    ]);
+
+    expect(summaries[0].groupNo).toBe('-');
   });
 });

@@ -29,3 +29,9 @@
 - Added a regression for the exact `from = Madina hotel` / `to = Mecca hotel` exit-row shape.
 - Re-ran: `npm test -- tests/simpleTripView.test.ts`
 - Result: passed
+
+## Update 4
+- Relaxed Madina detection to accept the safer short form `المدينة` while still excluding the bare generic `مدينة`.
+- Added a regression that proves the accepted short form works and a bare-city false positive remains blocked.
+- Re-ran: `npm test -- tests/simpleTripView.test.ts`
+- Result: passed

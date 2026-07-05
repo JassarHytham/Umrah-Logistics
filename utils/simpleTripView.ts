@@ -28,7 +28,7 @@ const INTERCITY_TYPE = 'بين المدن';
 const DEPARTURE_TYPE = 'مغادرة';
 
 const MECCA_MARKERS = ['مكة المكرمة', 'مكة', 'مكه'];
-const MADINA_MARKERS = ['المدينة المنورة'];
+const MADINA_MARKERS = ['المدينة المنورة', 'المدينة'];
 
 const includesAny = (value: string, markers: string[]) =>
   markers.some(marker => value.includes(marker));

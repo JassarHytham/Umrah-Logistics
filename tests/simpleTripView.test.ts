@@ -245,4 +245,41 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries[0].madinaHotel).toBe('فندق طيبة المدينة (المدينة المنورة)');
     expect(summaries[0].meccaHotel).toBe('فندق دار التوحيد (مكة المكرمة)');
   });
+
+  it('accepts the safer city variant and still blocks bare city false positives', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'arrive-madina-variant',
+        groupNo: 'G-12',
+        Column1: 'وصول',
+        date: '12/11/2026',
+        time: '08:00',
+        from: 'مطار الامير محمد (المدينة)',
+        to: 'فندق المدينة هيلتون (المدينة)',
+      }),
+      row({
+        id: 'depart-madina-variant',
+        groupNo: 'G-12',
+        Column1: 'مغادرة',
+        date: '15/11/2026',
+        time: '18:00',
+        from: 'فندق المدينة هيلتون (المدينة)',
+        to: 'مطار الملك عبد العزيز الدولي (جدة)',
+      }),
+      row({
+        id: 'false-positive-city-text',
+        groupNo: 'G-13',
+        Column1: 'تنقل',
+        date: '12/11/2026',
+        time: '09:00',
+        from: 'فندق دار الايمان (مكة المكرمة)',
+        to: 'مركز مدينة المعرفة الاقتصادية (الرياض)',
+      }),
+    ]);
+
+    expect(summaries[0].madinaHotel).toBe('فندق المدينة هيلتون (المدينة)');
+    expect(summaries[0].madinaDuration).toBe('3');
+    expect(summaries[1].madinaHotel).toBe('-');
+    expect(summaries[1].madinaDuration).toBe('-');
+  });
 });

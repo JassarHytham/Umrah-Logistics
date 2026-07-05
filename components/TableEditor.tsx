@@ -44,6 +44,15 @@ const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
   'Uncompleted': { label: 'لم يكتمل', color: 'bg-purple-100 text-purple-700 border-purple-200' },
 };
 
+const getSimpleTripGroupKey = (row: LogisticsRow) => String(row.groupNo || '').trim() || row.id;
+
+export function buildSimpleViewSummaries(rows: LogisticsRow[], filteredRows: LogisticsRow[]) {
+    if (filteredRows.length === 0) return [];
+
+    const visibleGroupKeys = new Set(filteredRows.map(getSimpleTripGroupKey));
+    return buildSimpleTripSummaries(rows.filter(row => visibleGroupKeys.has(getSimpleTripGroupKey(row))));
+}
+
 export const TableEditor: React.FC<TableEditorProps> = ({ 
   rows, 
   onChange, 
@@ -174,7 +183,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         return result;
     }, [rows, filters, enableFiltering, sortConfig]);
 
-    const simpleRows = useMemo(() => buildSimpleTripSummaries(filteredRows), [filteredRows]);
+    const simpleRows = useMemo(() => buildSimpleViewSummaries(rows, filteredRows), [rows, filteredRows]);
 
     const { activeRows, pastRows } = useMemo(() => {
         const now = new Date();

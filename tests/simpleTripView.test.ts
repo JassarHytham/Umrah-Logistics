@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LogisticsRow } from '../types';
 import { buildSimpleTripSummaries } from '../utils/simpleTripView';
+import { buildSimpleViewSummaries } from '../components/TableEditor';
 
 const row = (overrides: Partial<LogisticsRow>): LogisticsRow => ({
   id: overrides.id ?? Math.random().toString(36).slice(2),
@@ -290,5 +291,53 @@ describe('buildSimpleTripSummaries', () => {
     ]);
 
     expect(summaries.map(summary => summary.groupNo)).toEqual(['G-1', 'G-2']);
+  });
+
+  it('keeps full group itineraries in simple view even when filters match only one segment', () => {
+    const allRows = [
+      row({
+        id: 'g-50-arrive',
+        groupNo: 'G-50',
+        groupName: 'مجموعة 50',
+        agency: 'الوكيل 50',
+        Column1: 'وصول',
+        date: '01/12/2026',
+        time: '07:00',
+        from: 'مطار الامير محمد (المدينة المنورة)',
+        to: 'فندق المدينة هيلتون (المدينة المنورة)',
+        status: 'Confirmed',
+      }),
+      row({
+        id: 'g-50-depart',
+        groupNo: 'G-50',
+        groupName: 'مجموعة 50',
+        agency: 'الوكيل 50',
+        Column1: 'مغادرة',
+        date: '04/12/2026',
+        time: '18:00',
+        from: 'فندق المدينة هيلتون (المدينة المنورة)',
+        to: 'مطار الملك عبد العزيز الدولي (جدة)',
+        status: 'Completed',
+      }),
+      row({
+        id: 'g-60-only',
+        groupNo: 'G-60',
+        groupName: 'مجموعة 60',
+        agency: 'الوكيل 60',
+        Column1: 'وصول',
+        date: '02/12/2026',
+        time: '09:00',
+        from: 'مطار الملك عبد العزيز الدولي (جدة)',
+        to: 'فندق دار التوحيد (مكة المكرمة)',
+      }),
+    ];
+
+    const summaries = buildSimpleViewSummaries(allRows, [allRows[0]]);
+
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0].groupNo).toBe('G-50');
+    expect(summaries[0].status).toBe('Completed');
+    expect(summaries[0].madinaDuration).toBe('3');
+    expect(summaries[0].itinerary.map(item => item.id)).toEqual(['g-50-arrive', 'g-50-depart']);
   });
 });

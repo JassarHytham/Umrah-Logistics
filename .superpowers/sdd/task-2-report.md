@@ -52,3 +52,17 @@
 ## Concerns
 
 - `npm run lint` is not clean on this branch because of unrelated pre-existing TypeScript errors outside task scope
+
+## Reviewer Fix Follow-Up
+
+- Root cause: simple-mode summaries were built from `filteredRows`, so filtering a single segment could truncate the itinerary chain used for both summary values and the details popup
+- Fix: added `buildSimpleViewSummaries(rows, filteredRows)` in `TableEditor.tsx` so simple view still shows only groups present in the filtered set, but each visible summary is rebuilt from the full row set for that group
+- Regression coverage: added a focused test that exercises the TableEditor simple-view data flow and proves a partially filtered group still keeps its full itinerary and final status
+
+### Follow-Up Verification
+
+- Ran: `npm test -- tests/simpleTripView.test.ts`
+- Result: `PASS` (`1` file, `9` tests)
+
+- Ran: `npx tsc --noEmit --pretty false --jsx react-jsx --target ESNext --lib DOM,DOM.Iterable,ESNext --module ESNext --moduleResolution Node --strict --skipLibCheck --allowSyntheticDefaultImports components/TableEditor.tsx`
+- Result: `PASS`

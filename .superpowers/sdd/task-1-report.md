@@ -23,3 +23,9 @@
 - Added a regression for airport entry followed by a later same-city hotel row.
 - Re-ran: `npm test -- tests/simpleTripView.test.ts`
 - Result: passed
+
+## Update 3
+- Fixed city-chain hotel extraction so an intercity exit row is checked on the summarized city side before the scan can stop on the other city.
+- Added a regression for the exact `from = Madina hotel` / `to = Mecca hotel` exit-row shape.
+- Re-ran: `npm test -- tests/simpleTripView.test.ts`
+- Result: passed

@@ -98,11 +98,11 @@ const getHotelForCity = (row: LogisticsRow, city: 'mecca' | 'madina') => {
 const getHotelFromCityChain = (rows: LogisticsRow[], city: 'mecca' | 'madina', startIndex: number) => {
   for (let index = startIndex; index < rows.length; index += 1) {
     const row = rows[index];
-    const rowCity = detectCity(row.to) ?? detectCity(row.from);
-    if (rowCity && rowCity !== city) break;
-
     const hotel = getHotelForCity(row, city);
     if (hotel !== '-') return hotel;
+
+    const rowTouchesCity = detectCity(row.to) === city || detectCity(row.from) === city;
+    if (!rowTouchesCity) break;
   }
 
   return '-';

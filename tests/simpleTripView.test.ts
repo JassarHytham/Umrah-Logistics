@@ -210,4 +210,39 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries[0].madinaHotel).toBe('فندق المدينة هيلتون (المدينة المنورة)');
     expect(summaries[0].madinaDuration).toBe('3');
   });
+
+  it('reads the city hotel from the correct side of an intercity exit row', () => {
+    const summaries = buildSimpleTripSummaries([
+      row({
+        id: 'arrive-madina',
+        groupNo: 'G-11',
+        Column1: 'وصول',
+        date: '05/11/2026',
+        time: '07:00',
+        from: 'مطار الامير محمد (المدينة المنورة)',
+        to: 'مطار الامير محمد (المدينة المنورة)',
+      }),
+      row({
+        id: 'intercity-exit',
+        groupNo: 'G-11',
+        Column1: 'بين المدن',
+        date: '08/11/2026',
+        time: '10:00',
+        from: 'فندق طيبة المدينة (المدينة المنورة)',
+        to: 'فندق دار التوحيد (مكة المكرمة)',
+      }),
+      row({
+        id: 'depart-mecca',
+        groupNo: 'G-11',
+        Column1: 'مغادرة',
+        date: '10/11/2026',
+        time: '18:00',
+        from: 'فندق دار التوحيد (مكة المكرمة)',
+        to: 'مطار الملك عبد العزيز الدولي (جدة)',
+      }),
+    ]);
+
+    expect(summaries[0].madinaHotel).toBe('فندق طيبة المدينة (المدينة المنورة)');
+    expect(summaries[0].meccaHotel).toBe('فندق دار التوحيد (مكة المكرمة)');
+  });
 });

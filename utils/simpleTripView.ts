@@ -10,6 +10,7 @@ export interface SimpleTripStay {
 }
 
 export interface SimpleTripSummary {
+  summaryKey: string;
   groupNo: string;
   groupName: string;
   agency: string;
@@ -187,6 +188,7 @@ export function buildSimpleTripSummaries(rows: LogisticsRow[]): SimpleTripSummar
       const madina = buildStay(itinerary, 'madina');
 
       return {
+        summaryKey: groupNo,
         groupNo: displayGroupNo,
         groupName: normalize(itinerary[0]?.groupName) || '-',
         agency: normalize(itinerary[0]?.agency) || '-',

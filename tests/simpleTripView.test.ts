@@ -386,7 +386,7 @@ describe('buildSimpleTripSummaries', () => {
     expect(summaries.map(summary => summary.groupNo)).toEqual(['G-1', 'G-2']);
   });
 
-  it('builds simple view summaries from the filtered itinerary subset so summary fields stay aligned', () => {
+  it('keeps full group itineraries in simple view even when filters match only one segment', () => {
     const allRows = [
       row({
         id: 'g-50-arrive',
@@ -429,11 +429,11 @@ describe('buildSimpleTripSummaries', () => {
 
     expect(summaries).toHaveLength(1);
     expect(summaries[0].groupNo).toBe('G-50');
-    expect(summaries[0].status).toBe('Confirmed');
+    expect(summaries[0].status).toBe('Completed');
     expect(summaries[0].entryDate).toBe('01/12/2026');
-    expect(summaries[0].leavingDate).toBe('01/12/2026');
-    expect(summaries[0].madinaDuration).toBe('-');
-    expect(summaries[0].itinerary.map(item => item.id)).toEqual(['g-50-arrive']);
+    expect(summaries[0].leavingDate).toBe('04/12/2026');
+    expect(summaries[0].madinaDuration).toBe('3');
+    expect(summaries[0].itinerary.map(item => item.id)).toEqual(['g-50-arrive', 'g-50-depart']);
   });
 
   it('renders missing group numbers as a dash instead of exposing row ids', () => {

@@ -48,7 +48,9 @@ const getSimpleTripGroupKey = (row: LogisticsRow) => String(row.groupNo || '').t
 
 export function buildSimpleViewSummaries(rows: LogisticsRow[], filteredRows: LogisticsRow[]) {
     if (filteredRows.length === 0) return [];
-    return buildSimpleTripSummaries(filteredRows);
+
+    const visibleGroupKeys = new Set(filteredRows.map(getSimpleTripGroupKey));
+    return buildSimpleTripSummaries(rows.filter(row => visibleGroupKeys.has(getSimpleTripGroupKey(row))));
 }
 
 export const TableEditor: React.FC<TableEditorProps> = ({ 
@@ -499,7 +501,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.Planned;
 
                                 return (
-                                    <tr key={summary.groupNo} className="align-top transition-colors hover:bg-blue-50/40">
+                                    <tr key={summary.summaryKey} className="align-top transition-colors hover:bg-blue-50/40">
                                         <td className={`${cellPad} ${borderCellClass}`}>
                                             <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${config.color}`}>
                                                 {config.label}

@@ -473,7 +473,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     </div>
                 </div>
             )}
-            {(isPreview || readOnly) && (
+            {showViewToggle && (isPreview || readOnly) && (
                 <div className="mb-4 flex justify-end px-1">
                     <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
                             <button

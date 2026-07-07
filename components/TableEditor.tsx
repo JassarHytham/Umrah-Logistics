@@ -31,6 +31,9 @@ interface TableEditorProps {
   wrapCells?: boolean;
   columnOrder?: string[];
   hiddenColumns?: string[];
+  viewMode?: 'detailed' | 'simple';
+  onViewModeChange?: (mode: 'detailed' | 'simple') => void;
+  showViewToggle?: boolean;
 }
 
 const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
@@ -74,6 +77,9 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   wrapCells = true,
   columnOrder,
   hiddenColumns,
+  viewMode: controlledViewMode,
+  onViewModeChange,
+  showViewToggle = true,
 }) => {
     const cellPad = density === 'comfortable' ? 'p-2' : 'p-1';
     const borderCellClass = borderStyle === 'thick' ? 'border-l-2 border-gray-400' : borderStyle === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
@@ -89,6 +95,14 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const [expandedNoteRowId, setExpandedNoteRowId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'detailed' | 'simple'>('detailed');
     const [selectedSimpleTrip, setSelectedSimpleTrip] = useState<SimpleTripSummary | null>(null);
+    const activeViewMode = controlledViewMode ?? viewMode;
+    const changeViewMode = (mode: 'detailed' | 'simple') => {
+        if (onViewModeChange) {
+            onViewModeChange(mode);
+            return;
+        }
+        setViewMode(mode);
+    };
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const tbodyId = useRef(`tbl-${Math.random().toString(36).slice(2)}`).current;
@@ -212,10 +226,10 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     }, [filters, pastRows.length]);
 
     useEffect(() => {
-        if (viewMode !== 'simple' && selectedSimpleTrip) {
+        if (activeViewMode !== 'simple' && selectedSimpleTrip) {
             setSelectedSimpleTrip(null);
         }
-    }, [viewMode, selectedSimpleTrip]);
+    }, [activeViewMode, selectedSimpleTrip]);
 
     useEffect(() => {
         if (onFilteredRowsChange) {
@@ -426,7 +440,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     return (
         <div className="relative pb-10">
-            {!isPreview && !readOnly && (
+            {!isPreview && !readOnly && showViewToggle && (
                 <div className="flex justify-between items-center mb-4 gap-3 px-1">
                     <div className="flex items-center gap-2">
                          <button 
@@ -440,18 +454,18 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
                             <button
                                 type="button"
-                                onClick={() => setViewMode('detailed')}
+                                onClick={() => changeViewMode('detailed')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                    viewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                    activeViewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                                 }`}
                             >
                                 تفصيلي
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setViewMode('simple')}
+                                onClick={() => changeViewMode('simple')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                    viewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                    activeViewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                                 }`}
                             >
                                 مبسط
@@ -462,20 +476,20 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             {(isPreview || readOnly) && (
                 <div className="mb-4 flex justify-end px-1">
                     <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('detailed')}
+                            <button
+                                type="button"
+                            onClick={() => changeViewMode('detailed')}
                             className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                viewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                activeViewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                         >
                             تفصيلي
                         </button>
                         <button
                             type="button"
-                            onClick={() => setViewMode('simple')}
+                            onClick={() => changeViewMode('simple')}
                             className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                viewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                activeViewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                         >
                             مبسط
@@ -485,7 +499,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             )}
 
             <style>{`#${tbodyId}{font-size:${tableFontSize}%}#${tbodyId} *{font-size:inherit!important}`}</style>
-            {viewMode === 'simple' ? (
+            {activeViewMode === 'simple' ? (
                 <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white min-h-[450px]">
                     <table className="w-full min-w-[1200px] border-collapse text-right text-sm">
                         <thead className="bg-gray-100 text-gray-700">

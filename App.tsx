@@ -8,7 +8,9 @@ import {
   Type, RotateCw, SlidersHorizontal,
   Loader2,
   Menu,
-  X
+  X,
+  Rows3,
+  Table2
 } from 'lucide-react';
 import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_ALERT_SETTINGS, DEFAULT_PREVIEW_SETTINGS, DEFAULT_DISPLAY_SETTINGS, DEFAULT_TELEGRAM_CONFIG, ShareInvitation, ShareAccessGrant, ShareRole, normalizeDisplaySettings } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
@@ -70,6 +72,7 @@ export default function App() {
   const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(DEFAULT_DISPLAY_SETTINGS);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [isTestingTg, setIsTestingTg] = useState(false);
+  const [tableViewMode, setTableViewMode] = useState<'detailed' | 'simple'>('detailed');
 
   const [notifiedIds, setNotifiedIds] = useState<string[]>([]);
   const notifiedIdsRef = useRef<Set<string>>(new Set());
@@ -920,6 +923,28 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                  <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setTableViewMode('detailed')}
+                      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                        tableViewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Rows3 size={16} />
+                      تفصيلي
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTableViewMode('simple')}
+                      className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
+                        tableViewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Table2 size={16} />
+                      مبسط
+                    </button>
+                  </div>
                   <button onClick={() => setIsEditing(!isEditing)} className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 sm:py-2 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center justify-center ${isEditing ? 'bg-green-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
                     {isEditing ? 'إنهاء التعديل وحفظ' : 'بدء تعديل الجدول'}
                   </button>
@@ -941,6 +966,9 @@ export default function App() {
                   wrapCells={displaySettings.wrapCells}
                   columnOrder={displaySettings.columnOrder}
                   hiddenColumns={displaySettings.hiddenColumns}
+                  viewMode={tableViewMode}
+                  onViewModeChange={setTableViewMode}
+                  showViewToggle={false}
                   enableFiltering={true}
                   onAddNewRow={addNewEmptyRow}
                   onDuplicateRow={duplicateRow}

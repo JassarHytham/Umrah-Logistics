@@ -438,24 +438,24 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                         </button>
                     </div>
                     <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('detailed')}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                viewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-                            }`}
-                        >
-                            Detailed
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('simple')}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                viewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-                            }`}
-                        >
-                            Simple
-                        </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('detailed')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                                    viewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                            >
+                                تفصيلي
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('simple')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                                    viewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                }`}
+                            >
+                                مبسط
+                            </button>
                     </div>
                 </div>
             )}

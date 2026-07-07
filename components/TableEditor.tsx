@@ -469,7 +469,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 viewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                         >
-                            Detailed
+                            تفصيلي
                         </button>
                         <button
                             type="button"
@@ -478,7 +478,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 viewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                         >
-                            Simple
+                            مبسط
                         </button>
                     </div>
                 </div>

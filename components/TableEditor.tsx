@@ -49,6 +49,29 @@ const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
 
 const getSimpleTripGroupKey = (row: LogisticsRow) => String(row.groupNo || '').trim() || row.id;
 
+type SimpleColumnKey = Exclude<keyof SimpleTripSummary, 'summaryKey' | 'itinerary'> | 'actions';
+
+const SIMPLE_COLUMNS: Array<{
+    key: SimpleColumnKey;
+    label: string;
+    widthClass: string;
+    isDate?: boolean;
+    alignDropdown?: 'left' | 'right';
+}> = [
+    { key: 'status', label: 'الحالة', widthClass: 'w-[120px]' },
+    { key: 'groupNo', label: 'رقم م', widthClass: 'w-[80px]' },
+    { key: 'groupName', label: 'اسم المجموعة', widthClass: 'w-[180px]' },
+    { key: 'agency', label: 'الوكيل', widthClass: 'w-[120px]' },
+    { key: 'entryDate', label: 'تاريخ الدخول', widthClass: 'w-[120px]', isDate: true },
+    { key: 'leavingDate', label: 'تاريخ المغادرة', widthClass: 'w-[120px]', isDate: true },
+    { key: 'totalStayDays', label: 'إجمالي أيام الإقامة', widthClass: 'w-[110px]' },
+    { key: 'meccaHotel', label: 'فندق مكة', widthClass: 'w-[160px]' },
+    { key: 'meccaDuration', label: 'مدة مكة', widthClass: 'w-[80px]' },
+    { key: 'madinaHotel', label: 'فندق المدينة', widthClass: 'w-[160px]' },
+    { key: 'madinaDuration', label: 'مدة المدينة', widthClass: 'w-[80px]' },
+    { key: 'actions', label: 'التفاصيل', widthClass: 'w-[70px]', alignDropdown: 'left' },
+];
+
 export function buildSimpleViewSummaries(rows: LogisticsRow[], filteredRows: LogisticsRow[]) {
     if (filteredRows.length === 0) return [];
 
@@ -139,16 +162,70 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         }));
     }, [columnOrder, hiddenColumns, isPreview, readOnly]);
 
+    const detailedFilterKeys = useMemo(() => new Set(headers.map(header => String(header.key))), [headers]);
+
     const dateCounts = useMemo(() => {
         const counts: Record<string, number> = {};
-        rows.forEach(row => {
-            if (row.date) {
-                const d = row.date.trim();
-                counts[d] = (counts[d] || 0) + 1;
+        if (activeViewMode === 'simple' && (activeFilterCol === 'entryDate' || activeFilterCol === 'leavingDate')) {
+            buildSimpleViewSummaries(rows, rows).forEach(summary => {
+                const date = String(summary[activeFilterCol] || '').trim();
+                if (date && date !== '-') counts[date] = (counts[date] || 0) + 1;
+            });
+        } else {
+            rows.forEach(row => {
+                if (row.date) {
+                    const d = row.date.trim();
+                    counts[d] = (counts[d] || 0) + 1;
+                }
+            });
+        }
+        return counts;
+    }, [activeFilterCol, activeViewMode, rows]);
+
+    const simpleFilterValue = (summary: SimpleTripSummary, key: string) => {
+        if (key === 'date') {
+            return summary.itinerary.map(row => String(row.date || '').trim()).filter(Boolean);
+        }
+        return String(summary[key as keyof SimpleTripSummary] || '');
+    };
+
+    const filterSimpleRows = (summaries: SimpleTripSummary[]) => (
+        summaries.filter(summary => {
+            return Object.entries(filters).every(([key, selectedValues]) => {
+                if (!selectedValues || selectedValues.length === 0) return true;
+                if (detailedFilterKeys.has(key) && !SIMPLE_COLUMNS.some(column => column.key === key)) return true;
+
+                const summaryValue = simpleFilterValue(summary, key);
+                if (Array.isArray(summaryValue)) {
+                    return summaryValue.some(value => selectedValues.includes(value));
+                }
+                return selectedValues.includes(summaryValue);
+            });
+        })
+    );
+
+    const getSimpleUniqueValues = (key: string): string[] => {
+        const values = new Set<string>();
+        buildSimpleViewSummaries(rows, rows).forEach(summary => {
+            const value = simpleFilterValue(summary, key);
+            if (Array.isArray(value)) {
+                value.forEach(item => {
+                    if (item) values.add(item);
+                });
+            } else if (value) {
+                values.add(value);
             }
         });
-        return counts;
-    }, [rows]);
+        return Array.from(values).sort();
+    };
+
+    const getFilterLabel = (key: string) => {
+        if (activeViewMode === 'simple') {
+            const simpleColumn = SIMPLE_COLUMNS.find(column => column.key === key);
+            if (simpleColumn) return simpleColumn.label;
+        }
+        return headers.find(h => h.key === key)?.label ?? key;
+    };
 
     const getUniqueValues = (key: string): string[] => {
         const values = new Set<string>(rows.map(r => String(r[key] || "")).filter((v): v is string => Boolean(v)));
@@ -161,6 +238,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             result = result.filter(row => {
                 return (Object.entries(filters) as [string, string[]][]).every(([key, selectedValues]) => {
                     if (!selectedValues || selectedValues.length === 0) return true;
+                    if (!detailedFilterKeys.has(key)) return true;
                     const cellValue = String(row[key] || "");
                     return selectedValues.includes(cellValue);
                 });
@@ -195,9 +273,13 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         }
 
         return result;
-    }, [rows, filters, enableFiltering, sortConfig]);
+    }, [rows, filters, enableFiltering, sortConfig, detailedFilterKeys]);
 
-    const simpleRows = useMemo(() => buildSimpleViewSummaries(rows, filteredRows), [rows, filteredRows]);
+    const simpleRows = useMemo(() => {
+        const summaries = buildSimpleViewSummaries(rows, filteredRows);
+        if (!enableFiltering) return summaries;
+        return filterSimpleRows(summaries);
+    }, [rows, filteredRows, enableFiltering, filters, detailedFilterKeys]);
 
     const { activeRows, pastRows } = useMemo(() => {
         const now = new Date();
@@ -233,9 +315,9 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     useEffect(() => {
         if (onFilteredRowsChange) {
-            onFilteredRowsChange(filteredRows);
+            onFilteredRowsChange(activeViewMode === 'simple' ? simpleRows.flatMap(summary => summary.itinerary) : filteredRows);
         }
-    }, [filteredRows, onFilteredRowsChange]);
+    }, [activeViewMode, filteredRows, onFilteredRowsChange, simpleRows]);
 
     const isUpcoming = (row: LogisticsRow) => {
         const now = new Date();
@@ -504,12 +586,85 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     <table className="w-full min-w-[1200px] border-collapse text-right text-sm">
                         <thead className="bg-gray-100 text-gray-700">
                             <tr>
-                                {['الحالة', 'رقم م', 'اسم المجموعة', 'الوكيل', 'تاريخ الدخول', 'تاريخ المغادرة', 'فندق مكة', 'مدة مكة', 'فندق المدينة', 'مدة المدينة', 'التفاصيل'].map(label => (
-                                    <th key={label} className={`px-3 py-3 ${borderHeaderClass}`}>{label}</th>
-                                ))}
+                                {SIMPLE_COLUMNS.map(column => {
+                                    const isColumnFiltered = filters[column.key as string] && filters[column.key as string].length > 0;
+                                    const isActive = activeFilterCol === column.key;
+                                    const dropdownAlignment = column.alignDropdown === 'left' ? 'left-0' : 'right-0';
+
+                                    return (
+                                        <th
+                                            key={column.key}
+                                            className={`px-2 py-3 ${borderHeaderClass} relative align-top ${column.widthClass}`}
+                                        >
+                                            <div className="flex items-start justify-between gap-1">
+                                                <div className="flex items-center gap-1 flex-wrap">
+                                                    <span>{column.label}</span>
+                                                    {column.isDate && <Calendar size={12} className="text-gray-400" />}
+                                                    {column.key === 'status' && <Info size={12} className="text-gray-400" />}
+                                                </div>
+                                                {enableFiltering && column.key !== 'actions' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            setActiveFilterCol(isActive ? null : column.key as string);
+                                                            setFilterSearch("");
+                                                        }}
+                                                        className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${isColumnFiltered ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`}
+                                                        title="تصفية"
+                                                    >
+                                                        <Filter size={12} fill={isColumnFiltered ? "currentColor" : "none"} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {isActive && enableFiltering && column.key !== 'actions' && (
+                                                <div
+                                                    ref={dropdownRef}
+                                                    className={`absolute top-full ${dropdownAlignment} mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-50 text-right`}
+                                                    style={{ minWidth: column.isDate ? 'auto' : '14rem', maxWidth: '90vw' }}
+                                                >
+                                                    {column.isDate ? renderCalendar(column.key as string) : (
+                                                        <>
+                                                            <div className="p-2 border-b border-gray-100">
+                                                                <div className="relative">
+                                                                    <Search size={14} className="absolute top-2 right-2 text-gray-400" />
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="بحث..."
+                                                                        value={filterSearch}
+                                                                        onChange={(event) => setFilterSearch(event.target.value)}
+                                                                        className="w-full pl-2 pr-8 py-1 text-xs border border-gray-200 rounded outline-none"
+                                                                        autoFocus
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="max-h-48 overflow-y-auto p-1 text-right">
+                                                                {getSimpleUniqueValues(column.key as string).filter(val => val.toLowerCase().includes(filterSearch.toLowerCase())).map(val => (
+                                                                    <label key={val} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={filters[column.key as string]?.includes(val) || false}
+                                                                            onChange={() => toggleFilter(column.key as string, val)}
+                                                                            className="rounded border-gray-300 text-blue-600 w-3.5 h-3.5"
+                                                                        />
+                                                                        <span className="text-xs text-gray-700 truncate">{column.key === 'status' ? STATUS_CONFIG[val as TripStatus]?.label : (val || '(فارغ)')}</span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                    <div className="p-2 border-t border-gray-100 bg-gray-50 flex justify-between">
+                                                        <button onClick={() => clearColumnFilter(column.key as string)} className="text-xs text-red-500 font-medium" disabled={!isColumnFiltered}>مسح</button>
+                                                        <button onClick={() => setActiveFilterCol(null)} className="text-xs text-blue-600 font-medium">إغلاق</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </th>
+                                    );
+                                })}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody id={tbodyId} className="divide-y divide-gray-100">
                             {simpleRows.map(summary => {
                                 const status = (summary.status || 'Planned') as TripStatus;
                                 const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.Planned;
@@ -526,6 +681,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                         <td className={`${cellPad} ${borderCellClass}`}>{summary.agency}</td>
                                         <td className={`${cellPad} ${borderCellClass}`}>{summary.entryDate}</td>
                                         <td className={`${cellPad} ${borderCellClass}`}>{summary.leavingDate}</td>
+                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.totalStayDays}</td>
                                         <td className={`${cellPad} ${borderCellClass} whitespace-normal`}>{summary.meccaHotel}</td>
                                         <td className={`${cellPad} ${borderCellClass}`}>{summary.meccaDuration}</td>
                                         <td className={`${cellPad} ${borderCellClass} whitespace-normal`}>{summary.madinaHotel}</td>
@@ -534,10 +690,11 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedSimpleTrip(summary)}
-                                                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-100"
+                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                                                title="عرض التفاصيل"
+                                                aria-label="عرض التفاصيل"
                                             >
                                                 <Eye size={14} />
-                                                عرض التفاصيل
                                             </button>
                                         </td>
                                     </tr>
@@ -726,7 +883,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                  <div className="absolute bottom-2 right-4 flex gap-2 z-10">
                     {Object.entries(filters).map(([key, vals]) => (vals as string[]).length > 0 && (
                         <span key={key} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                            {headers.find(h => h.key === key)?.label}: {(vals as string[]).length}
+                            {getFilterLabel(key)}: {(vals as string[]).length}
                             <button onClick={() => clearColumnFilter(key)}><X size={12} /></button>
                         </span>
                     ))}

@@ -73,6 +73,7 @@ describe('buildSimpleTripSummaries', () => {
       agency: 'الهدى',
       entryDate: '03/07/2026',
       leavingDate: '10/07/2026',
+      totalStayDays: '7',
       madinaHotel: 'فندق المدينة هيلتون (المدينة المنورة)',
       madinaDuration: '3',
       meccaHotel: 'فندق دار التوحيد (مكة المكرمة)',
@@ -375,6 +376,7 @@ describe('buildSimpleTripSummaries', () => {
 
     expect(summaries[0].entryDate).toBe('-');
     expect(summaries[0].leavingDate).toBe('-');
+    expect(summaries[0].totalStayDays).toBe('-');
   });
 
   it('keeps summaries sorted by earliest itinerary date', () => {

@@ -17,6 +17,7 @@ export interface SimpleTripSummary {
   status: string;
   entryDate: string;
   leavingDate: string;
+  totalStayDays: string;
   meccaHotel: string;
   meccaDuration: string;
   madinaHotel: string;
@@ -195,6 +196,7 @@ export function buildSimpleTripSummaries(rows: LogisticsRow[]): SimpleTripSummar
         status: String(pickSummaryStatus(itinerary) || 'Planned'),
         entryDate,
         leavingDate,
+        totalStayDays: entryDate !== '-' && leavingDate !== '-' ? dayDiff(entryDate, leavingDate) : '-',
         meccaHotel: mecca.hotel,
         meccaDuration: mecca.durationDays,
         madinaHotel: madina.hotel,

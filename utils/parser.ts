@@ -316,12 +316,29 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
     return "";
   };
 
+  const DATE_VALUE = /(?:\d{4}[-/]\d{1,2}[-/]\d{1,2})|(?:\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/;
+  const findArrivalDate = (block: string, arrivalIndex: number): string => {
+      const labeledDate = block.match(new RegExp(`تاريخ\\s+الوصول\\s*[\\r\\n:]*\\s*(${DATE_VALUE.source})`));
+      if (labeledDate) return labeledDate[1];
+
+      const summaryDate = text.match(new RegExp(`تاريخ\\s+الوصول\\s*\\([^)]*\\)\\s*(${DATE_VALUE.source})`));
+      if (summaryDate) return summaryDate[1];
+
+      const beforeArrival = text.substring(Math.max(0, arrivalIndex - 120), arrivalIndex);
+      const introDate = beforeArrival.match(new RegExp(`\\(\\s*(${DATE_VALUE.source})\\s*\\)\\s*$`));
+      if (introDate) return introDate[1];
+
+      const beforeDestination = block.split(/الوجهة\s*\(/)[0] || block;
+      const preDestinationDate = beforeDestination.match(DATE_VALUE);
+      return preDestinationDate ? preDestinationDate[0] : "";
+  };
+
   // Parse Arrival
   let arrivalData: Partial<LogisticsRow> | null = null;
   const arrivalIndex = text.indexOf("رحلة الوصول");
   if (arrivalIndex !== -1) {
       const block = text.substring(arrivalIndex, text.indexOf("رحلة المغادرة", arrivalIndex) === -1 ? text.length : text.indexOf("رحلة المغادرة", arrivalIndex));
-      const dateMatch = block.match(/تاريخ الوصول\s*[\r\n]*\s*([\d-/]{8,10})/) || block.match(/(\d{4}-\d{1,2}-\d{1,2})|(\d{1,2}\/\d{1,2}\/\d{4})/);
+      const arrivalDate = findArrivalDate(block, arrivalIndex);
       const arrivalTime = findLabeledTime(block, "وقت الوصول");
       const airport = findLabelValue(block, "المطار", ["الخطوط الجوية", "الصالة", "وقت الوصول", "نوع الرحلة", "استعراض الرحلات", "الوجهة"]);
 
@@ -333,7 +350,7 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
       const borderArrival = landArrival ? findBorderCrossing(block) : "";
       arrivalData = {
           Column1: "وصول",
-          date: dateMatch ? formatDate(dateMatch[0]) : (firstDest?.startDate || ""),
+          date: arrivalDate ? formatDate(arrivalDate) : (firstDest?.startDate || ""),
           time: arrivalTime,
           flight: landArrival ? "النقل البري" : findFlight(block),
           from: landArrival

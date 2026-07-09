@@ -28,6 +28,7 @@ const isTestEnv = process.env.VITEST === "true" || process.env.NODE_ENV === "tes
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_ISSUER = process.env.JWT_ISSUER || "umrah-logistics";
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "umrah-logistics-web";
+const JWT_REFRESH_AUDIENCE = `${JWT_AUDIENCE}-refresh`;
 const LEGACY_INSECURE_JWT_SECRET = "umrah-secret-key-2026";
 
 if (!JWT_SECRET || JWT_SECRET === LEGACY_INSECURE_JWT_SECRET) {
@@ -632,6 +633,24 @@ const signAuthToken = (user: { id: number; username: string }) =>
     },
   );
 
+const signRefreshToken = (user: { id: number; username: string }) =>
+  jwt.sign(
+    { id: Number(user.id), username: user.username, type: "refresh" },
+    jwtSecret,
+    {
+      expiresIn: "30d",
+      issuer: JWT_ISSUER,
+      audience: JWT_REFRESH_AUDIENCE,
+      algorithm: "HS256",
+    },
+  );
+
+const authResponse = (user: { id: number; username: string }) => ({
+  token: signAuthToken(user),
+  refreshToken: signRefreshToken(user),
+  user: { id: Number(user.id), username: user.username },
+});
+
 app.post("/api/auth/register", async (req, res) => {
   const username = normalizeUsername(req.body?.username);
   const { password } = req.body;
@@ -644,8 +663,7 @@ app.post("/api/auth/register", async (req, res) => {
     const info = stmt.run(username, hashedPassword);
 
     const userId = Number(info.lastInsertRowid);
-    const token = signAuthToken({ id: userId, username });
-    res.json({ token, user: { id: userId, username } });
+    res.json(authResponse({ id: userId, username }));
   } catch (err: any) {
     if (err.code?.includes("SQLITE_CONSTRAINT")) {
       res.status(400).json({ error: "Username already exists" });
@@ -665,8 +683,35 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  const token = signAuthToken({ id: Number(user.id), username: user.username });
-  res.json({ token, user: { id: Number(user.id), username: user.username } });
+  res.json(authResponse({ id: Number(user.id), username: user.username }));
+});
+
+app.post("/api/auth/refresh", (req, res) => {
+  const refreshToken = req.body?.refreshToken;
+  if (typeof refreshToken !== "string" || !refreshToken) {
+    return res.status(401).json({ error: "Invalid refresh token" });
+  }
+
+  try {
+    const payload = jwt.verify(refreshToken, jwtSecret, {
+      issuer: JWT_ISSUER,
+      audience: JWT_REFRESH_AUDIENCE,
+      algorithms: ["HS256"],
+    }) as jwt.JwtPayload;
+
+    if (payload.type !== "refresh" || !Number.isInteger(Number(payload.id))) {
+      return res.status(401).json({ error: "Invalid refresh token" });
+    }
+
+    const user = db.prepare("SELECT id, username FROM users WHERE id = ?").get(Number(payload.id)) as
+      | { id: number; username: string }
+      | undefined;
+    if (!user) return res.status(401).json({ error: "Invalid refresh token" });
+
+    return res.json(authResponse(user));
+  } catch {
+    return res.status(401).json({ error: "Invalid refresh token" });
+  }
 });
 
 // Data Routes

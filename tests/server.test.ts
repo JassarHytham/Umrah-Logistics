@@ -153,6 +153,39 @@ describe('POST /api/auth/login', () => {
       username: TEST_USER.username,
     });
   });
+
+  it('issues a refresh token that can renew an expired access session', async () => {
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send(TEST_USER);
+
+    expect(login.body.refreshToken).toEqual(expect.any(String));
+
+    const refreshed = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: login.body.refreshToken });
+
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.token).toEqual(expect.any(String));
+    expect(refreshed.body.refreshToken).toEqual(expect.any(String));
+
+    const data = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${refreshed.body.token}`);
+    expect(data.status).toBe(200);
+  });
+
+  it('rejects an access token at the refresh endpoint', async () => {
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send(TEST_USER);
+
+    const res = await request(app)
+      .post('/api/auth/refresh')
+      .send({ refreshToken: login.body.token });
+
+    expect(res.status).toBe(401);
+  });
 });
 
 // ─────────────────────────────────────────────

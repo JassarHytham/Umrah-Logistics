@@ -4,6 +4,7 @@
 
 const STORAGE_KEY_URL   = 'umrah_server_url';
 const STORAGE_KEY_TOKEN = 'umrah_token';
+const STORAGE_KEY_REFRESH_TOKEN = 'umrah_refresh_token';
 const STORAGE_KEY_GROUP = 'umrah_last_group';
 
 // ── DOM refs ───────────────────────────────────────────
@@ -59,7 +60,7 @@ async function init() {
   }
 
   const stored = await chrome.storage.local.get([
-    STORAGE_KEY_URL, STORAGE_KEY_TOKEN, STORAGE_KEY_GROUP, 'umrah_autofill'
+    STORAGE_KEY_URL, STORAGE_KEY_TOKEN, STORAGE_KEY_REFRESH_TOKEN, STORAGE_KEY_GROUP, 'umrah_autofill'
   ]);
 
   serverUrl = stored[STORAGE_KEY_URL] || 'http://localhost:3000';
@@ -82,7 +83,7 @@ async function init() {
     groupCount.value = g.groupCount || '';
   }
 
-  if (authToken) {
+  if (authToken || stored[STORAGE_KEY_REFRESH_TOKEN]) {
     showCaptureView();
     if (autofillFresh) {
       captureHint.textContent = `✅ تم اكتشاف المجموعة تلقائياً: ${autofill.groupNo} — ${autofill.groupName}`;
@@ -226,7 +227,11 @@ loginBtn.addEventListener('click', async () => {
     if (!res.ok) { showLoginError(data.error || 'فشل تسجيل الدخول'); return; }
     serverUrl = url;
     authToken  = data.token;
-    await chrome.storage.local.set({ [STORAGE_KEY_URL]: serverUrl, [STORAGE_KEY_TOKEN]: authToken });
+    await chrome.storage.local.set({
+      [STORAGE_KEY_URL]: serverUrl,
+      [STORAGE_KEY_TOKEN]: authToken,
+      [STORAGE_KEY_REFRESH_TOKEN]: data.refreshToken
+    });
     showCaptureView();
     setStatus('connected');
   } catch {
@@ -237,7 +242,7 @@ loginBtn.addEventListener('click', async () => {
 });
 
 logoutBtn.addEventListener('click', async () => {
-  await chrome.storage.local.remove([STORAGE_KEY_TOKEN]);
+  await chrome.storage.local.remove([STORAGE_KEY_TOKEN, STORAGE_KEY_REFRESH_TOKEN]);
   authToken = '';
   serverUrlInput.value = serverUrl;
   loginPassword.value = '';
@@ -509,7 +514,7 @@ async function doSend(overwrite) {
     updateSendButton();
   } catch (err) {
     if (err.message?.includes('401')) {
-      await chrome.storage.local.remove([STORAGE_KEY_TOKEN]);
+      await chrome.storage.local.remove([STORAGE_KEY_TOKEN, STORAGE_KEY_REFRESH_TOKEN]);
       authToken = '';
       showLoginView();
       return;
@@ -565,18 +570,50 @@ function renderResults(rows) {
 //  API helper
 // ══════════════════════════════════════════════════════
 async function fetchApi(path, method = 'GET', body = null) {
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }
+  const makeRequest = () => {
+    const opts = {
+      method,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }
+    };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(`${serverUrl}${path}`, opts);
   };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`${serverUrl}${path}`, opts);
+
+  let res = await makeRequest();
+  if (res.status === 401 && await refreshAccessToken()) {
+    res = await makeRequest();
+  }
   if (res.status === 401) throw new Error('401 Unauthorized');
   const ct = res.headers.get('content-type') || '';
   if (!ct.includes('application/json')) throw new Error('الخادم لم يرد بـ JSON');
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
+}
+
+async function refreshAccessToken() {
+  const stored = await chrome.storage.local.get([STORAGE_KEY_REFRESH_TOKEN]);
+  const refreshToken = stored[STORAGE_KEY_REFRESH_TOKEN];
+  if (!refreshToken) return false;
+
+  try {
+    const res = await fetch(`${serverUrl}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.token || !data.refreshToken) return false;
+    authToken = data.token;
+    await chrome.storage.local.set({
+      [STORAGE_KEY_TOKEN]: data.token,
+      [STORAGE_KEY_REFRESH_TOKEN]: data.refreshToken
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ══════════════════════════════════════════════════════

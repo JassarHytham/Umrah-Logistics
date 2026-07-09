@@ -35,6 +35,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
 (function () {
   const URL_KEY      = 'umrah_server_url';
   const TOKEN_KEY    = 'umrah_token';
+  const REFRESH_TOKEN_KEY = 'umrah_refresh_token';
   const AUTOFILL_KEY = 'umrah_autofill';
   const GROUP_KEY    = 'umrah_active_group';
   const STATUS_KEY   = 'umrah_auto_status';
@@ -72,14 +73,46 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   }
 
   async function apiBase() {
-    const s = await get([URL_KEY, TOKEN_KEY]);
-    return { url: (s[URL_KEY] || '').replace(/\/$/, ''), token: s[TOKEN_KEY] || '' };
+    const s = await get([URL_KEY, TOKEN_KEY, REFRESH_TOKEN_KEY]);
+    return {
+      url: (s[URL_KEY] || '').replace(/\/$/, ''),
+      token: s[TOKEN_KEY] || '',
+      refreshToken: s[REFRESH_TOKEN_KEY] || ''
+    };
+  }
+
+  async function refreshAccessToken(base) {
+    if (!base.refreshToken) return false;
+    try {
+      const res = await fetch(`${base.url}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: base.refreshToken })
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data.token || !data.refreshToken) return false;
+      base.token = data.token;
+      base.refreshToken = data.refreshToken;
+      await set({ [TOKEN_KEY]: data.token, [REFRESH_TOKEN_KEY]: data.refreshToken });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function fetchWithAuth(base, path, options = {}) {
+    const request = () => fetch(`${base.url}${path}`, {
+      ...options,
+      headers: { ...options.headers, 'Authorization': `Bearer ${base.token}` }
+    });
+    let res = await request();
+    if (res.status === 401 && await refreshAccessToken(base)) res = await request();
+    return res;
   }
 
   async function checkDuplicate(base, groupNo) {
-    const res = await fetch(`${base.url}/api/check/group/${encodeURIComponent(groupNo)}`, {
-      headers: { 'Authorization': `Bearer ${base.token}` }
-    });
+    const res = await fetchWithAuth(base, `/api/check/group/${encodeURIComponent(groupNo)}`);
     if (res.status === 401) return { auth: false };
     if (!res.ok) return { auth: true, exists: false, count: 0 };
     const data = await res.json().catch(() => ({}));
@@ -87,9 +120,9 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   }
 
   async function ingest(base, group, text, overwrite) {
-    const res = await fetch(`${base.url}/api/ingest/text`, {
+    const res = await fetchWithAuth(base, '/api/ingest/text', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${base.token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text, groupNo: group.groupNo, groupName: group.groupName,
         agency: group.agency || '',
@@ -104,7 +137,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
 
   async function doSend(group, text, hash, overwrite) {
     const base = await apiBase();
-    if (!base.token) { setStatus('login-required'); badge('!', '#dc2626'); return { result: 'login-required' }; }
+    if (!base.token && !(await refreshAccessToken(base))) { setStatus('login-required'); badge('!', '#dc2626'); return { result: 'login-required' }; }
     const r = await ingest(base, group, text, overwrite);
     if (!r.auth) { setStatus('login-required'); badge('!', '#dc2626'); return { result: 'login-required' }; }
     if (!r.ok)   { setStatus('error', r.message); badge('!', '#dc2626'); return { result: 'error', message: r.message }; }
@@ -133,7 +166,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
         if (!group || !group.groupNo || !group.groupName) { setStatus('no-group'); sendResponse({ result: 'no-group' }); return; }
         if (!group.count) { setStatus('missing-count'); sendResponse({ result: 'missing-count' }); return; }
         const base = await apiBase();
-        if (!base.token) { setStatus('login-required'); badge('!', '#dc2626'); sendResponse({ result: 'login-required' }); return; }
+        if (!base.token && !(await refreshAccessToken(base))) { setStatus('login-required'); badge('!', '#dc2626'); sendResponse({ result: 'login-required' }); return; }
         setStatus('sending');
         const dup = await checkDuplicate(base, group.groupNo).catch(() => ({ auth: true, exists: false, count: 0 }));
         if (dup.auth === false) { setStatus('login-required'); badge('!', '#dc2626'); sendResponse({ result: 'login-required' }); return; }

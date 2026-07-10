@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LogisticsRow } from '../types';
 import { buildSimpleTripSummaries } from '../utils/simpleTripView';
-import { buildSimpleViewSummaries } from '../components/TableEditor';
+import { buildSimpleViewSummaries, getSimpleViewColumns } from '../components/TableEditor';
 
 const row = (overrides: Partial<LogisticsRow>): LogisticsRow => ({
   id: overrides.id ?? Math.random().toString(36).slice(2),
@@ -22,6 +22,17 @@ const row = (overrides: Partial<LogisticsRow>): LogisticsRow => ({
 });
 
 describe('buildSimpleTripSummaries', () => {
+  it('applies shared detailed-table column visibility and order to simple view columns', () => {
+    const columns = getSimpleViewColumns(
+      ['groupName', 'status', 'groupNo', 'agency', 'actions'],
+      ['agency'],
+    );
+
+    expect(columns.slice(0, 3).map(column => column.key)).toEqual(['groupName', 'status', 'groupNo']);
+    expect(columns.map(column => column.key)).not.toContain('agency');
+    expect(columns.at(-1)?.key).toBe('actions');
+  });
+
   it('collapses one group into one simple row and ignores enrichment for duration math', () => {
     const rows: LogisticsRow[] = [
       row({

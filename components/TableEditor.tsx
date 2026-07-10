@@ -72,6 +72,32 @@ const SIMPLE_COLUMNS: Array<{
     { key: 'actions', label: 'التفاصيل', widthClass: 'w-[70px]', alignDropdown: 'left' },
 ];
 
+const SIMPLE_COLUMN_BY_KEY = new Map(SIMPLE_COLUMNS.map(column => [column.key, column]));
+const SIMPLE_SHARED_ACTION_KEY: SimpleColumnKey = 'actions';
+
+export function getSimpleViewColumns(columnOrder?: string[], hiddenColumns?: string[]) {
+    const hidden = new Set(hiddenColumns ?? []);
+    const configuredOrder = columnOrder ?? DEFAULT_COLUMN_ORDER;
+    const columns: typeof SIMPLE_COLUMNS = [];
+    const addColumn = (key: string) => {
+        const column = SIMPLE_COLUMN_BY_KEY.get(key as SimpleColumnKey);
+        if (!column || hidden.has(key) || columns.some(existing => existing.key === column.key)) return;
+        columns.push(column);
+    };
+
+    configuredOrder
+        .filter(key => key !== SIMPLE_SHARED_ACTION_KEY)
+        .forEach(addColumn);
+
+    SIMPLE_COLUMNS
+        .filter(column => !DEFAULT_COLUMN_ORDER.includes(column.key) && column.key !== SIMPLE_SHARED_ACTION_KEY)
+        .forEach(column => addColumn(column.key));
+
+    addColumn(SIMPLE_SHARED_ACTION_KEY);
+
+    return columns;
+}
+
 export function buildSimpleViewSummaries(rows: LogisticsRow[], filteredRows: LogisticsRow[]) {
     if (filteredRows.length === 0) return [];
 
@@ -280,6 +306,11 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         if (!enableFiltering) return summaries;
         return filterSimpleRows(summaries);
     }, [rows, filteredRows, enableFiltering, filters, detailedFilterKeys]);
+
+    const simpleColumns = useMemo(
+        () => getSimpleViewColumns(columnOrder, hiddenColumns),
+        [columnOrder, hiddenColumns],
+    );
 
     const { activeRows, pastRows } = useMemo(() => {
         const now = new Date();
@@ -520,6 +551,45 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         );
     };
 
+    const renderSimpleCellContent = (summary: SimpleTripSummary, column: ReturnType<typeof getSimpleViewColumns>[number]) => {
+        if (column.key === 'actions') {
+            return (
+                <div className="flex items-center justify-center">
+                    <button
+                        type="button"
+                        onClick={() => setSelectedSimpleTrip(summary)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                        title="عرض التفاصيل"
+                        aria-label="عرض التفاصيل"
+                    >
+                        <Eye size={14} />
+                    </button>
+                </div>
+            );
+        }
+
+        if (column.key === 'status') {
+            const status = (summary.status || 'Planned') as TripStatus;
+            const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.Planned;
+            return (
+                <div className="space-y-1">
+                    <div
+                        className={`w-full px-2 py-1 rounded-full text-[10px] font-bold border text-center transition-all ${config.color}`}
+                    >
+                        {config.label}
+                    </div>
+                </div>
+            );
+        }
+
+        const value = String(summary[column.key as keyof SimpleTripSummary] || '');
+        return (
+            <div className={`px-2 py-1.5 text-xs text-gray-800 break-words ${wrapCells ? 'whitespace-normal' : 'whitespace-nowrap'} w-full`}>
+                {value}
+            </div>
+        );
+    };
+
     return (
         <div className="relative pb-10">
             {!isPreview && !readOnly && showViewToggle && (
@@ -582,11 +652,11 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
             <style>{`#${tbodyId}{font-size:${tableFontSize}%}#${tbodyId} *{font-size:inherit!important}`}</style>
             {activeViewMode === 'simple' ? (
-                <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white min-h-[450px]">
-                    <table className="w-full min-w-[1200px] border-collapse text-right text-sm">
-                        <thead className="bg-gray-100 text-gray-700">
+                <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
+                    <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
+                        <thead className="bg-gray-100 text-gray-700 font-medium">
                             <tr>
-                                {SIMPLE_COLUMNS.map(column => {
+                                {simpleColumns.map(column => {
                                     const isColumnFiltered = filters[column.key as string] && filters[column.key as string].length > 0;
                                     const isActive = activeFilterCol === column.key;
                                     const dropdownAlignment = column.alignDropdown === 'left' ? 'left-0' : 'right-0';
@@ -666,37 +736,15 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                         </thead>
                         <tbody id={tbodyId} className="divide-y divide-gray-100">
                             {simpleRows.map(summary => {
-                                const status = (summary.status || 'Planned') as TripStatus;
-                                const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.Planned;
+                                const hasNote = summary.itinerary.some(row => Boolean(row.notes));
 
                                 return (
-                                    <tr key={summary.summaryKey} className="align-top transition-colors hover:bg-blue-50/40">
-                                        <td className={`${cellPad} ${borderCellClass}`}>
-                                            <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${config.color}`}>
-                                                {config.label}
-                                            </span>
-                                        </td>
-                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.groupNo}</td>
-                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.groupName}</td>
-                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.agency}</td>
-                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.entryDate}</td>
-                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.leavingDate}</td>
-                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.totalStayDays}</td>
-                                        <td className={`${cellPad} ${borderCellClass} whitespace-normal`}>{summary.meccaHotel}</td>
-                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.meccaDuration}</td>
-                                        <td className={`${cellPad} ${borderCellClass} whitespace-normal`}>{summary.madinaHotel}</td>
-                                        <td className={`${cellPad} ${borderCellClass}`}>{summary.madinaDuration}</td>
-                                        <td className={`${cellPad} ${borderCellClass} last:border-l-0`}>
-                                            <button
-                                                type="button"
-                                                onClick={() => setSelectedSimpleTrip(summary)}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
-                                                title="عرض التفاصيل"
-                                                aria-label="عرض التفاصيل"
-                                            >
-                                                <Eye size={14} />
-                                            </button>
-                                        </td>
+                                    <tr key={summary.summaryKey} className={`align-top transition-colors hover:bg-blue-50/40 ${noteHighlightEnabled && hasNote ? NOTE_ROW_BG[noteHighlightColor] : ''}`}>
+                                        {simpleColumns.map((column, index) => (
+                                            <td key={column.key} className={`${cellPad} ${borderCellClass} ${index === simpleColumns.length - 1 ? 'last:border-l-0' : ''}`}>
+                                                {renderSimpleCellContent(summary, column)}
+                                            </td>
+                                        ))}
                                     </tr>
                                 );
                             })}

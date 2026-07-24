@@ -52,6 +52,7 @@ const STATUS_OPTIONS: { value: TripStatus; label: string }[] = [
   { value: 'Delayed',         label: 'متأخر' },
   { value: 'Cancelled',       label: 'ملغي' },
   { value: 'Uncompleted',     label: 'لم يكتمل' },
+  { value: 'Hosting',         label: 'استضافة' },
 ];
 
 const NOTE_ROW_COLORS: Record<string, string> = {

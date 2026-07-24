@@ -36,7 +36,7 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2,
 
 const STATUS_LABELS: Record<TripStatus, string> = {
   'Planned': 'مخطط', 'Confirmed': 'مؤكد', 'Driver Assigned': 'تم تعيين السائق',
-  'In Progress': 'قيد التنفيذ', 'Completed': 'مكتمل', 'Delayed': 'متأخر', 'Cancelled': 'ملغي', 'Uncompleted': 'لم يكتمل',
+  'In Progress': 'قيد التنفيذ', 'Completed': 'مكتمل', 'Delayed': 'متأخر', 'Cancelled': 'ملغي', 'Uncompleted': 'لم يكتمل', 'Hosting': 'استضافة',
 };
 
 const isEnrichmentTrip = (row: LogisticsRow) => row.Column1 === 'الخدمات الإثرائية';

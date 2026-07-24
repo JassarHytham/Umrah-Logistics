@@ -91,7 +91,10 @@
     const root = snapshotRoot(rootOverride || tripRoot());
     if (!root) return;
     const text = extractText(root);
-    if (!L.isValidSnapshot(text)) return;
+    if (!L.isValidSnapshot(text)) {
+      console.log('[Umrah][auto-capture] snapshot rejected as invalid (len=' + text.length + '):', text.slice(0, 200));
+      return;
+    }
     snapshot = { text, hash: L.fnv1aHash(text) };
     setStatus('monitoring', 'captured');
   }
@@ -139,17 +142,27 @@
 
   // ── Finalize: send latest snapshot when leaving the page ─
   async function finalize() {
-    if (!enabled || !snapshot) return;
+    if (!enabled || !snapshot) {
+      console.log('[Umrah][auto-capture] finalize skipped: no valid snapshot was captured before leaving the page (enabled=' + enabled + ')');
+      return;
+    }
     const snap = snapshot;
     snapshot = null;                                  // consume; avoid double-send
     const store = await chrome.storage.local.get([LASTSENT_KEY]);
-    if (store[LASTSENT_KEY] === snap.hash) return;    // unchanged → skip
+    if (store[LASTSENT_KEY] === snap.hash) {
+      console.log('[Umrah][auto-capture] finalize skipped: snapshot identical to last-sent hash', snap.hash);
+      return;    // unchanged → skip
+    }
 
     setStatus('finalizing');
     let res;
     try {
       res = await chrome.runtime.sendMessage({ type: 'UMRAH_AUTO_FINALIZE', text: snap.text, hash: snap.hash });
-    } catch (_) { setStatus('error', 'background unavailable'); return; }
+    } catch (err) {
+      console.log('[Umrah][auto-capture] finalize failed: background unavailable', err);
+      setStatus('error', 'background unavailable'); return;
+    }
+    console.log('[Umrah][auto-capture] finalize response:', res);
     if (!res) { setStatus('error', 'no response'); return; }
 
     if (res.result === 'duplicate') {

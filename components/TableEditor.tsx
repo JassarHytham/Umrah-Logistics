@@ -497,13 +497,16 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         if (h.key === 'status') {
             const status = (row.status || 'Planned') as TripStatus;
             const config = STATUS_CONFIG[status];
+            // Status changes are always allowed, even outside table-wide edit mode —
+            // only a genuine shared "viewer" restriction should lock it.
+            const statusLocked = row._sharing?.role === 'viewer';
             return (
                 <div className="space-y-1">
                     <select
                         value={status}
                         onChange={(e) => onChange(row.id, 'status', e.target.value)}
-                        disabled={rowReadOnly}
-                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all text-center ${rowReadOnly ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
+                        disabled={statusLocked}
+                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all text-center ${statusLocked ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
                     >
                         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                             <option key={key} value={key} className="bg-white text-gray-800 text-xs font-normal">{cfg.label}</option>
@@ -571,7 +574,9 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         if (column.key === 'status') {
             const status = (summary.status || 'Planned') as TripStatus;
             const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.Planned;
-            const summaryReadOnly = readOnly || summary.itinerary.some(row => row._sharing?.role === 'viewer');
+            // Status changes are always allowed, even outside table-wide edit mode —
+            // only a genuine shared "viewer" restriction should lock it.
+            const statusLocked = summary.itinerary.some(row => row._sharing?.role === 'viewer');
             return (
                 <div className="space-y-1">
                     <select
@@ -580,8 +585,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             const value = e.target.value;
                             summary.itinerary.forEach(row => onChange(row.id, 'status', value));
                         }}
-                        disabled={summaryReadOnly}
-                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all text-center ${summaryReadOnly ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
+                        disabled={statusLocked}
+                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all text-center ${statusLocked ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
                     >
                         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                             <option key={key} value={key} className="bg-white text-gray-800 text-xs font-normal">{cfg.label}</option>

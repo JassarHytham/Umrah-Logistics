@@ -7,6 +7,7 @@ export const AIRPORT_MAP_EN: Record<string, string> = {
   "King Abdulaziz International Airport": "Jeddah",
   "JED": "Jeddah",
   "Prince Mohammed Bin Abdulaziz Airport": "Madinah", // UNVERIFIED label text
+  "Prince Mohammad International Airport": "Madinah",
   "MED": "Madinah",
   "Taif Airport": "Taif", // UNVERIFIED label text
   "Jeddah": "Jeddah",
@@ -82,12 +83,17 @@ export const parseItineraryTextEN = (text: string, groupInfo: GroupInfo): Logist
   const extractEnrichmentServices = (blockText: string): { name: string; date: string; time: string }[] => {
     const services: { name: string; date: string; time: string }[] = [];
     const enrichmentLabel = /Enrichment Services/;
+    // The live portal doesn't always render the "Enrichment Services" section
+    // title — some captures go straight to the bare column-header row, so
+    // that row is the reliable fallback anchor.
+    const enrichmentHeaderRow = /Service\s*\n\s*Service Type\s*\n\s*Visit Date\s*\n\s*Time\s*\n\s*Guide\s*\n\s*Price/;
     const enrichmentType = /(?:Historical Sites|Enrichment Destinations)/;
     const cleanServiceName = (raw: string): string => raw
       .replace(new RegExp(`\\s*(?:${enrichmentType.source})\\s*$`), "")
       .replace(/(?:^|\s)\d+\s*SAR\s*/g, "")
       .trim();
-    const enrichmentStart = blockText.search(enrichmentLabel);
+    let enrichmentStart = blockText.search(enrichmentLabel);
+    if (enrichmentStart === -1) enrichmentStart = blockText.search(enrichmentHeaderRow);
     if (enrichmentStart === -1) return services;
 
     const enrichmentText = blockText

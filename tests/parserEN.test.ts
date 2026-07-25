@@ -62,6 +62,10 @@ describe('normalizeCityEN', () => {
     expect(normalizeCityEN('MED')).toBe('Madinah');
   });
 
+  it('maps "Prince Mohammad International Airport" to "Madinah"', () => {
+    expect(normalizeCityEN('Prince Mohammad International Airport')).toBe('Madinah');
+  });
+
   it('maps "Medina" to "Madinah"', () => {
     expect(normalizeCityEN('Medina')).toBe('Madinah');
   });
@@ -307,5 +311,106 @@ Departure Time
     expect(intercity?.from).toBe('Madinah Hilton Hotel (Madinah)');
     expect(intercity?.to).toBe('Dar Al Tawhid Intercontinental Hotel (Makkah)');
     expect(intercity?.time).toBe('10:00');
+  });
+
+  // Real extension capture: the live portal never renders an "Enrichment
+  // Services" (or "Additional Services") section title — only the bare
+  // column-header row appears directly after the hotel table row.
+  it('creates an enrichment service row when no "Enrichment Services" section title is present', () => {
+    const realCaptureText = `Trip Information
+Note: The program must be at least one day or more
+(09/08/2026) Arrival Journey
+Travel Method
+Arrival Date
+2026-08-09
+Transport Method
+Air Transport Sea Transport Land Transport
+Coming From
+Egypt, Cairo
+Going to
+Saudi Arabia, Madina
+Flight Number
+MS-0675
+Airport
+Prince Mohammad International Airport
+Airlines
+EGYPT AIR
+Terminal
+T1
+Arrival Time
+01:20
+Type of Trip
+Scheduled Flight
+Browse Journeys
+Destination (Makkah) (2026-08-09 - 2026-08-29)
+Hotels
+Hotel / Host Name
+Entrance Date
+Exit Date
+Duration Of Stay
+Room Capacity
+Price
+iklil aldiyafa Company To operate hotels
+08/09/2026
+08/29/2026
+20
+4
+410 SAR
+Service
+Service Type
+Visit Date
+Time
+Guide
+Price
+Mount An-Nur and Hira Cave
+Historical Sites
+2026-08-28
+08:13:00
+HAYTHAM
+15 SAR
+Details
+Price
+MAZRAT
+20 SAR
+Add trip station
+(29/08/2026) Departure Journey
+Travel Method
+Departure Date
+2026-08-29
+Transport Method
+Air Transport Sea Transport Land Transport
+leaving from
+Saudi Arabia, Madina
+Going to
+Egypt, Cairo
+Flight Number
+MS-0676
+Airport
+Prince Mohammad International Airport
+Airlines
+EGYPT AIR
+Terminal
+T1
+Departure Time
+02:20
+Type of Trip
+Scheduled Flight
+Browse Journeys
+Back Next
+Trip Information Summary
+Trip Route
+Arrival Date (Air Transport)
+9-8-2026
+Trip Stations
+Makkah
+Departure Date (Air Transport)
+29-8-2026`;
+
+    const rows = parseItineraryTextEN(realCaptureText, groupInfo);
+    const service = rows.find(r => r.to === 'Mount An-Nur and Hira Cave');
+    expect(service).toBeDefined();
+    expect(service?.from).toBe('iklil aldiyafa Company To operate hotels (Makkah)');
+    expect(service?.date).toBe('28/08/2026');
+    expect(service?.time).toBe('08:13:00');
   });
 });

@@ -42,7 +42,9 @@
   function isValidSnapshot(text) {
     const t = String(text == null ? '' : text);
     if (t.trim().length < 80) return false;
-    if (t.indexOf('رحلة الوصول') === -1 || t.indexOf('رحلة المغادرة') === -1) return false;
+    const hasArabicMarkers = t.indexOf('رحلة الوصول') !== -1 && t.indexOf('رحلة المغادرة') !== -1;
+    const hasEnglishMarkers = t.indexOf('Arrival Journey') !== -1 && t.indexOf('Departure Journey') !== -1;
+    if (!hasArabicMarkers && !hasEnglishMarkers) return false;
     return /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2}/.test(t);
   }
 

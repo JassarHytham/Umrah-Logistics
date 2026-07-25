@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_ALERT_SETTINGS, DEFAULT_PREVIEW_SETTINGS, DEFAULT_DISPLAY_SETTINGS, DEFAULT_TELEGRAM_CONFIG, ShareInvitation, ShareAccessGrant, ShareRole, normalizeDisplaySettings } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
+import { parseItineraryTextEN } from './utils/parserEN';
+import { detectCaptureLang } from './utils/langDetect';
 import { getLocalDateString } from './utils/date';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
@@ -354,7 +356,7 @@ export default function App() {
       showNotification("يرجى تعبئة البيانات الأساسية", "error");
       return;
     }
-    const rows = parseItineraryText(inputs.text, {
+    const rows = (detectCaptureLang(inputs.text) === 'ar' ? parseItineraryText : parseItineraryTextEN)(inputs.text, {
       groupNo: inputs.groupNo,
       groupName: inputs.groupName,
       agency: inputs.agency || '',

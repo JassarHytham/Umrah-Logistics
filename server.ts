@@ -14,6 +14,8 @@ import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import { parseDateTime, parseItineraryText } from "./utils/parser.js";
+import { parseItineraryTextEN } from "./utils/parserEN.js";
+import { detectCaptureLang } from "./utils/langDetect.js";
 import { DEFAULT_ALERT_SETTINGS } from "./types.js";
 
 dotenv.config();
@@ -1446,7 +1448,7 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     return res.status(400).json({ error: "بيانات المجموعة مطلوبة (رقم، اسم، عدد)" });
 
   try {
-    const newRows = parseItineraryText(textValue, {
+    const newRows = (detectCaptureLang(textValue) === 'ar' ? parseItineraryText : parseItineraryTextEN)(textValue, {
       groupNo: groupNoValue,
       groupName: groupNameValue,
       agency: agencyValue,

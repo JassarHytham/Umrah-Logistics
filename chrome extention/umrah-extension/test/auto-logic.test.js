@@ -45,6 +45,15 @@ test('isValidSnapshot false when arrival and departure headers exist but no date
   assert.strictEqual(isValidSnapshot(text), false);
 });
 
+test('isValidSnapshot true for English-mode captures with both journey markers and a date', () => {
+  const text = 'Arrival Journey '.repeat(6) + 'Arrival Date: 2026-07-08\n' + 'Departure Journey '.repeat(6);
+  assert.strictEqual(isValidSnapshot(text), true);
+});
+
+test('isValidSnapshot false for English-mode capture when a marker is missing', () => {
+  assert.strictEqual(isValidSnapshot('Arrival Journey '.repeat(20)), false);
+});
+
 test('extractGroupRowData captures agency from eaName cell', () => {
   const cells = {
     groupNumber: '480900139756',

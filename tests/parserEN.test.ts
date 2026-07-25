@@ -413,4 +413,146 @@ Departure Date (Air Transport)
     expect(service?.date).toBe('28/08/2026');
     expect(service?.time).toBe('08:13:00');
   });
+
+  // Real extension capture: a multi-destination itinerary where a service's
+  // "Enrichment Destinations" type label contains the substring "Destination",
+  // which previously collided with the destination-block boundary search and
+  // truncated the block before the enrichment rows could be parsed.
+  it('creates enrichment service rows across multiple destinations when a service type contains "Destination"', () => {
+    const realCaptureText = `Trip Information
+Note: The program must be at least one day or more
+(05/08/2026) Arrival Journey
+Travel Method
+Arrival Date
+2026-08-05
+Transport Method
+Air Transport Sea Transport Land Transport
+Coming From
+Egypt, Cairo
+Going to
+Saudi Arabia, Madina
+Flight Number
+MS-0677
+Airport
+Prince Mohammad International Airport
+Airlines
+EGYPT AIR
+Terminal
+T1
+Arrival Time
+19:30
+Type of Trip
+Scheduled Flight
+Browse Journeys
+Destination (Madina) (2026-08-05 - 2026-08-10)
+Hotels
+Hotel / Host Name
+Entrance Date
+Exit Date
+Duration Of Stay
+Room Capacity
+Price
+Odest Hotel
+08/05/2026
+08/10/2026
+5
+3
+1260 SAR
+Service
+Service Type
+Visit Date
+Time
+Guide
+Price
+Quba Avenue
+Enrichment Destinations
+2026-08-06
+08:00:00
+30 SAR
+Sayyid al-Shuhada' - Uhud Area
+Historical Sites
+2026-08-08
+07:33:00
+30 SAR
+Details
+Price
+MAZARAT
+30 SAR
+Destination (Makkah) (2026-08-10 - 2026-08-15)
+Hotels
+Hotel / Host Name
+Entrance Date
+Exit Date
+Duration Of Stay
+Room Capacity
+Price
+Fajr Alnosok Company
+08/10/2026
+08/15/2026
+5
+3
+1260 SAR
+Service
+Service Type
+Visit Date
+Time
+Guide
+Price
+Islamic Manuscripts Museum (King Abdullah Library - Umm Al-Qura University)
+Enrichment Destinations
+2026-08-11
+07:37:00
+30 SAR
+Details
+Price
+MAZARAT
+25 SAR
+Add trip station
+(15/08/2026) Departure Journey
+Travel Method
+Departure Date
+2026-08-15
+Transport Method
+Air Transport Sea Transport Land Transport
+leaving from
+Saudi Arabia, Jeddah
+Going to
+Egypt, Cairo
+Flight Number
+MS-0672
+Airport
+King Abdul Aziz International Airport
+Airlines
+EGYPT AIR
+Terminal
+TERMINAL 1
+Departure Time
+18:30
+Type of Trip
+Scheduled Flight
+Browse Journeys
+Back Next
+Trip Information Summary
+Trip Route
+Arrival Date (Air Transport)
+5-8-2026
+Trip Stations
+Madina
+Makkah
+Departure Date (Air Transport)
+15-8-2026`;
+
+    const rows = parseItineraryTextEN(realCaptureText, groupInfo);
+    const services = rows.filter(r => r.Column1 === 'Enrichment Service');
+
+    expect(services).toHaveLength(3);
+    expect(services.map(s => s.to)).toEqual([
+      'Quba Avenue',
+      "Sayyid al-Shuhada' - Uhud Area",
+      'Islamic Manuscripts Museum (King Abdullah Library - Umm Al-Qura University)',
+    ]);
+
+    const departure = rows.find(r => r.Column1 === 'Departure');
+    expect(departure?.from).toBe('Fajr Alnosok Company (Makkah)');
+  });
 });

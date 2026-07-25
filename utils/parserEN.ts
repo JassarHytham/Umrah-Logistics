@@ -155,7 +155,11 @@ export const parseItineraryTextEN = (text: string, groupInfo: GroupInfo): Logist
   while ((match = destRegex.exec(text)) !== null) {
       const city = match[1].trim();
       const searchStart = match.index;
-      const nextDestination = text.indexOf("Destination", searchStart + 1);
+      // Match "Destination (" specifically, not the bare word — "Enrichment
+      // Destinations" (a service-type label) contains "Destination" as a
+      // substring and would otherwise truncate the block early.
+      const nextDestinationMatch = text.slice(searchStart + 1).match(/Destination\s*\(/);
+      const nextDestination = nextDestinationMatch ? searchStart + 1 + nextDestinationMatch.index! : -1;
       const departureStart = text.indexOf("Departure Journey", searchStart);
       const searchEnd = [nextDestination, departureStart].filter(index => index !== -1).sort((a, b) => a - b)[0];
       const blockText = text.substring(searchStart, searchEnd === undefined ? text.length : searchEnd);

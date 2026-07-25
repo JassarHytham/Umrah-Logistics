@@ -42,6 +42,33 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   const RESULT_KEY   = 'umrah_auto_result';
   const LASTSENT_KEY = 'umrah_auto_lastsent';
 
+  // Fixed prod server URL, baked into the prod manifest at package time so
+  // production installs never expose/require a server-URL field. Staging
+  // manifests carry no such field, so staging keeps the editable URL.
+  const FIXED_SERVER_URL = chrome.runtime.getManifest().umrah_fixed_server_url || '';
+
+  // Keeps the rotating refresh token perpetually renewed so the extension
+  // never forces a re-login as long as Chrome runs this alarm at least once
+  // every 30 days (the refresh token's lifetime). Runs well inside the 8h
+  // access-token window so a fresh access token is always on hand too.
+  const REFRESH_ALARM_NAME = 'umrah-proactive-refresh';
+  const REFRESH_ALARM_PERIOD_MINUTES = 60;
+
+  function scheduleProactiveRefresh() {
+    chrome.alarms.create(REFRESH_ALARM_NAME, { periodInMinutes: REFRESH_ALARM_PERIOD_MINUTES });
+  }
+  chrome.runtime.onInstalled.addListener(scheduleProactiveRefresh);
+  chrome.runtime.onStartup.addListener(scheduleProactiveRefresh);
+  scheduleProactiveRefresh();
+
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name !== REFRESH_ALARM_NAME) return;
+    (async () => {
+      const base = await apiBase();
+      if (base.refreshToken) await refreshAccessToken(base);
+    })();
+  });
+
   function get(keys) { return chrome.storage.local.get(keys); }
   function set(obj)  { return chrome.storage.local.set(obj); }
   function setStatus(state, extra) { set({ [STATUS_KEY]: { state, extra: extra || '', at: Date.now() } }); }
@@ -75,7 +102,7 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   async function apiBase() {
     const s = await get([URL_KEY, TOKEN_KEY, REFRESH_TOKEN_KEY]);
     return {
-      url: (s[URL_KEY] || '').replace(/\/$/, ''),
+      url: FIXED_SERVER_URL || (s[URL_KEY] || '').replace(/\/$/, ''),
       token: s[TOKEN_KEY] || '',
       refreshToken: s[REFRESH_TOKEN_KEY] || ''
     };

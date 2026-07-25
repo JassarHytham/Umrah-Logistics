@@ -7,10 +7,16 @@ const STORAGE_KEY_TOKEN = 'umrah_token';
 const STORAGE_KEY_REFRESH_TOKEN = 'umrah_refresh_token';
 const STORAGE_KEY_GROUP = 'umrah_last_group';
 
+// Fixed prod server URL, baked into the prod manifest at package time. When
+// present, the server-URL field is hidden and this value is always used;
+// staging manifests carry no such field, so staging stays editable.
+const FIXED_SERVER_URL = chrome.runtime.getManifest().umrah_fixed_server_url || '';
+
 // ── DOM refs ───────────────────────────────────────────
 const loginView        = document.getElementById('loginView');
 const captureView      = document.getElementById('captureView');
 const statusDot        = document.getElementById('statusDot');
+const serverUrlField   = document.getElementById('serverUrlField');
 const serverUrlInput   = document.getElementById('serverUrl');
 const loginUsername    = document.getElementById('loginUsername');
 const loginPassword    = document.getElementById('loginPassword');
@@ -63,8 +69,12 @@ async function init() {
     STORAGE_KEY_URL, STORAGE_KEY_TOKEN, STORAGE_KEY_REFRESH_TOKEN, STORAGE_KEY_GROUP, 'umrah_autofill'
   ]);
 
-  serverUrl = stored[STORAGE_KEY_URL] || 'http://localhost:3000';
+  serverUrl = FIXED_SERVER_URL || stored[STORAGE_KEY_URL] || 'http://localhost:3000';
   authToken  = stored[STORAGE_KEY_TOKEN] || '';
+
+  if (FIXED_SERVER_URL && serverUrlField) {
+    serverUrlField.classList.add('hidden');
+  }
 
   const autofill = stored['umrah_autofill'];
   const autofillFresh = autofill && (Date.now() - autofill.timestamp < 60_000);
@@ -211,7 +221,7 @@ groupNo.addEventListener('input', () => {
 //  Auth
 // ══════════════════════════════════════════════════════
 loginBtn.addEventListener('click', async () => {
-  const url      = serverUrlInput.value.trim().replace(/\/$/, '');
+  const url      = FIXED_SERVER_URL || serverUrlInput.value.trim().replace(/\/$/, '');
   const username = loginUsername.value.trim();
   const password = loginPassword.value;
   if (!url || !username || !password) { showLoginError('يرجى تعبئة جميع الحقول'); return; }

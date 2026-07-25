@@ -9,6 +9,7 @@ export const AIRPORT_MAP_EN: Record<string, string> = {
   "Prince Mohammed Bin Abdulaziz Airport": "Madinah", // UNVERIFIED label text
   "Prince Mohammad International Airport": "Madinah",
   "MED": "Madinah",
+  "King Khalid International Airport": "Riyadh",
   "Taif Airport": "Taif", // UNVERIFIED label text
   "Jeddah": "Jeddah",
   "Madinah": "Madinah",
@@ -257,8 +258,8 @@ export const parseItineraryTextEN = (text: string, groupInfo: GroupInfo): Logist
 
   const findLabeledTime = (block: string, label: string): string => {
     const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const standard = block.match(new RegExp(`${escapedLabel}\\s*\\*?\\s*[\\r\\n:]*\\s*(\\d{1,2}:\\d{2})(?::\\d{2})?`));
-    if (standard) return standard[1];
+    const standard = block.match(new RegExp(`${escapedLabel}\\s*\\*?\\s*[\\r\\n:]*\\s*(\\d{1,2}):(\\d{2})(?::\\d{2})?`));
+    if (standard) return `${standard[1].padStart(2, "0")}:${standard[2]}`;
     const splitColon = block.match(new RegExp(`${escapedLabel}\\s*\\*?\\s*[\\r\\n:]*\\s*(\\d{1,2})\\s*\\n\\s*(\\d{2})`));
     if (splitColon) return `${splitColon[1].padStart(2, "0")}:${splitColon[2]}`;
     return "";

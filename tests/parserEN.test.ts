@@ -66,6 +66,10 @@ describe('normalizeCityEN', () => {
     expect(normalizeCityEN('Prince Mohammad International Airport')).toBe('Madinah');
   });
 
+  it('maps "King Khalid International Airport" to "Riyadh"', () => {
+    expect(normalizeCityEN('King Khalid International Airport')).toBe('Riyadh');
+  });
+
   it('maps "Medina" to "Madinah"', () => {
     expect(normalizeCityEN('Medina')).toBe('Madinah');
   });
@@ -554,5 +558,125 @@ Departure Date (Air Transport)
 
     const departure = rows.find(r => r.Column1 === 'Departure');
     expect(departure?.from).toBe('Fajr Alnosok Company (Makkah)');
+  });
+
+  // Real extension capture: a land-transport departure with a two-destination
+  // itinerary. The border-crossing time window is rendered as an unpadded
+  // 12-hour range ("6:00 AM - 8:00 AM"), unlike the Arabic UI which always
+  // renders zero-padded 24h-style times.
+  it('zero-pads single-digit land-transport departure times and maps the departure airport city', () => {
+    const realCaptureText = `Trip Information
+Note: The program must be at least one day or more
+(15/07/2026) Arrival Journey
+Travel Method
+Arrival Date
+2026-07-15
+Transport Method
+Air Transport Sea Transport Land Transport
+Coming From
+Yemen, Aden
+Going to
+Saudi Arabia, Riyadh
+Flight Number
+IY-0532
+Airport
+King Khalid International Airport
+Airlines
+YEMENIA
+Terminal
+Domestic Terminal
+Arrival Time
+00:10
+Type of Trip
+Scheduled Flight
+Destination (Makkah) (2026-07-15 - 2026-07-18)
+Hotels
+Hotel / Host Name
+Entrance Date
+Exit Date
+Duration Of Stay
+Room Capacity
+Price
+zwar albait hotel
+07/15/2026
+07/18/2026
+3
+1
+1135 SAR
+Service
+Service Type
+Visit Date
+Time
+Guide
+Price
+Mount An-Nur and Hira Cave
+Historical Sites
+2026-07-15
+08:13:00
+HAYTHAM
+15 SAR
+Details
+Price
+MAZRAT
+20 SAR
+Destination (Riyadh) (2026-07-18 - 2026-10-13)
+Hotels
+Hotel / Host Name
+Entrance Date
+Exit Date
+Duration Of Stay
+MOHAMMED SALEH AHMED ALSHABIBI
+07/18/2026
+07/25/2026
+7
+MOHAMMED SALEH AHMED ALSHABIBI
+07/25/2026
+10/13/2026
+80
+Add Enrichment Services Add Additional Services
+Add trip station
+(13/10/2026) Departure Journey
+Travel Method
+Departure Date
+2026-10-13
+Transport Method
+Air Transport Sea Transport Land Transport
+Going To (country) *
+Yemen
+Going To (city) *
+Aden
+Coming From (country) *
+Saudi Arabia
+Coming From (city) *
+Jeddah
+Port *
+Alwadeah Port
+Departure Time *
+6:00 AM - 8:00 AM
+Transporter Type *
+Internal Transporter
+External Transporter
+Transporter *
+خارجي
+Save
+Back Next
+Trip Information Summary
+Trip Route
+Arrival Date (Air Transport)
+15-7-2026
+Trip Stations
+Makkah
+Riyadh
+Departure Date (Land Transport)
+13-10-2026`;
+
+    const rows = parseItineraryTextEN(realCaptureText, groupInfo);
+    const arrival = rows.find(r => r.Column1 === 'Arrival');
+    const departure = rows.find(r => r.Column1 === 'Departure');
+
+    expect(arrival?.from).toBe('King Khalid International Airport (Riyadh)');
+    expect(departure?.flight).toBe('Land Transport');
+    expect(departure?.to).toBe('Alwadeah Port');
+    expect(departure?.time).toBe('06:00');
   });
 });

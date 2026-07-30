@@ -372,6 +372,16 @@ app.use("/extensions", express.static(path.join(__dirname, "public", "extensions
   },
 }));
 
+// Public, unauthenticated bilingual privacy policy — linked from the login page
+// and used as the Chrome Web Store listing's privacy policy URL.
+app.get("/privacy", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "privacy.html"));
+});
+app.get("/privacy.css", (_req, res) => {
+  res.type("text/css");
+  res.sendFile(path.join(__dirname, "public", "privacy.css"));
+});
+
 // Middleware to verify JWT
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers["authorization"];
@@ -1531,6 +1541,15 @@ app.get("/api/download/extension", (_req, res) => {
     res.redirect(info.directZipUrl);
     return;
   }
+  const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
+  const fallbackZipPath = path.join(APP_ROOT, "chrome extention", "umrah-extension.zip");
+  res.download(existsSync(fallbackZipPath) ? fallbackZipPath : legacyZipPath, "umrah-extension.zip", (err) => {
+    if (err) res.status(404).json({ error: "الملف غير موجود" });
+  });
+});
+
+// GET /api/download/extension/store — Chrome Web Store submission zip (no update_url, unlike the self-hosted build above)
+app.get("/api/download/extension/store", (_req, res) => {
   const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
   const fallbackZipPath = path.join(APP_ROOT, "chrome extention", "umrah-extension.zip");
   res.download(existsSync(fallbackZipPath) ? fallbackZipPath : legacyZipPath, "umrah-extension.zip", (err) => {

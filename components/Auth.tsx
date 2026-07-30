@@ -94,13 +94,24 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           </button>
 
           <div className="text-center">
-            <button 
+            <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
               className="text-sm text-blue-600 font-bold hover:underline"
             >
               {isLogin ? 'ليس لديك حساب؟ سجل الآن' : 'لديك حساب بالفعل؟ سجل دخولك'}
             </button>
+          </div>
+
+          <div className="text-center pt-2 border-t border-gray-100">
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-400 hover:text-gray-600 hover:underline"
+            >
+              سياسة الخصوصية · Privacy Policy
+            </a>
           </div>
         </form>
       </div>

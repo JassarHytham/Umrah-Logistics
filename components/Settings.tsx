@@ -647,6 +647,15 @@ export const Settings: React.FC<SettingsProps> = ({
                 تنزيل نسخة ZIP الاحتياطية
               </a>
 
+              <a
+                href="/api/download/extension/store"
+                download="umrah-extension.zip"
+                className="flex items-center justify-center gap-3 w-full p-4 bg-white hover:bg-gray-50 text-gray-500 rounded-2xl font-bold text-sm transition-all active:scale-95 border border-gray-100"
+              >
+                <Package size={20} />
+                تنزيل نسخة Chrome Web Store (للمطورين)
+              </a>
+
               <div className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100">
                   <p className="text-sm font-bold text-gray-700">خطوات التثبيت على Chrome</p>

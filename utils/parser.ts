@@ -262,6 +262,9 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
   const isLandTransport = (block: string): boolean =>
     /المنفذ/.test(block) || /(?:نوع الناقل|شركة النقل)/.test(block);
 
+  const isSeaTransport = (block: string): boolean =>
+    /الميناء\s+البحر[يى]/.test(block);
+
   const hasLandTransportSummary = (label: "الوصول" | "المغادرة"): boolean =>
     new RegExp(`تاريخ\\s+${label}\\s*\\([^)]*النقل\\s+البري[^)]*\\)`).test(text);
 
@@ -275,6 +278,29 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
     const lines = block.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
       if (/المنفذ/.test(lines[i])) {
+        for (let j = i + 1; j < lines.length && j < i + 4; j++) {
+          const t = lines[j].trim().replace(/\s*\*\s*$/, "").trim();
+          if (!t) continue;
+          if (/^(وقت|نوع|شركة|ناقل|قادم|ذاهب|Air|Sea|Land|السفر|رحلة)/.test(t)) break;
+          if (t.endsWith("*")) continue;
+          return t;
+        }
+        break;
+      }
+    }
+    return "";
+  };
+
+  const findSeaPort = (block: string): string => {
+    const inlineMatch = block.match(/الميناء\s+البحر[يى]\s*\*?\s*([\s\S]*?)(?=\s*(?:وقت الوصول|وقت المغادرة|نوع الناقل|شركة النقل|حفظ|$))/);
+    if (inlineMatch) {
+      const inline = inlineMatch[1].replace(/\s+/g, " ").trim();
+      if (inline) return inline;
+    }
+
+    const lines = block.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      if (/الميناء\s+البحر[يى]/.test(lines[i])) {
         for (let j = i + 1; j < lines.length && j < i + 4; j++) {
           const t = lines[j].trim().replace(/\s*\*\s*$/, "").trim();
           if (!t) continue;
@@ -349,6 +375,8 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
           : (firstDest?.city || "مكة المكرمة");
       const landArrival = isLandTransport(block) || hasLandTransportSummary("الوصول");
       const borderArrival = landArrival ? findBorderCrossing(block) : "";
+      const seaArrival = !landArrival && isSeaTransport(block);
+      const seaPortArrival = seaArrival ? findSeaPort(block) : "";
       arrivalData = {
           Column1: "وصول",
           date: arrivalDate ? formatDate(arrivalDate) : (firstDest?.startDate || ""),
@@ -356,7 +384,9 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
           flight: landArrival ? "النقل البري" : findFlight(block),
           from: landArrival
               ? borderArrival
-              : (airport ? formatAirportLabel(airport) : "جدة"),
+              : seaPortArrival
+                  ? seaPortArrival
+                  : (airport ? formatAirportLabel(airport) : "جدة"),
           to: arrivalTo
       };
   }
@@ -380,6 +410,8 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
           : (lastDest?.city || "مكة المكرمة");
       const landDeparture = isLandTransport(block) || hasLandTransportSummary("المغادرة");
       const borderDeparture = landDeparture ? findBorderCrossing(block) : "";
+      const seaDeparture = !landDeparture && isSeaTransport(block);
+      const seaPortDeparture = seaDeparture ? findSeaPort(block) : "";
       departureData = {
           Column1: "مغادرة",
           date: dateMatch ? formatDate(dateMatch[1] || dateMatch[0]) : "",
@@ -387,7 +419,9 @@ export const parseItineraryText = (text: string, groupInfo: GroupInfo): Logistic
           flight: landDeparture ? "النقل البري" : findFlight(block),
           to: landDeparture
               ? borderDeparture
-              : (airport ? formatAirportLabel(airport) : "جدة"),
+              : seaPortDeparture
+                  ? seaPortDeparture
+                  : (airport ? formatAirportLabel(airport) : "جدة"),
           from: departureFrom
       };
   }

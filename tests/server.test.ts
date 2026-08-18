@@ -234,6 +234,26 @@ describe('Auth Middleware', () => {
     const res = await authGet('/api/data');
     expect(res.status).toBe(200);
   });
+
+  it('returns 401 for a validly-signed token whose user no longer exists, instead of crashing downstream writes', async () => {
+    const ghostToken = jwt.sign(
+      { id: 999999999, username: 'ghost-user' },
+      process.env.JWT_SECRET as string,
+      {
+        expiresIn: '8h',
+        issuer: 'umrah-logistics',
+        audience: 'umrah-logistics-web',
+        algorithm: 'HS256',
+      },
+    );
+
+    const res = await request(app)
+      .post('/api/ingest/text')
+      .set('Authorization', `Bearer ${ghostToken}`)
+      .send({ text: 'رحلة اختبار طويلة بما يكفي', groupNo: '1', groupName: 'group', count: '1' });
+
+    expect(res.status).toBe(401);
+  });
 });
 
 describe('Security headers and CORS', () => {

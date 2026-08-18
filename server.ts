@@ -398,6 +398,14 @@ const authenticateToken = (req: any, res: any, next: any) => {
       const status = err.name === "TokenExpiredError" ? 401 : 403;
       return res.status(status).json({ error: status === 401 ? "Unauthorized" : "Forbidden" });
     }
+    // The JWT payload can outlive the account it points to (deleted/recreated
+    // user, restored-from-backup database, etc). A signature check alone lets
+    // that stale id through, where it later blows up as a raw FOREIGN KEY
+    // constraint failure on any write keyed by user_id. Reject it here as a
+    // plain 401 so callers (e.g. the extension) treat it like an expired
+    // session and re-authenticate instead of surfacing a DB error.
+    const stillExists = db.prepare("SELECT 1 FROM users WHERE id = ?").get(Number(user.id));
+    if (!stillExists) return res.status(401).json({ error: "Unauthorized" });
     req.user = user;
     next();
   });

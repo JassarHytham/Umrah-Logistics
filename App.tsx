@@ -41,7 +41,8 @@ const STATUS_LABELS: Record<TripStatus, string> = {
   'In Progress': 'قيد التنفيذ', 'Completed': 'مكتمل', 'Delayed': 'متأخر', 'Cancelled': 'ملغي', 'Uncompleted': 'لم يكتمل', 'Hosting': 'استضافة',
 };
 
-const isEnrichmentTrip = (row: LogisticsRow) => row.Column1 === 'الخدمات الإثرائية';
+const ENRICHMENT_TRIP_TYPES = ['الخدمات الإثرائية', 'Enrichment Service'];
+const isEnrichmentTrip = (row: LogisticsRow) => ENRICHMENT_TRIP_TYPES.includes(row.Column1);
 
 const applyDisplayFilters = (rows: LogisticsRow[], displaySettings: DisplaySettings) => (
   displaySettings.showEnrichmentTrips ? rows : rows.filter(row => !isEnrichmentTrip(row))

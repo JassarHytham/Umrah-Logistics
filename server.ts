@@ -496,13 +496,42 @@ const getRowAccessForUser = (userId: number, record: LogisticsRowRecord): { scop
 const getRowScopeForUser = (userId: number, record: LogisticsRowRecord): AccessScope | null =>
   getRowAccessForUser(userId, record)?.scope ?? null;
 
-const getVisibleRowForUser = (userId: number, rowId: string, includeDeleted = false) => {
-  const record = db
+const getRowRecordById = (rowId: string) =>
+  db
     .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
     .get(rowId) as LogisticsRowRecord | undefined;
+
+const getVisibleRowForUser = (userId: number, rowId: string, includeDeleted = false) => {
+  const record = getRowRecordById(rowId);
   if (!record) return null;
   if (!includeDeleted && record.deleted_at) return null;
   return getRowScopeForUser(userId, record) ? record : null;
+};
+
+// Group numbers reach us from three places that disagree about type and padding:
+// the extension always sends a trimmed string, the parser writes a trimmed string,
+// but rows typed into the grid or imported from a spreadsheet can hold a number or
+// a value with stray whitespace. Comparing those with === silently failed, which is
+// why "overwrite" sometimes left the old rows in place and produced duplicates.
+const sameGroupNo = (value: unknown, target: string) => String(value ?? "").trim() === target;
+
+// `settings.deleted_rows` is the browser's mirror of the recycle bin. Purging rows
+// used to blank it wholesale, which wiped trash entries that were never purged.
+const removeRowsFromDeletedMirror = (userId: number, ids: Iterable<string>) => {
+  const idSet = new Set(Array.from(ids));
+  if (idSet.size === 0) return;
+  const row = db.prepare("SELECT deleted_rows FROM settings WHERE user_id = ?").get(userId) as { deleted_rows: string | null } | undefined;
+  if (!row?.deleted_rows) return;
+  try {
+    const stored = JSON.parse(row.deleted_rows);
+    if (!Array.isArray(stored)) return;
+    const kept = stored.filter((entry: any) => !idSet.has(entry?.id));
+    if (kept.length === stored.length) return;
+    db.prepare("UPDATE settings SET deleted_rows = ? WHERE user_id = ?").run(JSON.stringify(kept), userId);
+  } catch {
+    // A corrupt mirror is not worth failing the purge over — the client rebuilds it
+    // from /api/data/deleted on the next load anyway.
+  }
 };
 
 const decorateRowForUser = (record: LogisticsRowRecord, userId: number) => {
@@ -778,6 +807,12 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
           getVisibleUserIdsForRowId(existing.id).forEach((id) => affectedUserIds.add(id));
         }
       } else {
+        // `_version` is only ever handed out by the server, so a row that carries one
+        // but no longer exists here was permanently deleted while this client was out
+        // of date. Re-inserting it is how a tab that still held its pre-overwrite row
+        // set used to resurrect the trips an extension capture had just replaced.
+        if (row._version !== undefined) continue;
+
         const groupNo = String(storedRow.groupNo || "").trim();
         const agency = normalizeAgency(storedRow.agency);
         if (groupNo) {
@@ -847,11 +882,18 @@ app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
   res.json({ success: true, row: decorateRowForUser(refreshed, req.user.id) });
 });
 
+// Deleting is idempotent. The browser's copy of a row goes stale constantly — a
+// teammate deletes it, an extension capture overwrites its group, another tab beats
+// this one to it — and the old 404 turned every one of those into a hard "فشل حذف
+// الرحلة" that no retry could clear, because the retry 404'd too. A row that is
+// already gone, or that the caller cannot see, is a delete that is already done.
 app.post("/api/data/:id/delete", authenticateToken, (req: any, res) => {
-  const visible = getVisibleRowForUser(req.user.id, req.params.id, false);
-  if (!visible) return res.status(404).json({ error: "Trip not found" });
-  const access = getRowAccessForUser(req.user.id, visible);
-  if (!canEditAccessRole(access?.role)) return res.status(403).json({ error: "Insufficient permission" });
+  const record = getRowRecordById(req.params.id);
+  const access = record ? getRowAccessForUser(req.user.id, record) : null;
+  if (!record || !access) return res.json({ success: true, alreadyDeleted: true });
+  if (!canEditAccessRole(access.role)) return res.status(403).json({ error: "Insufficient permission" });
+  if (record.deleted_at) return res.json({ success: true, alreadyDeleted: true });
+  const visible = record;
 
   db.prepare(`
     UPDATE logistics_rows
@@ -864,10 +906,12 @@ app.post("/api/data/:id/delete", authenticateToken, (req: any, res) => {
 });
 
 app.post("/api/data/:id/restore", authenticateToken, (req: any, res) => {
-  const visible = getVisibleRowForUser(req.user.id, req.params.id, true);
-  if (!visible || !visible.deleted_at) return res.status(404).json({ error: "Trip not found" });
-  const access = getRowAccessForUser(req.user.id, visible);
-  if (!canEditAccessRole(access?.role)) return res.status(403).json({ error: "Insufficient permission" });
+  const record = getRowRecordById(req.params.id);
+  const access = record ? getRowAccessForUser(req.user.id, record) : null;
+  if (!record || !access) return res.json({ success: true, alreadyRestored: true });
+  if (!canEditAccessRole(access.role)) return res.status(403).json({ error: "Insufficient permission" });
+  if (!record.deleted_at) return res.json({ success: true, alreadyRestored: true });
+  const visible = record;
 
   db.prepare(`
     UPDATE logistics_rows
@@ -900,7 +944,7 @@ app.delete("/api/data/deleted", authenticateToken, (req: any, res) => {
       deleteRow.run(row.id, req.user.id);
     }
 
-    db.prepare("UPDATE settings SET deleted_rows = ? WHERE user_id = ?").run("[]", req.user.id);
+    removeRowsFromDeletedMirror(req.user.id, rows.map((row) => row.id));
   });
 
   deleteRows(records);
@@ -909,20 +953,105 @@ app.delete("/api/data/deleted", authenticateToken, (req: any, res) => {
 });
 
 app.delete("/api/data/:id", authenticateToken, (req: any, res) => {
-  const visible = getVisibleRowForUser(req.user.id, req.params.id, true);
-  if (!visible || !visible.deleted_at) return res.status(404).json({ error: "Trip not found" });
-  if (Number(visible.user_id) !== Number(req.user.id)) return res.status(403).json({ error: "Only the owner can permanently delete a trip" });
+  const record = getRowRecordById(req.params.id);
+  const access = record ? getRowAccessForUser(req.user.id, record) : null;
+  // Same idempotency rule as the soft delete: already purged is a purge that worked.
+  if (!record || !access) {
+    removeRowsFromDeletedMirror(req.user.id, [req.params.id]);
+    return res.json({ success: true, alreadyDeleted: true });
+  }
+  if (Number(record.user_id) !== Number(req.user.id)) return res.status(403).json({ error: "Only the owner can permanently delete a trip" });
+  if (!record.deleted_at) return res.status(409).json({ error: "Move the trip to the recycle bin before deleting it permanently" });
+  const visible = record;
 
   const affectedUserIds = getVisibleUserIdsForRowRecord(visible);
   db.transaction(() => {
     db.prepare("DELETE FROM trip_row_access WHERE row_id = ?").run(visible.id);
     db.prepare("DELETE FROM trip_share_invitations WHERE row_id = ?").run(visible.id);
     db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL").run(visible.id, req.user.id);
-    db.prepare("UPDATE settings SET deleted_rows = ? WHERE user_id = ?").run("[]", req.user.id);
+    removeRowsFromDeletedMirror(req.user.id, [visible.id]);
   })();
 
   sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
   res.json({ success: true });
+});
+
+// One atomic request for "empty the bin" / "delete everything shown" instead of the
+// browser firing one HTTP call per row. The old client-side Promise.all was
+// all-or-nothing: a single 404 rejected the batch, the local state was never
+// updated, and every retry then failed on the rows that had actually succeeded.
+app.post("/api/data/bulk", authenticateToken, (req: any, res) => {
+  const action = String(req.body?.action || "");
+  const ids = req.body?.ids;
+  if (!["delete", "restore", "purge"].includes(action)) {
+    return res.status(400).json({ error: "action must be one of: delete, restore, purge" });
+  }
+  if (!Array.isArray(ids) || ids.length > 5000 || !ids.every((id) => typeof id === "string" && id.length <= 128)) {
+    return res.status(400).json({ error: "ids must be an array of at most 5000 row ids" });
+  }
+
+  const processed: string[] = [];
+  const failed: { id: string; error: string }[] = [];
+  const affectedUserIds = new Set<number>([Number(req.user.id)]);
+
+  const softDelete = db.prepare(`
+    UPDATE logistics_rows
+    SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+  const restore = db.prepare(`
+    UPDATE logistics_rows
+    SET deleted_at = NULL, deleted_by_user_id = NULL, version = version + 1, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `);
+  const dropRowAccess = db.prepare("DELETE FROM trip_row_access WHERE row_id = ?");
+  const dropInvitations = db.prepare("DELETE FROM trip_share_invitations WHERE row_id = ?");
+  const dropRow = db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL");
+
+  db.transaction(() => {
+    for (const id of new Set<string>(ids)) {
+      const record = getRowRecordById(id);
+      const access = record ? getRowAccessForUser(req.user.id, record) : null;
+      if (!record || !access) {
+        // Invisible or already gone — the caller's intent is already satisfied.
+        processed.push(id);
+        continue;
+      }
+      getVisibleUserIdsForRowRecord(record).forEach((userId) => affectedUserIds.add(userId));
+
+      if (action === "purge") {
+        if (Number(record.user_id) !== Number(req.user.id)) {
+          failed.push({ id, error: "Only the owner can permanently delete a trip" });
+          continue;
+        }
+        if (!record.deleted_at) {
+          failed.push({ id, error: "Move the trip to the recycle bin before deleting it permanently" });
+          continue;
+        }
+        dropRowAccess.run(id);
+        dropInvitations.run(id);
+        dropRow.run(id, req.user.id);
+        processed.push(id);
+        continue;
+      }
+
+      if (!canEditAccessRole(access.role)) {
+        failed.push({ id, error: "Insufficient permission" });
+        continue;
+      }
+      if (action === "delete") {
+        if (!record.deleted_at) softDelete.run(req.user.id, id);
+      } else {
+        if (record.deleted_at) restore.run(id);
+      }
+      processed.push(id);
+    }
+
+    if (action === "purge" || action === "restore") removeRowsFromDeletedMirror(req.user.id, processed);
+  })();
+
+  sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
+  res.json({ success: failed.length === 0, action, processed, failed });
 });
 
 // Sharing Routes
@@ -1438,14 +1567,25 @@ app.post("/api/alerts/trigger", authenticateToken, async (_req, res) => {
 
 // GET /api/check/group/:groupNo — used by extension to detect duplicates
 app.get("/api/check/group/:groupNo", authenticateToken, (req: any, res) => {
-  const { groupNo } = req.params;
+  const groupNo = asTrimmedString(req.params.groupNo, 64);
 
-  const rawRows = db
-    .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
-    .all(req.user.id) as { data: string }[];
+  // Must answer the same question the user's screen does, otherwise the extension's
+  // duplicate prompt lies in both directions: it used to count rows sitting in the
+  // recycle bin (so it warned about groups the user had already deleted) while
+  // ignoring rows shared in by a colleague (so it stayed silent about groups that
+  // were plainly visible, and the capture landed as a second copy).
+  //
+  // Narrow by group number first and only then run the per-row access check, which
+  // costs several queries each — the group is a handful of rows, the table is not.
+  const candidates = db
+    .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE deleted_at IS NULL")
+    .all() as LogisticsRowRecord[];
 
-  const matches = rawRows.filter(({ data }) => {
-    try { return JSON.parse(data).groupNo === groupNo; } catch { return false; }
+  const matches = candidates.filter((record) => {
+    let stored: any;
+    try { stored = parseRowData(record.data); } catch { return false; }
+    if (!sameGroupNo(stored.groupNo, groupNo)) return false;
+    return Boolean(getRowScopeForUser(req.user.id, record));
   });
 
   res.json({ exists: matches.length > 0, count: matches.length });
@@ -1477,37 +1617,68 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     if (newRows.length === 0)
       return res.status(422).json({ error: "لم يتم استخراج أي رحلات من النص", rows: [] });
 
-    const existingRaw = db
-      .prepare("SELECT data FROM logistics_rows WHERE user_id = ? AND deleted_at IS NULL")
-      .all(req.user.id) as { data: string }[];
-
-    let existingRows = existingRaw.map((r) => JSON.parse(r.data));
-
+    // Only the rows this capture actually changes get written.
+    //
+    // This endpoint used to DELETE every active row the user owned and re-INSERT the
+    // whole set from JSON on every single capture. That had three consequences, and
+    // together they account for most of the "the system is inconsistent" reports:
+    //
+    //   • The re-INSERT never carried `version` forward, so every row the user owned
+    //     silently reset to version 1. Any tab that was open at the time instantly
+    //     held a stale `_version` for all of its rows, and its next edit or
+    //     background sync came back 409 — surfacing as "فشل مزامنة البيانات".
+    //   • The old rows of an overwritten group were hard-deleted, leaving no
+    //     tombstone. A tab that had not yet refreshed would replay its pre-overwrite
+    //     row set on the next debounced sync and re-create them, so the user ended up
+    //     holding both the old and the new copy of the group.
+    //   • Rewriting ~1700 rows per capture made the whole thing slow enough to widen
+    //     every one of those race windows, and forced the deferred-FK workaround
+    //     below to keep the sharing grants from tripping over the delete.
+    //
+    // Overwrite now soft-deletes the group it replaces (recoverable from the recycle
+    // bin, and a tombstone the sync endpoint honours), and untouched rows are not
+    // written at all.
+    const replaced: LogisticsRowRecord[] = [];
     if (overwrite) {
-      existingRows = existingRows.filter((r) => r.groupNo !== groupNoValue);
+      const activeRecords = db
+        .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE deleted_at IS NULL")
+        .all() as LogisticsRowRecord[];
+      for (const record of activeRecords) {
+        let stored: any;
+        try { stored = parseRowData(record.data); } catch { continue; }
+        if (!sameGroupNo(stored.groupNo, groupNoValue)) continue;
+        // Scoped to what the user can edit rather than what they own, so a group
+        // shared in from a colleague is replaced too instead of lingering alongside
+        // the new rows as a duplicate.
+        if (!canEditAccessRole(getRowAccessForUser(req.user.id, record)?.role)) continue;
+        replaced.push(record);
+      }
     }
 
-    const mergedRows = [...newRows, ...existingRows];
+    const softDeleteStmt = db.prepare(`
+      UPDATE logistics_rows
+      SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND deleted_at IS NULL
+    `);
+    const insertStmt = db.prepare(`
+      INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        data = excluded.data,
+        deleted_at = NULL,
+        deleted_by_user_id = NULL,
+        version = version + 1,
+        updated_at = CURRENT_TIMESTAMP
+    `);
 
-    const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ? AND deleted_at IS NULL");
-    const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
-
-    // This delete-everything-then-reinsert-everything pass is how the
-    // endpoint refreshes a user's working set while preserving row ids (so
-    // trip_row_access/trip_group_access sharing grants, which key off those
-    // ids, stay valid across the refresh). trip_row_access has a FOREIGN KEY
-    // on row_id -> logistics_rows.id, and SQLite checks FKs per-statement by
-    // default — so the DELETE fails immediately for any row that's currently
-    // shared, even though the very same id gets reinserted a moment later in
-    // this same transaction. Defer FK checks to commit time so the
-    // temporary absence during delete+reinsert doesn't trip the constraint.
-    db.pragma("defer_foreign_keys = ON");
-    db.transaction((rows: any[]) => {
-      deleteStmt.run(req.user.id);
-      for (const row of rows) insertStmt.run(row.id, req.user.id, JSON.stringify(row));
-    })(mergedRows);
+    db.transaction(() => {
+      for (const record of replaced) softDeleteStmt.run(req.user.id, record.id);
+      for (const row of newRows) insertStmt.run(row.id, req.user.id, JSON.stringify(row));
+    })();
 
     const affectedUserIds = new Set<number>([req.user.id]);
+    replaced.forEach((record) => {
+      getVisibleUserIdsForRowRecord(record).forEach((id) => affectedUserIds.add(id));
+    });
     newRows.forEach((row: any) => {
       const rowGroupNo = String(row.groupNo || "").trim();
       const rowAgency = normalizeAgency(row.agency);

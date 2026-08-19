@@ -927,17 +927,44 @@ describe('Shared trip delete and restore', () => {
       .send({ updates: { status: 'Confirmed' } });
     expect(patch.status).toBe(404);
 
+    // Delete and restore are idempotent, so an outsider gets the same "nothing for
+    // you to do here" answer as they would for an id that does not exist — the point
+    // is that the call must not touch the row. Asserting the owner's copy is
+    // untouched is the property that matters; the status code is not.
     const del = await request(app)
       .post(`/api/data/${row.id}/delete`)
       .set('Authorization', `Bearer ${outsider.token}`)
       .send();
-    expect(del.status).toBe(404);
+    expect(del.status).toBe(200);
 
     const restore = await request(app)
       .post(`/api/data/${row.id}/restore`)
       .set('Authorization', `Bearer ${outsider.token}`)
       .send();
-    expect(restore.status).toBe(404);
+    expect(restore.status).toBe(200);
+
+    const ownerRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    const ownerRow = ownerRows.body.find((r: any) => r.id === row.id);
+    expect(ownerRow).toBeDefined();
+    expect(ownerRow.status).toBe('Planned');
+
+    const ownerBin = await request(app)
+      .get('/api/data/deleted')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(ownerBin.body.map((r: any) => r.id)).not.toContain(row.id);
+
+    // An outsider must not be able to purge it either.
+    const purge = await request(app)
+      .delete(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${outsider.token}`)
+      .send();
+    expect(purge.status).toBe(200);
+    const afterPurge = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(afterPurge.body.map((r: any) => r.id)).toContain(row.id);
 
     const invite = await request(app)
       .post('/api/shares/invitations')

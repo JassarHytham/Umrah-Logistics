@@ -163,7 +163,14 @@ export default function App() {
         shouldSyncRows ? api.data.syncRows(allRows) : Promise.resolve(),
         api.settings.save({ tgConfig, deletedRows, notifiedIds, fontSize, alertSettings, previewSettings, displaySettings })
       ]);
-    } catch (err) {
+    } catch (err: any) {
+      // A 409 means someone got there first — another tab, a teammate, or an
+      // extension capture. That is ordinary concurrent editing, not a failure, so
+      // reconcile against the server instead of showing the user a sync error.
+      if (err?.status === 409) {
+        await loadUserData(false);
+        return;
+      }
       console.error("Sync failed", err);
       showNotification("فشل مزامنة البيانات مع الخادم", "error");
     } finally {
@@ -525,9 +532,12 @@ export default function App() {
       setAllRows(next.activeRows);
       setDeletedRows(next.deletedRows);
       showNotification("تم نقل الرحلة لسلة المحذوفات", "success");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Delete failed", err);
-      showNotification("فشل حذف الرحلة", "error");
+      showNotification(
+        err?.status === 403 ? "لا تملك صلاحية حذف هذه الرحلة" : "فشل حذف الرحلة",
+        "error",
+      );
     }
   };
 
@@ -541,11 +551,17 @@ export default function App() {
         if (localOnlyRows.length > 0) {
           await api.data.syncRows(localOnlyRows);
         }
-        await Promise.all(rowsToDelete.map(row => api.data.deleteRow(row.id)));
-        const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, rowsToDelete.map(row => row.id), user?.username);
+        const result = await api.data.bulkRows('delete', rowsToDelete.map(row => row.id));
+        // Apply exactly what the server accepted, so the screen can never claim rows
+        // were deleted that are still there (or keep showing rows that are gone).
+        const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, result.processed || [], user?.username);
         setAllRows(next.activeRows);
         setDeletedRows(next.deletedRows);
-        showNotification("تم نقل جميع السجلات لسلة المحذوفات", "success");
+        if (result.failed?.length) {
+          showNotification(`تم حذف ${result.processed.length} سجل، وتعذّر حذف ${result.failed.length}`, "error");
+        } else {
+          showNotification("تم نقل جميع السجلات لسلة المحذوفات", "success");
+        }
       } catch (err) {
         console.error("Delete all failed", err);
         showNotification("فشل حذف جميع السجلات", "error");
@@ -557,11 +573,15 @@ export default function App() {
     const rowsToRestore = applyDisplayFilters(deletedRowsRef.current, displaySettings);
     if (rowsToRestore.length === 0) return;
     try {
-      await Promise.all(rowsToRestore.map(row => api.data.restoreRow(row.id)));
-      const next = restoreRows(allRowsRef.current, deletedRowsRef.current, rowsToRestore.map(row => row.id));
+      const result = await api.data.bulkRows('restore', rowsToRestore.map(row => row.id));
+      const next = restoreRows(allRowsRef.current, deletedRowsRef.current, result.processed || []);
       setAllRows(next.activeRows);
       setDeletedRows(next.deletedRows);
-      showNotification("تم استعادة جميع السجلات", "success");
+      if (result.failed?.length) {
+        showNotification(`تم استعادة ${result.processed.length} سجل، وتعذّر استعادة ${result.failed.length}`, "error");
+      } else {
+        showNotification("تم استعادة جميع السجلات", "success");
+      }
     } catch (err) {
       console.error("Restore all failed", err);
       showNotification("فشل استعادة جميع السجلات", "error");
@@ -584,9 +604,13 @@ export default function App() {
     if (rowsToDelete.length === 0) return;
     if (!window.confirm("هل أنت متأكد من الحذف النهائي لجميع العناصر؟ لا يمكن التراجع عن هذا الإجراء.")) return;
     try {
-      await Promise.all(rowsToDelete.map(row => api.data.permanentlyDeleteRow(row.id)));
-      setDeletedRows(prev => removeDeletedRows(prev, rowsToDelete.map(row => row.id)));
-      showNotification("تم حذف سلة المحذوفات نهائياً", "success");
+      const result = await api.data.bulkRows('purge', rowsToDelete.map(row => row.id));
+      setDeletedRows(prev => removeDeletedRows(prev, result.processed || []));
+      if (result.failed?.length) {
+        showNotification(`تم حذف ${result.processed.length} سجل نهائياً، وتعذّر حذف ${result.failed.length}`, "error");
+      } else {
+        showNotification("تم حذف سلة المحذوفات نهائياً", "success");
+      }
     } catch (err) {
       console.error("Permanent delete all failed", err);
       showNotification("فشل حذف سلة المحذوفات", "error");

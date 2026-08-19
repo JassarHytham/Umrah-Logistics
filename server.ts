@@ -172,6 +172,7 @@ db.exec(`
     role TEXT NOT NULL DEFAULT 'editor',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (row_id, user_id),
+    FOREIGN KEY (row_id) REFERENCES logistics_rows (id),
     FOREIGN KEY (user_id) REFERENCES users (id),
     FOREIGN KEY (granted_by_user_id) REFERENCES users (id)
   );
@@ -1491,6 +1492,16 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     const deleteStmt = db.prepare("DELETE FROM logistics_rows WHERE user_id = ? AND deleted_at IS NULL");
     const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
 
+    // This delete-everything-then-reinsert-everything pass is how the
+    // endpoint refreshes a user's working set while preserving row ids (so
+    // trip_row_access/trip_group_access sharing grants, which key off those
+    // ids, stay valid across the refresh). trip_row_access has a FOREIGN KEY
+    // on row_id -> logistics_rows.id, and SQLite checks FKs per-statement by
+    // default — so the DELETE fails immediately for any row that's currently
+    // shared, even though the very same id gets reinserted a moment later in
+    // this same transaction. Defer FK checks to commit time so the
+    // temporary absence during delete+reinsert doesn't trip the constraint.
+    db.pragma("defer_foreign_keys = ON");
     db.transaction((rows: any[]) => {
       deleteStmt.run(req.user.id);
       for (const row of rows) insertStmt.run(row.id, req.user.id, JSON.stringify(row));

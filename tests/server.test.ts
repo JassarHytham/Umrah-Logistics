@@ -1187,6 +1187,74 @@ describe('Row conflict protection', () => {
   });
 });
 
+describe('Extension text ingest with an actively shared row', () => {
+  it('re-ingesting text does not crash when one of the owner\'s rows has a row-level share grant', async () => {
+    const owner = await registerSharedTestUser('ingest_shared_owner');
+    const receiver = await registerSharedTestUser('ingest_shared_recv');
+    const row = makeSharedTripRow(`ingest-shared-row-${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+
+    const invite = await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id });
+    expect(invite.status).toBe(200);
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+
+    const accept = await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+    expect(accept.status).toBe(200);
+
+    // The owner's dataset now includes a row with a live trip_row_access
+    // grant. /api/ingest/text blanket-deletes and re-inserts every one of
+    // the owner's rows (including this one) as part of a normal capture —
+    // it must not crash just because that row is currently shared.
+    const ingestText = `
+رحلة الوصول
+تاريخ الوصول
+15/01/2026
+وقت الوصول
+14:30
+رقم الرحلة
+SV123
+المطار
+مطار الملك عبد العزيز
+`;
+
+    const ingest = await request(app)
+      .post('/api/ingest/text')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({
+        text: ingestText,
+        groupNo: `SHAREING${Date.now()}`,
+        groupName: 'Share Ingest Group',
+        count: '2',
+      });
+
+    expect(ingest.status).toBe(200);
+
+    // The shared row should have survived the refresh (still owned, still shared).
+    const ownerRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${owner.token}`);
+    expect(ownerRows.body.some((r: any) => r.id === row.id)).toBe(true);
+
+    const receiverRows = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    expect(receiverRows.body.some((r: any) => r.id === row.id)).toBe(true);
+  });
+});
+
 describe('Extension text ingest with deleted rows', () => {
   it('does not resurrect rows that were moved to the recycle bin', async () => {
     const user = await registerSharedTestUser('ingest_deleted_user');

@@ -17,6 +17,11 @@ const DEFAULT_SERVER_URL = UMRAH_DEFAULT_SERVER_URL;
 const loginView        = document.getElementById('loginView');
 const captureView      = document.getElementById('captureView');
 const statusDot        = document.getElementById('statusDot');
+const tabbar           = document.getElementById('tabbar');
+const tabManual        = document.getElementById('tabManual');
+const tabAuto          = document.getElementById('tabAuto');
+const manualPane       = document.getElementById('manualPane');
+const autoPane         = document.getElementById('autoPane');
 const settingsBtn      = document.getElementById('settingsBtn');
 const settingsPanel    = document.getElementById('settingsPanel');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
@@ -117,6 +122,16 @@ function showLoginView() {
   loginView.classList.remove('hidden');
   captureView.classList.add('hidden');
   setStatus('disconnected');
+  // Logged out: the "تلقائي" tab drives auto-capture, which needs a session just
+  // as much as the manual form does. Hiding the tab switcher — not just leaving it
+  // clickable and relying on auto-capture to fail with "login-required" — is what
+  // actually stops a signed-out user from getting there at all. Force back to the
+  // manual pane too, in case a session expired while the auto tab was open.
+  tabbar.classList.add('hidden');
+  manualPane.classList.remove('hidden');
+  autoPane.classList.add('hidden');
+  tabManual.classList.add('active');
+  tabAuto.classList.remove('active');
 }
 
 function showCaptureView() {
@@ -125,6 +140,7 @@ function showCaptureView() {
   openAppBtn.href = serverUrl;
   renderSettings();
   updateSendButton();
+  tabbar.classList.remove('hidden');
 }
 
 // ══════════════════════════════════════════════════════

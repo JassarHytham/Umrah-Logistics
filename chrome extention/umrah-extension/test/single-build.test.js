@@ -43,7 +43,7 @@ test('manifest no longer uses the custom fixed-server-url key', () => {
 });
 
 test('manifest stays on the published version', () => {
-  assert.strictEqual(manifest.version, '1.3.8');
+  assert.strictEqual(manifest.version, '2.0.1');
 });
 
 test('the default server URL lives in one shared place', () => {
@@ -94,4 +94,22 @@ test('a stored URL is only honoured while developer mode is on', () => {
 
 test('turning developer mode off clears the override', () => {
   assert.match(popupJs, /chrome\.storage\.local\.remove\(STORAGE_KEY_URL\)/);
+});
+
+test('the manual/automatic tab switcher starts hidden in markup', () => {
+  // Must be hidden before popup.js ever runs, otherwise there is a flash where a
+  // signed-out user can see (and click) the tab switcher before JS hides it.
+  assert.match(popupHtml, /id="tabbar" class="tabbar hidden"/);
+});
+
+test('showLoginView hides the tab switcher and forces the manual pane', () => {
+  const fn = popupJs.slice(popupJs.indexOf('function showLoginView'), popupJs.indexOf('function showCaptureView'));
+  assert.match(fn, /tabbar\.classList\.add\('hidden'\)/);
+  assert.match(fn, /manualPane\.classList\.remove\('hidden'\)/);
+  assert.match(fn, /autoPane\.classList\.add\('hidden'\)/);
+});
+
+test('showCaptureView reveals the tab switcher only after a session exists', () => {
+  const fn = popupJs.slice(popupJs.indexOf('function showCaptureView'), popupJs.indexOf('// ══', popupJs.indexOf('function showCaptureView')));
+  assert.match(fn, /tabbar\.classList\.remove\('hidden'\)/);
 });

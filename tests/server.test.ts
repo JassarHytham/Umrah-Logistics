@@ -286,7 +286,7 @@ describe('GET /api/extension/info', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.zipUrl).toBe('/api/download/extension');
-    expect(res.body.version).toBe('1.3.8');
+    expect(res.body.version).toBe('2.0.1');
     // The self-hosted CRX pipeline is gone — the store rejects packages that
     // carry an update_url, so there is nothing left to advertise here.
     expect(res.body.channel).toBeUndefined();

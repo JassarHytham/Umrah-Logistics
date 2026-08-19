@@ -16,7 +16,41 @@
         <div class="subtitle">Umrah Logistics Capture</div>
       </div>
     </div>
-    <div id="statusDot" class="status-dot disconnected"></div>
+    <div class="header-right">
+      <div id="statusDot" class="status-dot disconnected"></div>
+      <button id="settingsBtn" class="icon-btn" type="button" title="الإعدادات" aria-label="الإعدادات">⚙️</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS PANEL -->
+  <div id="settingsPanel" class="settings-panel hidden">
+    <div class="settings-head">
+      <span class="settings-title">الإعدادات</span>
+      <button id="settingsCloseBtn" class="icon-btn" type="button" aria-label="إغلاق">✕</button>
+    </div>
+
+    <div class="settings-row">
+      <span class="settings-key">الإصدار</span>
+      <span id="settingsVersion" class="settings-val ltr">v—</span>
+    </div>
+
+    <div class="settings-row">
+      <span class="settings-key">الخادم الحالي</span>
+      <span id="settingsServer" class="settings-val ltr">—</span>
+    </div>
+
+    <label class="settings-check">
+      <input id="devModeToggle" type="checkbox" />
+      <span>وضع المطوّر — تغيير رابط الخادم</span>
+    </label>
+
+    <div id="devUrlBlock" class="settings-dev hidden">
+      <input id="devServerUrl" type="url" class="input ltr" placeholder="http://localhost:3000" />
+      <button id="devServerSaveBtn" class="btn btn-primary btn-sm" type="button">حفظ الرابط</button>
+      <div id="devUrlMsg" class="hint hidden"></div>
+    </div>
+
+    <button id="settingsLogoutBtn" class="btn btn-danger btn-sm hidden" type="button">تسجيل الخروج</button>
   </div>
 
   <div class="tabbar">
@@ -28,11 +62,7 @@
 
   <!-- LOGIN VIEW -->
   <div id="loginView" class="view">
-    <div class="section-label">⚙️ إعداد الاتصال بالخادم</div>
-    <div class="field-group" id="serverUrlField">
-      <label class="field-label">رابط الخادم</label>
-      <input id="serverUrl" type="url" class="input ltr" placeholder="http://localhost:3000" />
-    </div>
+    <div class="section-label">تسجيل الدخول</div>
     <div class="field-group">
       <label class="field-label">اسم المستخدم</label>
       <input id="loginUsername" type="text" class="input ltr" placeholder="username" />
@@ -50,18 +80,6 @@
 
   <!-- CAPTURE VIEW -->
   <div id="captureView" class="view hidden">
-
-    <div class="server-bar">
-      <div class="server-meta">
-        <span id="serverLabel" class="server-label">—</span>
-        <span id="manifestVersion" class="manifest-version">v-</span>
-      </div>
-      <div class="server-actions">
-        <button id="checkUpdateBtn" class="btn-link" type="button">فحص التحديث</button>
-        <button id="logoutBtn" class="btn-link" type="button">تغيير</button>
-      </div>
-    </div>
-    <div id="updateStatus" class="hint update-status hidden"></div>
 
     <!-- Step 1 -->
     <div class="section-label">① النص المراد تحليله</div>
@@ -155,6 +173,7 @@
     </div>
   </div>
 
+  <script src="config.js"></script>
   <script src="popup.js"></script>
   <script src="auto.js"></script>
 </body>

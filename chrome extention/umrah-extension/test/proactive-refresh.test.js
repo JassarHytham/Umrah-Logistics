@@ -5,10 +5,10 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const background = fs.readFileSync(path.join(root, 'background.js'), 'utf8');
-const manifestBase = JSON.parse(fs.readFileSync(path.join(root, 'manifest.base.json'), 'utf8'));
+const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
 
 test('manifest requests the alarms permission', () => {
-  assert.ok(manifestBase.permissions.includes('alarms'));
+  assert.ok(manifest.permissions.includes('alarms'));
 });
 
 test('background registers a periodic proactive token-refresh alarm', () => {

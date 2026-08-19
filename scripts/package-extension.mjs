@@ -1,4 +1,15 @@
-import crypto from "node:crypto";
+/**
+ * Packages the Chrome extension into a single store-ready zip.
+ *
+ * This used to build two signed CRX bundles (prod + staging), each with its own
+ * manifest overlay, signing key and updates.xml feed served from /extensions/.
+ * The Chrome Web Store rejects any package carrying an `update_url` — it manages
+ * updates itself — so the self-hosted pipeline and the store submission were
+ * permanently at odds. There is now one extension, one manifest, no update_url,
+ * and the store is the only distribution channel.
+ *
+ * Usage: node scripts/package-extension.mjs [--out <dir>] [--source <dir>]
+ */
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -27,12 +38,8 @@ const run = (command, args, options = {}) =>
     const child = spawn(command, args, { stdio: "pipe", ...options });
     let stdout = "";
     let stderr = "";
-    child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
-    });
+    child.stdout?.on("data", (chunk) => { stdout += String(chunk); });
+    child.stderr?.on("data", (chunk) => { stderr += String(chunk); });
     child.on("error", reject);
     child.on("close", (code) => {
       if (code === 0) {
@@ -43,27 +50,16 @@ const run = (command, args, options = {}) =>
     });
   });
 
-const fileExists = async (targetPath) => {
-  try {
-    await fs.access(targetPath);
-    return true;
-  } catch {
-    return false;
-  }
-};
+// Everything the extension does not need at runtime stays out of the upload —
+// the store counts unused files against the package and reviewers ask about them.
+const EXCLUDED = new Set(["test", "package.json", "SERVER_ENDPOINT.ts", "README.md"]);
 
 const copyDir = async (sourceDir, targetDir) => {
   const entries = await fs.readdir(sourceDir, { withFileTypes: true });
   await fs.mkdir(targetDir, { recursive: true });
 
   for (const entry of entries) {
-    if (entry.name === "test") continue;
-    if (entry.name === "manifest.base.json") continue;
-    if (entry.name === "manifest.prod.json") continue;
-    if (entry.name === "manifest.staging.json") continue;
-    if (entry.name === "manifest.json") continue;
-    if (entry.name === "package.json") continue;
-    if (entry.name === "SERVER_ENDPOINT.ts") continue;
+    if (EXCLUDED.has(entry.name)) continue;
 
     const sourcePath = path.join(sourceDir, entry.name);
     const targetPath = path.join(targetDir, entry.name);
@@ -76,112 +72,38 @@ const copyDir = async (sourceDir, targetDir) => {
   }
 };
 
-const mergeManifest = async (sourceDir, channel) => {
-  const baseManifest = JSON.parse(await fs.readFile(path.join(sourceDir, "manifest.base.json"), "utf8"));
-  const overlayName = channel === "staging" ? "manifest.staging.json" : "manifest.prod.json";
-  const overlayManifest = JSON.parse(await fs.readFile(path.join(sourceDir, overlayName), "utf8"));
-  return { ...baseManifest, ...overlayManifest };
-};
-
-const normalizeBaseUrl = (baseUrl) => String(baseUrl || "").replace(/\/+$/, "");
-
-const extensionIdFromPem = async (pemPath) => {
-  const pem = await fs.readFile(pemPath, "utf8");
-  const privateKey = crypto.createPrivateKey(pem);
-  const publicKeyDer = crypto.createPublicKey(privateKey).export({ type: "spki", format: "der" });
-  const hash = crypto.createHash("sha256").update(publicKeyDer).digest();
-  const alphabet = "abcdefghijklmnop";
-  let extensionId = "";
-
-  for (const byte of hash.subarray(0, 16)) {
-    extensionId += alphabet[(byte >> 4) & 0x0f];
-    extensionId += alphabet[byte & 0x0f];
-  }
-
-  return extensionId;
-};
-
-const xmlForUpdate = ({ extensionId, codebase, version }) => `<?xml version="1.0" encoding="UTF-8"?>
-<gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
-  <app appid="${extensionId}">
-    <updatecheck codebase="${codebase}" version="${version}" />
-  </app>
-</gupdate>
-`;
-
-const findChromeBinary = async (override) => {
-  const candidates = [
-    override,
-    process.env.CHROME_BIN,
-    "google-chrome",
-    "google-chrome-stable",
-    "chromium-browser",
-    "chromium",
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    try {
-      await run(candidate, ["--version"]);
-      return candidate;
-    } catch {
-      // Try next candidate.
-    }
-  }
-
-  throw new Error("No Chrome/Chromium binary found. Set CHROME_BIN to a browser that supports --pack-extension.");
-};
-
 const main = async () => {
   const args = parseArgs(process.argv.slice(2));
-  const envArg = args.env || "prod";
-  const channel = envArg === "staging" ? "staging" : "prod";
   const sourceDir = path.resolve(args.source || path.join(repoRoot, "chrome extention", "umrah-extension"));
-  const outputDir = path.resolve(args.out || path.join(repoRoot, "public", "extensions", channel));
-  const pemPath = path.resolve(args.pem || "");
-  const baseUrl = normalizeBaseUrl(args["base-url"]);
-  const chromeBinary = await findChromeBinary(args["chrome-bin"]);
+  const outputDir = path.resolve(args.out || path.join(repoRoot, "public", "extensions"));
 
-  if (!baseUrl) {
-    throw new Error("--base-url is required, for example https://app.example.com");
-  }
-  if (!pemPath || !(await fileExists(pemPath))) {
-    throw new Error(`Signing key not found at ${pemPath}`);
+  const manifest = JSON.parse(await fs.readFile(path.join(sourceDir, "manifest.json"), "utf8"));
+
+  // Guard the one thing that gets this rejected at submission. Catching it here
+  // beats finding out from a review rejection days later.
+  if (manifest.update_url) {
+    throw new Error("manifest.json must not contain update_url — the Chrome Web Store rejects packages that self-host updates.");
   }
 
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "umrah-extension-"));
   const bundleDir = path.join(tempRoot, "umrah-extension");
-  const manifest = await mergeManifest(sourceDir, channel);
-  const extensionId = await extensionIdFromPem(pemPath);
-  const codebase = `${baseUrl}/extensions/${channel}/umrah-extension.crx`;
-  const updatesUrl = `${baseUrl}/extensions/${channel}/updates.xml`;
-  manifest.update_url = updatesUrl;
 
   await copyDir(sourceDir, bundleDir);
-  await fs.writeFile(path.join(bundleDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   await fs.mkdir(outputDir, { recursive: true });
 
   const zipPath = path.join(outputDir, "umrah-extension.zip");
+  await fs.rm(zipPath, { force: true });
   await run("zip", ["-qr", zipPath, "."], { cwd: bundleDir });
 
-  await run(chromeBinary, ["--no-sandbox", `--pack-extension=${bundleDir}`, `--pack-extension-key=${pemPath}`], { cwd: tempRoot });
-
-  const generatedCrxPath = `${bundleDir}.crx`;
-  const outputCrxPath = path.join(outputDir, "umrah-extension.crx");
-  await fs.copyFile(generatedCrxPath, outputCrxPath);
-  await fs.writeFile(path.join(outputDir, "updates.xml"), xmlForUpdate({
-    extensionId,
-    codebase,
-    version: manifest.version,
-  }));
   await fs.writeFile(path.join(outputDir, "metadata.json"), `${JSON.stringify({
-    channel,
-    extensionId,
+    name: manifest.name,
     version: manifest.version,
-    codebase,
-    updateUrl: updatesUrl,
+    packagedAt: new Date().toISOString(),
   }, null, 2)}\n`);
 
-  console.log(`Packaged ${channel} extension ${manifest.version} (${extensionId}) -> ${outputDir}`);
+  await fs.rm(tempRoot, { recursive: true, force: true });
+
+  console.log(`Packaged ${manifest.name} ${manifest.version} -> ${zipPath}`);
 };
 
 main().catch((error) => {

@@ -2,33 +2,38 @@
 //  Umrah Logistics Capture — popup.js
 // ══════════════════════════════════════════════════════
 
-const STORAGE_KEY_URL   = 'umrah_server_url';
+const STORAGE_KEY_URL   = UMRAH_STORAGE_KEY_URL;
+const STORAGE_KEY_DEV_MODE = UMRAH_STORAGE_KEY_DEV_MODE;
 const STORAGE_KEY_TOKEN = 'umrah_token';
 const STORAGE_KEY_REFRESH_TOKEN = 'umrah_refresh_token';
 const STORAGE_KEY_GROUP = 'umrah_last_group';
 
-// Fixed prod server URL, baked into the prod manifest at package time. When
-// present, the server-URL field is hidden and this value is always used;
-// staging manifests carry no such field, so staging stays editable.
-const FIXED_SERVER_URL = chrome.runtime.getManifest().umrah_fixed_server_url || '';
+// One build for everyone now. Ordinary installs never see a server field at all —
+// they get DEFAULT_SERVER_URL. Developer mode in the settings panel is the only way
+// to point somewhere else, and it writes an override into chrome.storage.local.
+const DEFAULT_SERVER_URL = UMRAH_DEFAULT_SERVER_URL;
 
 // ── DOM refs ───────────────────────────────────────────
 const loginView        = document.getElementById('loginView');
 const captureView      = document.getElementById('captureView');
 const statusDot        = document.getElementById('statusDot');
-const serverUrlField   = document.getElementById('serverUrlField');
-const serverUrlInput   = document.getElementById('serverUrl');
+const settingsBtn      = document.getElementById('settingsBtn');
+const settingsPanel    = document.getElementById('settingsPanel');
+const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+const settingsVersion  = document.getElementById('settingsVersion');
+const settingsServer   = document.getElementById('settingsServer');
+const settingsLogoutBtn = document.getElementById('settingsLogoutBtn');
+const devModeToggle    = document.getElementById('devModeToggle');
+const devUrlBlock      = document.getElementById('devUrlBlock');
+const devServerUrl     = document.getElementById('devServerUrl');
+const devServerSaveBtn = document.getElementById('devServerSaveBtn');
+const devUrlMsg        = document.getElementById('devUrlMsg');
 const loginUsername    = document.getElementById('loginUsername');
 const loginPassword    = document.getElementById('loginPassword');
 const loginBtn         = document.getElementById('loginBtn');
 const loginBtnText     = document.getElementById('loginBtnText');
 const loginSpinner     = document.getElementById('loginSpinner');
 const loginError       = document.getElementById('loginError');
-const serverLabel      = document.getElementById('serverLabel');
-const manifestVersion  = document.getElementById('manifestVersion');
-const logoutBtn        = document.getElementById('logoutBtn');
-const checkUpdateBtn   = document.getElementById('checkUpdateBtn');
-const updateStatus     = document.getElementById('updateStatus');
 const capturePageBtn   = document.getElementById('capturePageBtn');
 const capturedText     = document.getElementById('capturedText');
 const captureHint      = document.getElementById('captureHint');
@@ -54,6 +59,7 @@ const openAppBtn       = document.getElementById('openAppBtn');
 // ── State ──────────────────────────────────────────────
 let serverUrl      = '';
 let authToken      = '';
+let devMode        = false;  // developer URL override enabled
 let dupCheckTimer  = null;   // debounce timer
 let isDuplicate    = false;  // current duplicate state
 
@@ -61,20 +67,17 @@ let isDuplicate    = false;  // current duplicate state
 //  Init
 // ══════════════════════════════════════════════════════
 async function init() {
-  if (manifestVersion) {
-    manifestVersion.textContent = `v${chrome.runtime.getManifest().version}`;
-  }
-
   const stored = await chrome.storage.local.get([
-    STORAGE_KEY_URL, STORAGE_KEY_TOKEN, STORAGE_KEY_REFRESH_TOKEN, STORAGE_KEY_GROUP, 'umrah_autofill'
+    STORAGE_KEY_URL, STORAGE_KEY_DEV_MODE, STORAGE_KEY_TOKEN, STORAGE_KEY_REFRESH_TOKEN, STORAGE_KEY_GROUP, 'umrah_autofill'
   ]);
 
-  serverUrl = FIXED_SERVER_URL || stored[STORAGE_KEY_URL] || 'http://localhost:3000';
+  devMode = Boolean(stored[STORAGE_KEY_DEV_MODE]);
+  // The stored URL is only honoured in developer mode, so turning the checkbox off
+  // snaps every install back to the shipped default without needing a reinstall.
+  serverUrl = (devMode && stored[STORAGE_KEY_URL]) || DEFAULT_SERVER_URL;
   authToken  = stored[STORAGE_KEY_TOKEN] || '';
 
-  if (FIXED_SERVER_URL && serverUrlField) {
-    serverUrlField.classList.add('hidden');
-  }
+  renderSettings();
 
   const autofill = stored['umrah_autofill'];
   const autofillFresh = autofill && (Date.now() - autofill.timestamp < 60_000);
@@ -103,7 +106,6 @@ async function init() {
     // Run duplicate check if group number is already populated
     if (groupNo.value.trim()) scheduleDupCheck();
   } else {
-    serverUrlInput.value = serverUrl;
     showLoginView();
   }
 }
@@ -120,27 +122,76 @@ function showLoginView() {
 function showCaptureView() {
   loginView.classList.add('hidden');
   captureView.classList.remove('hidden');
-  try {
-    serverLabel.textContent = new URL(serverUrl).host;
-  } catch {
-    serverLabel.textContent = serverUrl;
-  }
   openAppBtn.href = serverUrl;
+  renderSettings();
   updateSendButton();
 }
 
-function showUpdateStatus(message, tone = 'info') {
-  if (!updateStatus) return;
-  updateStatus.textContent = message;
-  updateStatus.className = `hint update-status ${tone}`;
-  updateStatus.classList.remove('hidden');
+// ══════════════════════════════════════════════════════
+//  Settings panel
+// ══════════════════════════════════════════════════════
+function renderSettings() {
+  settingsVersion.textContent = `v${chrome.runtime.getManifest().version}`;
+  settingsServer.textContent = serverUrl;
+  devModeToggle.checked = devMode;
+  devUrlBlock.classList.toggle('hidden', !devMode);
+  devServerUrl.value = serverUrl;
+  // Only meaningful once there is a session to end.
+  settingsLogoutBtn.classList.toggle('hidden', !authToken);
 }
 
-function clearUpdateStatus() {
-  if (!updateStatus) return;
-  updateStatus.textContent = '';
-  updateStatus.className = 'hint update-status hidden';
+function showDevUrlMsg(message, tone) {
+  devUrlMsg.textContent = message;
+  devUrlMsg.className = `hint ${tone}`;
+  devUrlMsg.classList.remove('hidden');
 }
+
+function toggleSettings(force) {
+  const willOpen = force !== undefined ? force : settingsPanel.classList.contains('hidden');
+  if (willOpen) renderSettings();
+  devUrlMsg.classList.add('hidden');
+  settingsPanel.classList.toggle('hidden', !willOpen);
+}
+
+settingsBtn.addEventListener('click', () => toggleSettings());
+settingsCloseBtn.addEventListener('click', () => toggleSettings(false));
+
+devModeToggle.addEventListener('change', async () => {
+  devMode = devModeToggle.checked;
+  await chrome.storage.local.set({ [STORAGE_KEY_DEV_MODE]: devMode });
+  if (!devMode) {
+    // Leaving developer mode drops the override so the default takes over again.
+    await chrome.storage.local.remove(STORAGE_KEY_URL);
+    serverUrl = DEFAULT_SERVER_URL;
+    showDevUrlMsg(`تمت العودة إلى الخادم الافتراضي: ${DEFAULT_SERVER_URL}`, 'success');
+  }
+  renderSettings();
+  devUrlBlock.classList.toggle('hidden', !devMode);
+});
+
+devServerSaveBtn.addEventListener('click', async () => {
+  const next = devServerUrl.value.trim().replace(/\/$/, '');
+  if (!next) { showDevUrlMsg('أدخل رابط الخادم', 'error'); return; }
+  try {
+    new URL(next);
+  } catch {
+    showDevUrlMsg('رابط غير صالح', 'error');
+    return;
+  }
+  serverUrl = next;
+  await chrome.storage.local.set({ [STORAGE_KEY_URL]: next, [STORAGE_KEY_DEV_MODE]: true });
+  renderSettings();
+  showDevUrlMsg('تم حفظ الرابط', 'success');
+  if (authToken) checkConnection();
+});
+
+settingsLogoutBtn.addEventListener('click', async () => {
+  await chrome.storage.local.remove([STORAGE_KEY_TOKEN, STORAGE_KEY_REFRESH_TOKEN]);
+  authToken = '';
+  loginPassword.value = '';
+  toggleSettings(false);
+  showLoginView();
+});
 
 function setStatus(state) {
   statusDot.className = `status-dot ${state}`;
@@ -221,7 +272,7 @@ groupNo.addEventListener('input', () => {
 //  Auth
 // ══════════════════════════════════════════════════════
 loginBtn.addEventListener('click', async () => {
-  const url      = FIXED_SERVER_URL || serverUrlInput.value.trim().replace(/\/$/, '');
+  const url      = serverUrl;
   const username = loginUsername.value.trim();
   const password = loginPassword.value;
   if (!url || !username || !password) { showLoginError('يرجى تعبئة جميع الحقول'); return; }
@@ -250,53 +301,6 @@ loginBtn.addEventListener('click', async () => {
     setLoginLoading(false);
   }
 });
-
-logoutBtn.addEventListener('click', async () => {
-  await chrome.storage.local.remove([STORAGE_KEY_TOKEN, STORAGE_KEY_REFRESH_TOKEN]);
-  authToken = '';
-  serverUrlInput.value = serverUrl;
-  loginPassword.value = '';
-  clearUpdateStatus();
-  showLoginView();
-});
-
-if (checkUpdateBtn) {
-  checkUpdateBtn.addEventListener('click', () => {
-    if (!chrome.runtime?.requestUpdateCheck) {
-      showUpdateStatus('Chrome لا يدعم فحص التحديث من هذا السياق', 'error');
-      return;
-    }
-
-    showUpdateStatus('جارٍ فحص التحديث...', 'info');
-    checkUpdateBtn.disabled = true;
-
-    chrome.runtime.requestUpdateCheck((status) => {
-      if (chrome.runtime.lastError) {
-        showUpdateStatus(`تعذر فحص التحديث: ${chrome.runtime.lastError.message}`, 'error');
-        checkUpdateBtn.disabled = false;
-        return;
-      }
-
-      if (status === 'update_available') {
-        showUpdateStatus('تم العثور على تحديث. ستُعاد الإضافة الآن.', 'success');
-        setTimeout(() => chrome.runtime.reload(), 1200);
-        return;
-      }
-
-      if (status === 'no_update') {
-        showUpdateStatus('أنت على أحدث إصدار.', 'success');
-      } else if (status === 'throttled') {
-        showUpdateStatus('Chrome أجّل الفحص مؤقتاً. أعد المحاولة لاحقاً.', 'error');
-      } else {
-        showUpdateStatus(`حالة التحديث: ${status}`, 'info');
-      }
-
-      setTimeout(() => {
-        checkUpdateBtn.disabled = false;
-      }, 800);
-    });
-  });
-}
 
 function setLoginLoading(loading) {
   loginBtnText.textContent = loading ? 'جاري الاتصال...' : 'تسجيل الدخول وحفظ';

@@ -3,6 +3,10 @@
 //  Handles context menu and optional background tasks
 // ══════════════════════════════════════════════════════
 
+// Shares the default server URL with the popup. Classic (non-module) service
+// worker, so importScripts is the way to pull in config.js.
+importScripts('config.js');
+
 // Install context menu on extension install/update
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus?.create({
@@ -42,10 +46,10 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   const RESULT_KEY   = 'umrah_auto_result';
   const LASTSENT_KEY = 'umrah_auto_lastsent';
 
-  // Fixed prod server URL, baked into the prod manifest at package time so
-  // production installs never expose/require a server-URL field. Staging
-  // manifests carry no such field, so staging keeps the editable URL.
-  const FIXED_SERVER_URL = chrome.runtime.getManifest().umrah_fixed_server_url || '';
+  // Single build for every install: the shipped default, unless a developer has
+  // explicitly turned on the URL override in the popup's settings panel.
+  const DEFAULT_SERVER_URL = UMRAH_DEFAULT_SERVER_URL;
+  const DEV_MODE_KEY = UMRAH_STORAGE_KEY_DEV_MODE;
 
   // Keeps the rotating refresh token perpetually renewed so the extension
   // never forces a re-login as long as Chrome runs this alarm at least once
@@ -100,9 +104,10 @@ chrome.contextMenus?.onClicked.addListener((info, tab) => {
   }
 
   async function apiBase() {
-    const s = await get([URL_KEY, TOKEN_KEY, REFRESH_TOKEN_KEY]);
+    const s = await get([URL_KEY, DEV_MODE_KEY, TOKEN_KEY, REFRESH_TOKEN_KEY]);
+    const override = s[DEV_MODE_KEY] ? String(s[URL_KEY] || '').replace(/\/$/, '') : '';
     return {
-      url: FIXED_SERVER_URL || (s[URL_KEY] || '').replace(/\/$/, ''),
+      url: override || DEFAULT_SERVER_URL,
       token: s[TOKEN_KEY] || '',
       refreshToken: s[REFRESH_TOKEN_KEY] || ''
     };

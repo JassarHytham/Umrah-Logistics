@@ -8,7 +8,7 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import helmet from "helmet";
 import http from "http";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "path";
 import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "url";
@@ -84,33 +84,22 @@ const decryptJson = <T,>(value: string | null | undefined, fallback: T): T => {
   return JSON.parse(plaintext);
 };
 
-const getExtensionChannel = () => {
-  if (process.env.EXTENSION_CHANNEL === "staging") return "staging";
-  if (process.env.EXTENSION_CHANNEL === "prod") return "prod";
-  if (process.env.NODE_ENV === "staging") return "staging";
-  if (String(process.env.PORT || PORT) === "3001") return "staging";
-  return "prod";
-};
-
 const getExtensionInfo = () => {
-  const channel = getExtensionChannel();
-  const channelDir = path.join(APP_ROOT, "public", "extensions", channel);
-  const crxPath = path.join(channelDir, "umrah-extension.crx");
-  const zipPath = path.join(channelDir, "umrah-extension.zip");
-  const updateManifestPath = path.join(channelDir, "updates.xml");
+  const zipPath = path.join(APP_ROOT, "public", "extensions", "umrah-extension.zip");
+  const manifestPath = path.join(APP_ROOT, "chrome extention", "umrah-extension", "manifest.json");
+
+  let version = "";
+  try {
+    version = JSON.parse(readFileSync(manifestPath, "utf8")).version || "";
+  } catch {
+    // Packaged deployments may ship without the extension source tree.
+  }
 
   return {
-    channel,
-    crxPath,
+    version,
     zipPath,
-    updateManifestPath,
-    crxUrl: `/extensions/${channel}/umrah-extension.crx`,
     zipUrl: "/api/download/extension",
-    directZipUrl: `/extensions/${channel}/umrah-extension.zip`,
-    updateManifestUrl: `/extensions/${channel}/updates.xml`,
-    hasCrx: existsSync(crxPath),
     hasZip: existsSync(zipPath),
-    hasUpdateManifest: existsSync(updateManifestPath),
   };
 };
 
@@ -360,19 +349,6 @@ app.use("/api", apiLimiter);
 app.use("/api/auth", authLimiter);
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ limit: "2mb", extended: true }));
-app.use("/extensions", express.static(path.join(__dirname, "public", "extensions"), {
-  dotfiles: "deny",
-  index: false,
-  setHeaders(res, filePath) {
-    if (filePath.endsWith(".crx")) {
-      res.setHeader("Content-Type", "application/x-chrome-extension");
-    }
-    if (filePath.endsWith(".xml")) {
-      res.setHeader("Content-Type", "application/xml; charset=utf-8");
-    }
-  },
-}));
-
 // Public, unauthenticated bilingual privacy policy — linked from the login page
 // and used as the Chrome Web Store listing's privacy policy URL.
 app.get("/privacy", (_req, res) => {
@@ -1698,52 +1674,22 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
   }
 });
 
-// GET /api/download/extension — serve Chrome extension zip (public, no auth required)
+// Extension distribution. The Chrome Web Store is the only channel now — the
+// self-hosted CRX + updates.xml pipeline is gone, because the store rejects any
+// package that carries an `update_url`. What is left is the store-ready zip, kept
+// downloadable so it can be uploaded to the developer dashboard.
 app.get("/api/extension/info", (_req, res) => {
   res.json(getExtensionInfo());
 });
 
-app.get("/api/download/extension/crx", (_req, res) => {
-  const info = getExtensionInfo();
-  if (info.hasCrx) {
-    res.redirect(info.crxUrl);
-    return;
-  }
-  res.status(404).json({ error: "ملف الإضافة غير موجود" });
-});
-
-app.get("/api/download/extension/zip", (_req, res) => {
-  const info = getExtensionInfo();
-  if (info.hasZip) {
-    res.redirect(info.directZipUrl);
-    return;
-  }
-  const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
-  const fallbackZipPath = path.join(APP_ROOT, "chrome extention", "umrah-extension.zip");
-  res.download(existsSync(fallbackZipPath) ? fallbackZipPath : legacyZipPath, "umrah-extension.zip", (err) => {
-    if (err) res.status(404).json({ error: "الملف غير موجود" });
-  });
-});
-
 app.get("/api/download/extension", (_req, res) => {
   const info = getExtensionInfo();
-  if (info.hasZip) {
-    res.redirect(info.directZipUrl);
+  if (!info.hasZip) {
+    res.status(404).json({ error: "ملف الإضافة غير موجود" });
     return;
   }
-  const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
-  const fallbackZipPath = path.join(APP_ROOT, "chrome extention", "umrah-extension.zip");
-  res.download(existsSync(fallbackZipPath) ? fallbackZipPath : legacyZipPath, "umrah-extension.zip", (err) => {
-    if (err) res.status(404).json({ error: "الملف غير موجود" });
-  });
-});
-
-// GET /api/download/extension/store — Chrome Web Store submission zip (no update_url, unlike the self-hosted build above)
-app.get("/api/download/extension/store", (_req, res) => {
-  const legacyZipPath = path.join(__dirname, "chrome extention", "umrah-extension.zip");
-  const fallbackZipPath = path.join(APP_ROOT, "chrome extention", "umrah-extension.zip");
-  res.download(existsSync(fallbackZipPath) ? fallbackZipPath : legacyZipPath, "umrah-extension.zip", (err) => {
-    if (err) res.status(404).json({ error: "الملف غير موجود" });
+  res.download(info.zipPath, "umrah-extension.zip", (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: "الملف غير موجود" });
   });
 });
 

@@ -3,3 +3,4 @@
 *.db
 dist/
 public/extensions/
+.DS_Store

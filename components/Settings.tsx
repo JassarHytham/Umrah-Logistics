@@ -3,7 +3,7 @@ import {
   Send, Zap, Bell, Smartphone, CheckCircle2, Info,
   Loader2, SlidersHorizontal, Eye, EyeOff, GripVertical,
   LayoutList, AlignJustify, Download, Puzzle,
-  Monitor, Package, FolderOpen, StickyNote, Users, Trash2, ShieldCheck
+  Monitor, Package, FolderOpen, StickyNote, Users, Trash2, ShieldCheck, Store
 } from 'lucide-react';
 import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySettings, NoteHighlightColor, COLUMN_LABELS, DEFAULT_COLUMN_ORDER, ShareAccessGrant, ShareRole } from '../types';
 
@@ -631,17 +631,28 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
 
               <a
-                href="/api/download/extension"
-                download="umrah-extension.zip"
+                href="https://chromewebstore.google.com/detail/umrah-logistics-capture/afjjibipimkanaakohbflhdppleehfmp"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center justify-center gap-3 w-full p-4 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-violet-200"
               >
+                <Store size={20} />
+                تثبيت من متجر Chrome
+              </a>
+
+              <a
+                href="/api/download/extension"
+                download="umrah-extension.zip"
+                className="flex items-center justify-center gap-3 w-full p-4 bg-white hover:bg-gray-50 text-violet-700 rounded-2xl font-bold text-sm transition-all active:scale-95 border border-violet-100"
+              >
                 <Download size={20} />
-                تنزيل الإضافة (ZIP)
+                تنزيل نسخة ZIP (للمطورين)
               </a>
 
               <div className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100">
-                  <p className="text-sm font-bold text-gray-700">خطوات التثبيت على Chrome</p>
+                  <p className="text-sm font-bold text-gray-700">خطوات التثبيت اليدوي (نسخة ZIP)</p>
+                  <p className="text-xs text-gray-400 mt-0.5">للمطورين فقط — إن ثبّتّ من متجر Chrome أعلاه فلست بحاجة لهذه الخطوات.</p>
                 </div>
                 <div className="p-5 space-y-4">
                   {[
@@ -668,7 +679,7 @@ export const Settings: React.FC<SettingsProps> = ({
               <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
                 <Info size={16} className="text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700 leading-relaxed">
-                  الإضافة تعمل على Chrome فقط. بعد نشرها على متجر Chrome ستصل التحديثات تلقائياً من المتجر، ولن تحتاج للتثبيت اليدوي.
+                  الإضافة تعمل على Chrome فقط. التثبيت من متجر Chrome هو الطريقة الموصى بها — تصلك التحديثات تلقائياً بدون أي خطوات إضافية.
                 </p>
               </div>
             </div>

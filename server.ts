@@ -737,7 +737,7 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  res.json(authResponse({ id: Number(user.id), username: user.username }));
+  res.json(authResponse(user));
 });
 
 app.post("/api/auth/refresh", (req, res) => {

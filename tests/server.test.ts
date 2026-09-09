@@ -154,6 +154,25 @@ describe('POST /api/auth/login', () => {
     });
   });
 
+  it('preserves companyName and avatar set via /api/account after a fresh login', async () => {
+    const user = { username: `login_persist_${Date.now()}`, password: 'Password123!' };
+    const reg = await request(app).post('/api/auth/register').send(user);
+    const token = reg.body.token as string;
+
+    const avatar = `data:image/png;base64,${'A'.repeat(100)}==`;
+    await request(app)
+      .patch('/api/account')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ companyName: 'Acme Travel', avatar });
+
+    // Simulate logging out and back in (a fresh /api/auth/login call, not reusing the old token)
+    const login = await request(app).post('/api/auth/login').send(user);
+
+    expect(login.status).toBe(200);
+    expect(login.body.user.companyName).toBe('Acme Travel');
+    expect(login.body.user.avatar).toBe(avatar);
+  });
+
   it('issues a refresh token that can renew an expired access session', async () => {
     const login = await request(app)
       .post('/api/auth/login')

@@ -587,6 +587,134 @@ describe('POST /api/settings', () => {
   });
 });
 
+// ─────────────────────────────────────────────
+// GET/PATCH /api/account
+// ─────────────────────────────────────────────
+describe('GET /api/account', () => {
+  it('requires authentication', async () => {
+    const res = await request(app).get('/api/account');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns the current user with null companyName/avatar by default', async () => {
+    const res = await authGet('/api/account');
+    expect(res.status).toBe(200);
+    expect(res.body.username).toBe(TEST_USER.username);
+    expect(res.body.companyName).toBeNull();
+    expect(res.body.avatar).toBeNull();
+  });
+});
+
+describe('PATCH /api/account', () => {
+  const registerFresh = async () => {
+    const user = { username: `acct_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, password: 'Password123!' };
+    const reg = await request(app).post('/api/auth/register').send(user);
+    return { user, token: reg.body.token as string, userId: reg.body.user.id as number };
+  };
+  const authPatchAs = (token: string, path: string) =>
+    request(app).patch(path).set('Authorization', `Bearer ${token}`);
+
+  const SAMPLE_AVATAR = `data:image/png;base64,${'A'.repeat(100)}==`;
+
+  it('requires authentication', async () => {
+    const res = await request(app).patch('/api/account').send({ companyName: 'Acme' });
+    expect(res.status).toBe(401);
+  });
+
+  it('updates companyName without requiring a password', async () => {
+    const { token } = await registerFresh();
+    const res = await authPatchAs(token, '/api/account').send({ companyName: 'Acme Travel' });
+    expect(res.status).toBe(200);
+    expect(res.body.user.companyName).toBe('Acme Travel');
+  });
+
+  it('clears companyName when sent an empty string', async () => {
+    const { token } = await registerFresh();
+    await authPatchAs(token, '/api/account').send({ companyName: 'Acme Travel' });
+    const res = await authPatchAs(token, '/api/account').send({ companyName: '' });
+    expect(res.status).toBe(200);
+    expect(res.body.user.companyName).toBeNull();
+  });
+
+  it('updates avatar with a valid image data URI', async () => {
+    const { token } = await registerFresh();
+    const res = await authPatchAs(token, '/api/account').send({ avatar: SAMPLE_AVATAR });
+    expect(res.status).toBe(200);
+    expect(res.body.user.avatar).toBe(SAMPLE_AVATAR);
+  });
+
+  it('rejects a non-image avatar payload', async () => {
+    const { token } = await registerFresh();
+    const res = await authPatchAs(token, '/api/account').send({ avatar: 'not-an-image' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects username change without currentPassword', async () => {
+    const { token } = await registerFresh();
+    const res = await authPatchAs(token, '/api/account').send({ username: `renamed_${Date.now()}` });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects username change with wrong currentPassword', async () => {
+    const { token } = await registerFresh();
+    const res = await authPatchAs(token, '/api/account').send({ username: `renamed_${Date.now()}`, currentPassword: 'WrongPassword123' });
+    expect(res.status).toBe(401);
+  });
+
+  it('changes username with correct currentPassword and reissues a working token', async () => {
+    const { token, user } = await registerFresh();
+    const newUsername = `renamed_${Date.now()}`;
+    const res = await authPatchAs(token, '/api/account').send({ username: newUsername, currentPassword: user.password });
+    expect(res.status).toBe(200);
+    expect(res.body.user.username).toBe(newUsername);
+    expect(res.body.token).toBeTruthy();
+
+    // Old token still verifies (JWT isn't revoked) but the account is now reachable under the new token/username too
+    const check = await authPatchAs(res.body.token, '/api/account').send({ companyName: 'Still works' });
+    expect(check.status).toBe(200);
+  });
+
+  it('rejects duplicate username on change', async () => {
+    const a = await registerFresh();
+    const b = await registerFresh();
+    const res = await authPatchAs(b.token, '/api/account').send({ username: a.user.username, currentPassword: b.user.password });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects password change without currentPassword', async () => {
+    const { token } = await registerFresh();
+    const res = await authPatchAs(token, '/api/account').send({ newPassword: 'NewPassword123' });
+    expect(res.status).toBe(401);
+  });
+
+  it('changes password with correct currentPassword and old password stops working', async () => {
+    const { token, user } = await registerFresh();
+    const res = await authPatchAs(token, '/api/account').send({ newPassword: 'NewPassword123', currentPassword: user.password });
+    expect(res.status).toBe(200);
+
+    const loginOld = await request(app).post('/api/auth/login').send(user);
+    expect(loginOld.status).toBe(401);
+
+    const loginNew = await request(app).post('/api/auth/login').send({ username: user.username, password: 'NewPassword123' });
+    expect(loginNew.status).toBe(200);
+  });
+
+  it('rejects a weak new password', async () => {
+    const { token, user } = await registerFresh();
+    const res = await authPatchAs(token, '/api/account').send({ newPassword: 'short', currentPassword: user.password });
+    expect(res.status).toBe(400);
+  });
+
+  it('a partial update does not wipe unrelated fields', async () => {
+    const { token } = await registerFresh();
+    await authPatchAs(token, '/api/account').send({ companyName: 'Keep Me', avatar: SAMPLE_AVATAR });
+    const res = await authPatchAs(token, '/api/account').send({ companyName: 'Updated' });
+    expect(res.status).toBe(200);
+    expect(res.body.user.companyName).toBe('Updated');
+    expect(res.body.user.avatar).toBe(SAMPLE_AVATAR);
+  });
+});
+
 describe('POST /api/telegram/test', () => {
   it('requires authentication', async () => {
     const res = await request(app).post('/api/telegram/test').send({ token: 'x', chatId: '1' });

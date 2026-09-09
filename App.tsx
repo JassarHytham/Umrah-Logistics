@@ -10,7 +10,9 @@ import {
   Menu,
   X,
   Rows3,
-  Table2
+  Table2,
+  User as UserIcon,
+  LogOut
 } from 'lucide-react';
 import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_ALERT_SETTINGS, DEFAULT_PREVIEW_SETTINGS, DEFAULT_DISPLAY_SETTINGS, DEFAULT_TELEGRAM_CONFIG, ShareInvitation, ShareAccessGrant, ShareRole, normalizeDisplaySettings } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
@@ -21,6 +23,7 @@ import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
 import { Auth } from './components/Auth';
 import { Settings } from './components/Settings';
+import { Profile } from './components/Profile';
 import { api } from './services/api';
 import { createRowUpdateQueue } from './utils/rowUpdateQueue';
 import { isPersistedRow, markRowsDeleted, removeDeletedRows, restoreRows } from './utils/rowStateActions';
@@ -51,8 +54,9 @@ const applyDisplayFilters = (rows: LogisticsRow[], displaySettings: DisplaySetti
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'operational' | 'analytics' | 'settings'>('operational');
+  const [view, setView] = useState<'operational' | 'analytics' | 'settings' | 'profile'>('operational');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [allRows, setAllRows] = useState<LogisticsRow[]>([]);
   const [deletedRows, setDeletedRows] = useState<LogisticsRow[]>([]);
   const [shareInvitations, setShareInvitations] = useState<ShareInvitation[]>([]);
@@ -357,6 +361,10 @@ export default function App() {
 
   const changeFontSize = (delta: number) => {
     setFontSize(prev => Math.min(Math.max(prev + delta, 50), 200));
+  };
+
+  const handleUserUpdate = (updatedUser: any) => {
+    setUser((prev: any) => ({ ...prev, ...updatedUser }));
   };
 
   const handleExtract = () => {
@@ -809,16 +817,39 @@ export default function App() {
                   <span>جاري المزامنة...</span>
                 </div>
               )}
-              <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-xl border border-white/5">
-                <Users size={16} className="text-blue-200" />
-                <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
+              <div className="relative">
                 <button
-                  onClick={() => api.auth.logout()}
-                  className="mr-2 text-xs bg-red-500/20 hover:bg-red-500/40 text-red-200 px-3 py-2 rounded-lg transition-all"
+                  onClick={() => setIsProfileMenuOpen(o => !o)}
+                  className="flex items-center gap-3 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl border border-white/5 transition-all"
                   style={{ minHeight: '44px' }}
                 >
-                  خروج
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="" className="w-6 h-6 rounded-lg object-cover" />
+                  ) : (
+                    <Users size={16} className="text-blue-200" />
+                  )}
+                  <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
+                  <ChevronDown size={14} className={`text-blue-200 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
+                {isProfileMenuOpen && (
+                  <>
+                    <button className="fixed inset-0 z-40 cursor-default" onClick={() => setIsProfileMenuOpen(false)} aria-label="إغلاق القائمة" />
+                    <div className="absolute left-0 mt-2 w-48 bg-white text-gray-800 rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-fade-in">
+                      <button
+                        onClick={() => { setView('profile'); setIsProfileMenuOpen(false); }}
+                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-gray-50 transition-colors"
+                      >
+                        <UserIcon size={16} className="text-blue-600" /> الملف الشخصي
+                      </button>
+                      <button
+                        onClick={() => api.auth.logout()}
+                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors border-t border-gray-100"
+                      >
+                        <LogOut size={16} /> خروج
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex bg-white/10 p-1 rounded-xl">
                 <button onClick={() => setView('operational')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SettingsIcon size={16} className="inline ml-1" />العمليات</button>
@@ -838,10 +869,17 @@ export default function App() {
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white/5 px-4 py-3 rounded-xl">
-                <div className="flex items-center gap-3 mb-2 sm:mb-0 text-sm">
-                  <Users size={16} className="text-blue-200 shrink-0" />
+                <button
+                  onClick={() => { setView('profile'); setIsMobileMenuOpen(false); }}
+                  className="flex items-center gap-3 mb-2 sm:mb-0 text-sm"
+                >
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="" className="w-6 h-6 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <Users size={16} className="text-blue-200 shrink-0" />
+                  )}
                   <span className="font-bold truncate">{user?.username || 'مستخدم'}</span>
-                </div>
+                </button>
 
                 <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full">
                   <button
@@ -883,6 +921,8 @@ export default function App() {
           />
         ) : view === 'analytics' ? (
           <OperationsIntelligence rows={visibleAllRows} onNavigateToTable={() => setView('operational')} />
+        ) : view === 'profile' ? (
+          <Profile user={user} onUserUpdate={handleUserUpdate} />
         ) : (
           <>
             <section className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">

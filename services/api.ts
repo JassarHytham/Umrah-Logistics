@@ -148,6 +148,21 @@ export const api = {
     }
   },
 
+  account: {
+    async fetch() {
+      return api.request('/account');
+    },
+    async update(payload: { companyName?: string; avatar?: string | null; username?: string; newPassword?: string; currentPassword?: string }) {
+      const data = await api.request('/account', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      localStorage.setItem('umrah_auth_token', data.token);
+      localStorage.setItem('umrah_user', JSON.stringify(data.user));
+      return data.user;
+    }
+  },
+
   settings: {
     async fetch() {
       return api.request('/settings');

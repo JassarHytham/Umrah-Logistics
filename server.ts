@@ -114,6 +114,8 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
+    company_name TEXT,
+    avatar TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -270,6 +272,22 @@ try {
   }
 }
 
+// Migration: Add company_name / avatar to users if missing
+try {
+  db.prepare("SELECT company_name, avatar FROM users LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN company_name TEXT");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration company_name failed", err);
+  }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN avatar TEXT");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration avatar failed", err);
+  }
+}
+
 app.disable("x-powered-by");
 
 const allowedOrigins = new Set(
@@ -414,6 +432,11 @@ const normalizeAgency = (agency: any) => String(agency || "").trim();
 const normalizeUsername = (value: unknown) => String(value || "").trim().toLowerCase();
 const isValidUsername = (value: string) => /^[a-z0-9_][a-z0-9_-]{2,31}$/.test(value);
 const isValidPassword = (value: unknown) => typeof value === "string" && value.length >= 10 && value.length <= 128;
+const MAX_AVATAR_LENGTH = 1_500_000; // ~1.1MB raw image, base64-encoded
+const isValidAvatarDataUri = (value: unknown) =>
+  typeof value === "string" &&
+  value.length <= MAX_AVATAR_LENGTH &&
+  /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(value);
 const asTrimmedString = (value: unknown, maxLength: number) => {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLength);
@@ -671,10 +694,15 @@ const signRefreshToken = (user: { id: number; username: string }) =>
     },
   );
 
-const authResponse = (user: { id: number; username: string }) => ({
+const authResponse = (user: { id: number; username: string; company_name?: string | null; avatar?: string | null }) => ({
   token: signAuthToken(user),
   refreshToken: signRefreshToken(user),
-  user: { id: Number(user.id), username: user.username },
+  user: {
+    id: Number(user.id),
+    username: user.username,
+    companyName: user.company_name ?? null,
+    avatar: user.avatar ?? null,
+  },
 });
 
 app.post("/api/auth/register", async (req, res) => {
@@ -729,8 +757,8 @@ app.post("/api/auth/refresh", (req, res) => {
       return res.status(401).json({ error: "Invalid refresh token" });
     }
 
-    const user = db.prepare("SELECT id, username FROM users WHERE id = ?").get(Number(payload.id)) as
-      | { id: number; username: string }
+    const user = db.prepare("SELECT id, username, company_name, avatar FROM users WHERE id = ?").get(Number(payload.id)) as
+      | { id: number; username: string; company_name: string | null; avatar: string | null }
       | undefined;
     if (!user) return res.status(401).json({ error: "Invalid refresh token" });
 
@@ -1449,6 +1477,87 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
   );
 
   res.json({ success: true });
+});
+
+// Account Routes
+app.get("/api/account", authenticateToken, (req: any, res) => {
+  const user: any = db.prepare("SELECT id, username, company_name, avatar FROM users WHERE id = ?").get(req.user.id);
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  res.json({
+    id: Number(user.id),
+    username: user.username,
+    companyName: user.company_name ?? null,
+    avatar: user.avatar ?? null,
+  });
+});
+
+app.patch("/api/account", authenticateToken, async (req: any, res) => {
+  const { companyName, avatar, username, newPassword, currentPassword } = req.body;
+
+  const existing: any = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
+  if (!existing) return res.status(401).json({ error: "Unauthorized" });
+
+  const wantsUsernameChange = username !== undefined;
+  const wantsPasswordChange = newPassword !== undefined;
+
+  // Changing credentials requires proving the current password first, so a
+  // stolen/short-lived page session can't silently take over the account.
+  if (wantsUsernameChange || wantsPasswordChange) {
+    if (typeof currentPassword !== "string" || !(await bcrypt.compare(currentPassword, existing.password))) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+  }
+
+  let nextUsername = existing.username;
+  if (wantsUsernameChange) {
+    const normalized = normalizeUsername(username);
+    if (!isValidUsername(normalized)) {
+      return res.status(400).json({ error: "Username must be 3-32 lowercase letters, numbers, underscores, or hyphens" });
+    }
+    nextUsername = normalized;
+  }
+
+  let nextPasswordHash = existing.password;
+  if (wantsPasswordChange) {
+    if (!isValidPassword(newPassword)) {
+      return res.status(400).json({ error: "Password must be 10-128 characters" });
+    }
+    nextPasswordHash = await bcrypt.hash(newPassword, 10);
+  }
+
+  let nextCompanyName = existing.company_name;
+  if (companyName !== undefined) {
+    const trimmed = asTrimmedString(companyName, 200);
+    nextCompanyName = trimmed || null;
+  }
+
+  let nextAvatar = existing.avatar;
+  if (avatar !== undefined) {
+    if (avatar === null) {
+      nextAvatar = null;
+    } else if (isValidAvatarDataUri(avatar)) {
+      nextAvatar = avatar;
+    } else {
+      return res.status(400).json({ error: "Avatar must be a PNG, JPEG, WEBP, or GIF image under ~1MB" });
+    }
+  }
+
+  try {
+    db.prepare("UPDATE users SET username = ?, password = ?, company_name = ?, avatar = ? WHERE id = ?")
+      .run(nextUsername, nextPasswordHash, nextCompanyName, nextAvatar, req.user.id);
+  } catch (err: any) {
+    if (err.code?.includes("SQLITE_CONSTRAINT")) {
+      return res.status(400).json({ error: "Username already exists" });
+    }
+    return res.status(500).json({ error: "Server error" });
+  }
+
+  res.json(authResponse({
+    id: req.user.id,
+    username: nextUsername,
+    company_name: nextCompanyName,
+    avatar: nextAvatar,
+  }));
 });
 
 app.post("/api/telegram/test", authenticateToken, async (req: any, res) => {

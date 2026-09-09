@@ -828,7 +828,10 @@ export default function App() {
                   ) : (
                     <Users size={16} className="text-blue-200" />
                   )}
-                  <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
+                  <span className="flex flex-col items-start leading-tight">
+                    <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
+                    {user?.companyName && <span className="text-[10px] text-blue-200 font-normal">{user.companyName}</span>}
+                  </span>
                   <ChevronDown size={14} className={`text-blue-200 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isProfileMenuOpen && (
@@ -878,7 +881,10 @@ export default function App() {
                   ) : (
                     <Users size={16} className="text-blue-200 shrink-0" />
                   )}
-                  <span className="font-bold truncate">{user?.username || 'مستخدم'}</span>
+                  <span className="flex flex-col items-start leading-tight min-w-0">
+                    <span className="font-bold truncate">{user?.username || 'مستخدم'}</span>
+                    {user?.companyName && <span className="text-[10px] text-blue-200 font-normal truncate">{user.companyName}</span>}
+                  </span>
                 </button>
 
                 <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full">

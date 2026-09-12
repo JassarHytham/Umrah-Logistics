@@ -73,6 +73,7 @@ export default function App() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [filteredRows, setFilteredRows] = useState<LogisticsRow[]>([]);
+  const [analyticsFilter, setAnalyticsFilter] = useState<Record<string, string[]> | undefined>(undefined);
   const [fontSize, setFontSize] = useState<number>(100);
   const [alertSettings, setAlertSettings] = useState<AlertSettings>(DEFAULT_ALERT_SETTINGS);
   const [previewSettings, setPreviewSettings] = useState<PreviewSettings>(DEFAULT_PREVIEW_SETTINGS);
@@ -856,7 +857,7 @@ export default function App() {
               </div>
               <div className="flex bg-white/10 p-1 rounded-xl">
                 <button onClick={() => setView('operational')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SettingsIcon size={16} className="inline ml-1" />العمليات</button>
-                <button onClick={() => setView('analytics')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />الذكاء</button>
+                <button onClick={() => setView('analytics')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />احصائيات</button>
                 <button onClick={() => setView('settings')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'settings' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={16} className="inline ml-1" />الإعدادات</button>
               </div>
             </div>
@@ -867,7 +868,7 @@ export default function App() {
             <div className="xl:hidden mt-4 flex flex-col gap-3 animate-fade-in pb-2">
               <div className="flex flex-col sm:flex-row gap-2 bg-white/5 p-2 rounded-xl">
                 <button onClick={() => { setView('operational'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SettingsIcon size={18} /> العمليات</button>
-                <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={18} /> الذكاء</button>
+                <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={18} /> احصائيات</button>
                 <button onClick={() => { setView('settings'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'settings' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={18} /> الإعدادات</button>
               </div>
 
@@ -926,7 +927,7 @@ export default function App() {
             onRevokeShareAccess={revokeShareAccess}
           />
         ) : view === 'analytics' ? (
-          <OperationsIntelligence rows={visibleAllRows} onNavigateToTable={() => setView('operational')} />
+          <OperationsIntelligence rows={visibleAllRows} onNavigateToTable={(filters) => { setAnalyticsFilter(filters ?? {}); setView('operational'); }} />
         ) : view === 'profile' ? (
           <Profile user={user} onUserUpdate={handleUserUpdate} />
         ) : (
@@ -1043,9 +1044,12 @@ export default function App() {
                   onViewModeChange={setTableViewMode}
                   showViewToggle={false}
                   enableFiltering={true}
+                  externalFilters={analyticsFilter}
                   onAddNewRow={addNewEmptyRow}
                   onDuplicateRow={duplicateRow}
                   onShareTrip={openShareDialog}
+                  companyName={user?.companyName || ''}
+                  alertSettings={alertSettings}
                   onFilteredRowsChange={setFilteredRows}
                 />
               </div>

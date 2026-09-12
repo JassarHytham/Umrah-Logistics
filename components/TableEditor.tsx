@@ -1,14 +1,15 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { 
+import {
   Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar,
   Plane, Info, Plus, Copy, Share2, Eye, MapPinned,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
-  History as HistoryIcon, StickyNote, Users
+  History as HistoryIcon, StickyNote, Users, ClipboardCopy, Check
 } from 'lucide-react';
-import { LogisticsRow, TripStatus, DEFAULT_COLUMN_ORDER, COLUMN_LABELS } from '../types';
+import { LogisticsRow, TripStatus, DEFAULT_COLUMN_ORDER, COLUMN_LABELS, AlertSettings, DEFAULT_ALERT_SETTINGS } from '../types';
 import { parseDateTime } from '../utils/parser';
 import { buildSimpleTripSummaries, type SimpleTripSummary } from '../utils/simpleTripView';
+import { buildTripMessage } from '../utils/tripMessage';
 
 interface TableEditorProps {
   rows: LogisticsRow[];
@@ -21,6 +22,8 @@ interface TableEditorProps {
   onAddNewRow?: () => void;
   onDuplicateRow?: (row: LogisticsRow) => void;
   onShareTrip?: (row: LogisticsRow) => void;
+  companyName?: string;
+  alertSettings?: AlertSettings;
   onFilteredRowsChange?: (rows: LogisticsRow[]) => void;
   density?: 'compact' | 'comfortable';
   requiredFields?: string[];
@@ -36,7 +39,7 @@ interface TableEditorProps {
   showViewToggle?: boolean;
 }
 
-const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
+export const STATUS_CONFIG: Record<TripStatus, { label: string; color: string }> = {
   'Planned': { label: 'مخطط', color: 'bg-gray-100 text-gray-700 border-gray-200' },
   'Confirmed': { label: 'مؤكد', color: 'bg-blue-100 text-blue-700 border-blue-200' },
   'Driver Assigned': { label: 'تم تعيين السائق', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
@@ -117,6 +120,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onAddNewRow,
   onDuplicateRow,
   onShareTrip,
+  companyName = '',
+  alertSettings = DEFAULT_ALERT_SETTINGS,
   onFilteredRowsChange,
   density = 'compact',
   requiredFields,
@@ -143,6 +148,18 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const [sortConfig, setSortConfig] = useState<{ key: keyof LogisticsRow; direction: 'asc' | 'desc' } | null>(null);
     const [showPastTrips, setShowPastTrips] = useState(false);
     const [expandedNoteRowId, setExpandedNoteRowId] = useState<string | null>(null);
+    const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
+
+    const handleCopyMessage = async (row: LogisticsRow) => {
+        const message = buildTripMessage(row, companyName, alertSettings);
+        try {
+            await navigator.clipboard.writeText(message);
+            setCopiedRowId(row.id);
+            setTimeout(() => setCopiedRowId(current => current === row.id ? null : current), 1500);
+        } catch (e) {
+            console.error("Copy message failed", e);
+        }
+    };
     const [viewMode, setViewMode] = useState<'detailed' | 'simple'>('detailed');
     const [selectedSimpleTrip, setSelectedSimpleTrip] = useState<SimpleTripSummary | null>(null);
     const activeViewMode = controlledViewMode ?? viewMode;
@@ -455,6 +472,13 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         if (h.key === 'actions') {
             return (
                 <div className="flex items-center justify-center gap-1">
+                    <button
+                        onClick={() => handleCopyMessage(row)}
+                        title="نسخ رسالة الحركة"
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                    >
+                        {copiedRowId === row.id ? <Check size={14} /> : <ClipboardCopy size={14} />}
+                    </button>
                     <button
                         onClick={() => onDuplicateRow?.(row)}
                         title="تكرار الرحلة"

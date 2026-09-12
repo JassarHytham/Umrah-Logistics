@@ -4,7 +4,7 @@ import {
   Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar,
   Plane, Info, Plus, Copy, Share2, Eye, MapPinned,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
-  History as HistoryIcon, StickyNote, Users, ClipboardCopy, Check
+  History as HistoryIcon, StickyNote, Users, ClipboardCopy, Check, AlertCircle
 } from 'lucide-react';
 import { LogisticsRow, TripStatus, DEFAULT_COLUMN_ORDER, COLUMN_LABELS, AlertSettings, DEFAULT_ALERT_SETTINGS } from '../types';
 import { parseDateTime } from '../utils/parser';
@@ -149,15 +149,54 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const [showPastTrips, setShowPastTrips] = useState(false);
     const [expandedNoteRowId, setExpandedNoteRowId] = useState<string | null>(null);
     const [copiedRowId, setCopiedRowId] = useState<string | null>(null);
+    const [copyFailedRowId, setCopyFailedRowId] = useState<string | null>(null);
+
+    // Legacy fallback for contexts where the async Clipboard API is unavailable or rejects
+    // (non-HTTPS/non-localhost origins, some in-app browsers, permission-policy restrictions).
+    const copyTextFallback = (text: string): boolean => {
+        try {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.top = '-9999px';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            const success = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            return success;
+        } catch {
+            return false;
+        }
+    };
 
     const handleCopyMessage = async (row: LogisticsRow) => {
         const message = buildTripMessage(row, companyName, alertSettings);
-        try {
-            await navigator.clipboard.writeText(message);
+        let success = false;
+
+        if (navigator.clipboard?.writeText && window.isSecureContext) {
+            try {
+                await navigator.clipboard.writeText(message);
+                success = true;
+            } catch (e) {
+                console.error("Clipboard API copy failed, trying fallback", e);
+            }
+        }
+
+        if (!success) {
+            success = copyTextFallback(message);
+        }
+
+        if (success) {
+            setCopyFailedRowId(null);
             setCopiedRowId(row.id);
             setTimeout(() => setCopiedRowId(current => current === row.id ? null : current), 1500);
-        } catch (e) {
-            console.error("Copy message failed", e);
+        } else {
+            setCopiedRowId(null);
+            setCopyFailedRowId(row.id);
+            setTimeout(() => setCopyFailedRowId(current => current === row.id ? null : current), 2500);
         }
     };
     const [viewMode, setViewMode] = useState<'detailed' | 'simple'>('detailed');
@@ -474,10 +513,10 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 <div className="flex items-center justify-center gap-1">
                     <button
                         onClick={() => handleCopyMessage(row)}
-                        title="نسخ رسالة الحركة"
-                        className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                        title={copyFailedRowId === row.id ? "تعذّر النسخ التلقائي — انقر مرة أخرى، أو انسخ يدويًا من المتصفح" : "نسخ رسالة الحركة"}
+                        className={`p-1.5 rounded-lg transition-colors ${copyFailedRowId === row.id ? 'text-red-500 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
                     >
-                        {copiedRowId === row.id ? <Check size={14} /> : <ClipboardCopy size={14} />}
+                        {copyFailedRowId === row.id ? <AlertCircle size={14} /> : copiedRowId === row.id ? <Check size={14} /> : <ClipboardCopy size={14} />}
                     </button>
                     <button
                         onClick={() => onDuplicateRow?.(row)}

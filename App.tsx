@@ -19,6 +19,7 @@ import { parseItineraryText, parseDateTime } from './utils/parser';
 import { parseItineraryTextEN } from './utils/parserEN';
 import { detectCaptureLang } from './utils/langDetect';
 import { getLocalDateString } from './utils/date';
+import { resolveImportedStatus } from './utils/statusImport';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
 import { Auth } from './components/Auth';
@@ -485,6 +486,7 @@ export default function App() {
             const from = String(getVal(r, ['من', 'From', 'المنشأ']) || '');
             const to = String(getVal(r, ['إلى', 'إلي', 'To', 'الوجهة']) || '');
             const tafweejStatus = String(getVal(r, ['تفويج', 'التفويج', 'Tafweej']) || '');
+            const statusRaw = String(getVal(r, ['الحالة', 'حالة', 'Status']) || '');
 
             return {
               id: uid(),
@@ -500,7 +502,7 @@ export default function App() {
               to: to,
               carType: String(getVal(r, ['نوع السيارة', 'السيارة', 'Car Type', 'نوع_السيارة']) || ''),
               tafweej: tafweejStatus ? `${movement} — ${from} → ${to} (${tafweejStatus})` : `${movement} — ${from} → ${to}`,
-              status: 'Planned' as TripStatus
+              status: resolveImportedStatus(statusRaw, STATUS_LABELS)
             };
           });
           setPreviewRows(imported);

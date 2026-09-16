@@ -304,8 +304,11 @@ const cspDirectives = {
   baseUri: ["'self'"],
   objectSrc: ["'none'"],
   frameAncestors: ["'none'"],
-  scriptSrc: ["'self'"],
-  styleSrc: ["'self'"],
+  // Vite's dev server injects an inline React-Refresh preamble script and
+  // hot-reloaded <style> tags; production/staging builds need neither, so
+  // only local dev gets the relaxed policy.
+  scriptSrc: isProductionLike ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+  styleSrc: isProductionLike ? ["'self'"] : ["'self'", "'unsafe-inline'"],
   imgSrc: ["'self'", "data:"],
   fontSrc: ["'self'"],
   connectSrc: ["'self'", "ws:", "wss:"],

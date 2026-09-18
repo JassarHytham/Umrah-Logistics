@@ -569,10 +569,14 @@ const removeRowsFromDeletedMirror = (userId: number, ids: Iterable<string>) => {
   }
 };
 
-const decorateRowForUser = (record: LogisticsRowRecord, userId: number) => {
+const decorateRowForUser = (
+  record: LogisticsRowRecord,
+  userId: number,
+  precomputedAccess?: { scope: AccessScope; role: AccessRole } | null,
+) => {
   const row = parseRowData(record.data);
   row._version = Number(record.version || 1);
-  const access = getRowAccessForUser(userId, record);
+  const access = precomputedAccess !== undefined ? precomputedAccess : getRowAccessForUser(userId, record);
   const scope = access?.scope;
   const isShared = Boolean(scope && scope !== "owner");
   if (isShared || record.deleted_at) {
@@ -586,14 +590,57 @@ const decorateRowForUser = (record: LogisticsRowRecord, userId: number) => {
   return row;
 };
 
+// getRowAccessForUser does up to 3 queries (row/group/agency share tables) plus a
+// JSON.parse, per row it's called on. For a single row that's fine, but listing
+// the whole table used to call it once per non-owned row here and again inside
+// decorateRowForUser for every visible row — thousands of synchronous DB round
+// trips on a large table. Batch-fetch this user's shares once (3 queries total,
+// not 3 per row) and resolve each row's access from those in-memory maps instead.
 const listVisibleRowsForUser = (userId: number, includeDeleted = false) => {
   const records = db
     .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows")
     .all() as LogisticsRowRecord[];
+
+  const rowRoles = new Map<string, ShareRole>(
+    (db.prepare("SELECT row_id, role FROM trip_row_access WHERE user_id = ?").all(userId) as { row_id: string; role: string }[])
+      .map((r) => [r.row_id, normalizeShareRole(r.role)]),
+  );
+  const groupRoles = new Map<string, ShareRole>(
+    (db.prepare("SELECT group_no, role FROM trip_group_access WHERE user_id = ?").all(userId) as { group_no: string; role: string }[])
+      .map((r) => [r.group_no, normalizeShareRole(r.role)]),
+  );
+  const agencyRoles = new Map<string, ShareRole>(
+    (db.prepare("SELECT agency, role FROM trip_agency_access WHERE user_id = ?").all(userId) as { agency: string; role: string }[])
+      .map((r) => [r.agency, normalizeShareRole(r.role)]),
+  );
+
+  const resolveAccess = (record: LogisticsRowRecord): { scope: AccessScope; role: AccessRole } | null => {
+    if (Number(record.user_id) === Number(userId)) return { scope: "owner", role: "owner" };
+
+    const candidates: { scope: AccessScope; role: ShareRole }[] = [];
+    const rowRole = rowRoles.get(record.id);
+    if (rowRole) candidates.push({ scope: "row", role: rowRole });
+
+    const row = parseRowData(record.data);
+    if (row.groupNo) {
+      const groupRole = groupRoles.get(String(row.groupNo));
+      if (groupRole) candidates.push({ scope: "group", role: groupRole });
+    }
+    const agency = normalizeAgency(row.agency);
+    if (agency) {
+      const agencyRole = agencyRoles.get(agency);
+      if (agencyRole) candidates.push({ scope: "agency", role: agencyRole });
+    }
+
+    const editorAccess = candidates.find((access) => access.role === "editor");
+    return editorAccess ?? candidates[0] ?? null;
+  };
+
   return records
     .filter((record) => includeDeleted ? Boolean(record.deleted_at) : !record.deleted_at)
-    .filter((record) => Boolean(getRowScopeForUser(userId, record)))
-    .map((record) => decorateRowForUser(record, userId));
+    .map((record) => ({ record, access: resolveAccess(record) }))
+    .filter((entry): entry is { record: LogisticsRowRecord; access: { scope: AccessScope; role: AccessRole } } => Boolean(entry.access))
+    .map(({ record, access }) => decorateRowForUser(record, userId, access));
 };
 
 type LiveEventType = "rows_changed" | "invitations_changed";

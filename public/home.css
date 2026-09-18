@@ -456,8 +456,8 @@ html[dir="rtl"] .mobile-menu-panel { transform: translateX(-100%); }
   box-shadow: var(--shadow-sm);
 }
 .chain-arrow { color: var(--ink-4); flex: none; }
-.chain-arrow svg { transform: scaleX(-1); }
-html[dir="rtl"] .chain-arrow svg { transform: none; }
+.chain-arrow svg { transform: none; }
+html[dir="rtl"] .chain-arrow svg { transform: scaleX(-1); }
 .problem-note {
   margin-top: 30px;
   font-size: clamp(1.05rem, 0.95rem + 0.5vw, 1.3rem);

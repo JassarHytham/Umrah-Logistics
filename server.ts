@@ -288,6 +288,51 @@ try {
   }
 }
 
+// Migration: Add role / is_active / company_id / last_login_at to users if missing
+try {
+  db.prepare("SELECT role, is_active, company_id, last_login_at FROM users LIMIT 1").get();
+} catch (e) {
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration role failed", err);
+  }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration is_active failed", err);
+  }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN company_id INTEGER");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration company_id failed", err);
+  }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN last_login_at DATETIME");
+  } catch (err: any) {
+    if (!String(err.message || "").includes("duplicate column")) console.error("Migration last_login_at failed", err);
+  }
+}
+
+// New tables: companies (admin-side grouping label only, never used by row-sharing
+// access control) and audit_log (account/security events for the admin dashboard).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS companies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    actor_user_id INTEGER,
+    target_user_id INTEGER,
+    metadata TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
 app.disable("x-powered-by");
 
 const allowedOrigins = new Set(
@@ -430,14 +475,18 @@ const authenticateToken = (req: any, res: any, next: any) => {
       return res.status(status).json({ error: status === 401 ? "Unauthorized" : "Forbidden" });
     }
     // The JWT payload can outlive the account it points to (deleted/recreated
-    // user, restored-from-backup database, etc). A signature check alone lets
-    // that stale id through, where it later blows up as a raw FOREIGN KEY
-    // constraint failure on any write keyed by user_id. Reject it here as a
-    // plain 401 so callers (e.g. the extension) treat it like an expired
-    // session and re-authenticate instead of surfacing a DB error.
-    const stillExists = db.prepare("SELECT 1 FROM users WHERE id = ?").get(Number(user.id));
-    if (!stillExists) return res.status(401).json({ error: "Unauthorized" });
-    req.user = user;
+    // user, restored-from-backup database, etc), or the account's current
+    // role/active state (admin demoted, user disabled). A signature check
+    // alone lets a stale id or stale role through, where a stale id later
+    // blows up as a raw FOREIGN KEY constraint failure on any write keyed by
+    // user_id. Re-check both fresh from the DB on every request instead of
+    // trusting the JWT payload, so disabling a user or demoting an admin
+    // takes effect on their very next request, not after their token expires.
+    const current = db.prepare("SELECT role, is_active FROM users WHERE id = ?").get(Number(user.id)) as
+      | { role: string; is_active: number }
+      | undefined;
+    if (!current || !current.is_active) return res.status(401).json({ error: "Unauthorized" });
+    req.user = { ...user, role: current.role };
     next();
   });
 };
@@ -752,6 +801,26 @@ const attachLiveUpdates = (server: http.Server) => {
   return wss;
 };
 
+// Admin bootstrap: seed the single super-admin account on first boot. Does not
+// crash the server if the env vars are absent — an existing deployment without
+// them should still start; it just has no admin account yet.
+try {
+  const existingAdmin = db.prepare("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").get();
+  if (!existingAdmin) {
+    const adminUsername = normalizeUsername(process.env.ADMIN_USERNAME);
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (isValidUsername(adminUsername) && isValidPassword(adminPassword)) {
+      const hashedPassword = bcrypt.hashSync(adminPassword as string, 10);
+      db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, 'admin')").run(adminUsername, hashedPassword);
+      console.log(`Seeded admin account "${adminUsername}"`);
+    } else {
+      console.warn("No admin account exists yet, and ADMIN_USERNAME/ADMIN_PASSWORD are missing or invalid (username 3-32 lowercase letters/digits/_/-, password 10-128 chars) — set them in .env and restart to create one.");
+    }
+  }
+} catch (err) {
+  console.error("Admin bootstrap failed", err);
+}
+
 // Auth Routes
 const signAuthToken = (user: { id: number; username: string }) =>
   jwt.sign(
@@ -777,7 +846,7 @@ const signRefreshToken = (user: { id: number; username: string }) =>
     },
   );
 
-const authResponse = (user: { id: number; username: string; company_name?: string | null; avatar?: string | null }) => ({
+const authResponse = (user: { id: number; username: string; company_name?: string | null; avatar?: string | null; role?: string }) => ({
   token: signAuthToken(user),
   refreshToken: signRefreshToken(user),
   user: {
@@ -785,6 +854,7 @@ const authResponse = (user: { id: number; username: string; company_name?: strin
     username: user.username,
     companyName: user.company_name ?? null,
     avatar: user.avatar ?? null,
+    role: user.role || 'user',
   },
 });
 
@@ -816,9 +886,15 @@ app.post("/api/auth/login", async (req, res) => {
   if (!username || typeof password !== "string") return res.status(401).json({ error: "Invalid credentials" });
   const user: any = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
 
-  if (!user || !(await bcrypt.compare(password, user.password))) {
+  if (!user || !(await bcrypt.compare(password, user.password)) || !user.is_active) {
+    db.prepare(
+      "INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('login_failure', ?, ?)"
+    ).run(user ? user.id : null, JSON.stringify({ username }));
     return res.status(401).json({ error: "Invalid credentials" });
   }
+
+  db.prepare("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?").run(user.id);
+  db.prepare("INSERT INTO audit_log (event_type, actor_user_id) VALUES ('login_success', ?)").run(user.id);
 
   res.json(authResponse(user));
 });

@@ -208,6 +208,27 @@ describe('POST /api/auth/login', () => {
 });
 
 // ─────────────────────────────────────────────
+// Admin bootstrap
+// ─────────────────────────────────────────────
+describe('Admin bootstrap and role on login', () => {
+  it('seeds a working admin account with role "admin"', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+    expect(res.status).toBe(200);
+    expect(res.body.user.role).toBe('admin');
+  });
+
+  it('defaults a newly registered user to role "user"', async () => {
+    const unique = `roletest_${Date.now()}`;
+    await request(app).post('/api/auth/register').send({ username: unique, password: 'Password123!' });
+    const res = await request(app).post('/api/auth/login').send({ username: unique, password: 'Password123!' });
+    expect(res.status).toBe(200);
+    expect(res.body.user.role).toBe('user');
+  });
+});
+
+// ─────────────────────────────────────────────
 // Auth Middleware
 // ─────────────────────────────────────────────
 describe('Auth Middleware', () => {

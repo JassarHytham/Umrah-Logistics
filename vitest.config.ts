@@ -6,6 +6,8 @@ export default defineConfig({
     env: {
       VITEST: 'true',
       NODE_ENV: 'test',
+      ADMIN_USERNAME: 'admin',
+      ADMIN_PASSWORD: 'AdminTestPassword123!',
     },
     globals: true,
     testTimeout: 15000,

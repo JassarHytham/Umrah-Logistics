@@ -935,7 +935,7 @@ export default function App() {
         ) : (
           <>
             <section className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="p-1 bg-gradient-to-r from-gold-500 to-indigo-500"></div>
+              <div className="p-1 bg-gradient-to-r from-gold-500 to-gray-800"></div>
               <button
                 onClick={() => setInputSectionOpen(o => !o)}
                 className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"

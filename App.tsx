@@ -769,7 +769,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-white" dir="rtl">
         <div className="text-center space-y-4">
           <Loader2 className="w-12 h-12 text-gold-600 animate-spin mx-auto" />
           <p className="text-gray-500 font-bold">جاري تحميل بياناتك الآمنة...</p>
@@ -783,7 +783,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-right pb-20 relative transition-all duration-300" dir="rtl" style={{ fontSize: `${fontSize}%` }}>
+    <div className="min-h-screen bg-white text-right pb-20 relative transition-all duration-300" dir="rtl" style={{ fontSize: `${fontSize}%` }}>
       {notification && (
         <div className={`fixed top-6 left-6 z-[60] px-6 py-4 rounded-lg shadow-xl text-white flex items-center gap-3 animate-bounce-in ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
           <AlertCircle size={24} /> <span>{notification.msg}</span>

@@ -31,7 +31,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 font-['Tajawal']" dir="rtl">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white p-4 font-['Tajawal']" dir="rtl">
       <a href="/home" className="mb-2" title="الصفحة الرئيسية">
         <img src="/assets/logo-icon.png" alt="UM Track" className="h-14 w-auto" />
       </a>

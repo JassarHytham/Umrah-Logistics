@@ -14,18 +14,19 @@
 
 <nav class="nav">
   <div class="container">
-    <a href="/home.html" class="brand" aria-label="UM Track — الرئيسية">
+    <a href="/home.html" class="brand" aria-label="UM Track">
       <img src="/assets/logo-icon.png" alt="UM Track" width="30" height="30" />
     </a>
     <div class="nav-links">
-      <a href="/home.html#features">المميزات</a>
-      <a href="/home.html#how-it-works">كيف يعمل</a>
-      <a href="/home.html#pricing">الأسعار</a>
-      <a href="/security.html">الأمان</a>
+      <a href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a>
+      <a href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a>
+      <a href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a>
+      <a href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a>
     </div>
     <div class="nav-actions">
-      <a href="/" class="nav-login">تسجيل الدخول</a>
-      <a href="/home.html#pricing" class="btn btn-primary btn-sm">ابدأ الآن</a>
+      <button type="button" class="lang-toggle">English</button>
+      <a href="/" class="nav-login"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
+      <a href="/home.html#pricing" class="btn btn-primary btn-sm"><span data-lang="ar">ابدأ الآن</span><span data-lang="en" hidden>Get started</span></a>
       <button class="nav-toggle" aria-label="فتح القائمة" aria-controls="mobile-menu" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </button>
@@ -41,66 +42,120 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
-    <a class="mobile-link" href="/home.html#features">المميزات</a>
-    <a class="mobile-link" href="/home.html#how-it-works">كيف يعمل</a>
-    <a class="mobile-link" href="/home.html#pricing">الأسعار</a>
-    <a class="mobile-link" href="/security.html">الأمان</a>
-    <a class="mobile-link" href="/home.html#faq">الأسئلة الشائعة</a>
-    <a class="nav-login-m" href="/">تسجيل الدخول</a>
-    <a href="/home.html#pricing" class="btn btn-primary btn-block">ابدأ الآن</a>
+    <a class="mobile-link" href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a>
+    <a class="mobile-link" href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a>
+    <a class="mobile-link" href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a>
+    <a class="mobile-link" href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a>
+    <a class="mobile-link" href="/home.html#faq"><span data-lang="ar">الأسئلة الشائعة</span><span data-lang="en" hidden>FAQ</span></a>
+    <a class="nav-login-m" href="/"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
+    <a href="/home.html#pricing" class="btn btn-primary btn-block"><span data-lang="ar">ابدأ الآن</span><span data-lang="en" hidden>Get started</span></a>
+    <button type="button" class="lang-toggle">English</button>
   </div>
 </div>
 
 <main>
   <section class="page-hero">
     <div class="container reveal">
-      <span class="eyebrow">من نحن</span>
-      <h1>بُنيت لخدمة فرق العمليات في شركات العمرة.</h1>
-      <p class="lead">UM Track ليست شركة عمرة، ولسنا نُسك ولا تابعين لوزارة الحج والعمرة. نحن أداة مستقلة تساعد الفرق التشغيلية على تنظيم عملها اليومي.</p>
+      <div data-lang="ar">
+        <span class="eyebrow">من نحن</span>
+        <h1>بُنيت لخدمة فرق العمليات في شركات العمرة.</h1>
+        <p class="lead">UM Track ليست شركة عمرة، ولسنا نُسك ولا تابعين لوزارة الحج والعمرة. نحن أداة مستقلة تساعد الفرق التشغيلية على تنظيم عملها اليومي.</p>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <span class="eyebrow">About us</span>
+        <h1>Built to serve operations teams at Umrah companies.</h1>
+        <p class="lead">UM Track is not an Umrah company, and we are not Nusuk or affiliated with the Ministry of Hajj and Umrah. We are an independent tool that helps operations teams organize their daily work.</p>
+      </div>
     </div>
   </section>
 
   <section>
     <div class="container">
-      <div class="about-block reveal">
-        <p>بدأ UM Track من ملاحظة مباشرة: فرق العمليات في شركات ومؤسسات العمرة تدير كمًا كبيرًا من المعلومات المتغيرة باستمرار — مواعيد الوصول والمغادرة، التنقل بين المدن، رحلات الزيارة — عبر أدوات غير مترابطة: ملفات إكسل، رسائل واتساب، ونسخ يدوي من نُسك. هذا النمط قد يعمل لفترة، لكنه هش: أي تحديث في الجدول يعني تحديث كل نسخة يدويًا، وأي غياب لشخص واحد قد يعني فوات معلومة مهمة.</p>
-        <p>UM Track يجمع هذه المعلومات في مكان واحد، مع مزامنة تلقائية للرحلات المدعومة من نُسك، حتى يعمل الفريق بأكمله من نفس الصورة المحدثة للعملية — بدل الاعتماد على نسخ متفرقة قد تتعارض مع بعضها.</p>
-        <p>تركيزنا الأساسي هو <strong>الأتمتة والرؤية التشغيلية</strong>: تقليل الإدخال اليدوي المتكرر، وتوفير نظرة واضحة على حالة كل مجموعة في أي لحظة — دون تعقيد غير ضروري أو أدوات لا تحتاجها العمليات اليومية.</p>
-      </div>
+      <div data-lang="ar">
+        <div class="about-block reveal">
+          <p>بدأ UM Track من ملاحظة مباشرة: فرق العمليات في شركات ومؤسسات العمرة تدير كمًا كبيرًا من المعلومات المتغيرة باستمرار — مواعيد الوصول والمغادرة، التنقل بين المدن، رحلات الزيارة — عبر أدوات غير مترابطة: ملفات إكسل، رسائل واتساب، ونسخ يدوي من نُسك. هذا النمط قد يعمل لفترة، لكنه هش: أي تحديث في الجدول يعني تحديث كل نسخة يدويًا، وأي غياب لشخص واحد قد يعني فوات معلومة مهمة.</p>
+          <p>UM Track يجمع هذه المعلومات في مكان واحد، مع مزامنة تلقائية للرحلات المدعومة من نُسك، حتى يعمل الفريق بأكمله من نفس الصورة المحدثة للعملية — بدل الاعتماد على نسخ متفرقة قد تتعارض مع بعضها.</p>
+          <p>تركيزنا الأساسي هو <strong>الأتمتة والرؤية التشغيلية</strong>: تقليل الإدخال اليدوي المتكرر، وتوفير نظرة واضحة على حالة كل مجموعة في أي لحظة — دون تعقيد غير ضروري أو أدوات لا تحتاجها العمليات اليومية.</p>
+        </div>
 
-      <div class="notice-banner reveal" style="margin-top:36px; max-width:68ch;">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-        <div>
-          <strong>منتج مستقل</strong>
-          <p>UM Track منتج مستقل غير تابع لوزارة الحج والعمرة ولا لمنصة نُسك، ولا يمثّل أيًا منهما أو يتحدث نيابة عنهما. يُذكر الاسمان هنا فقط لوصف التكامل التقني الذي تدعمه المنصة مع البيانات المتاحة عبر نُسك.</p>
+        <div class="notice-banner reveal" style="margin-top:36px; max-width:68ch;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <div>
+            <strong>منتج مستقل</strong>
+            <p>UM Track منتج مستقل غير تابع لوزارة الحج والعمرة ولا لمنصة نُسك، ولا يمثّل أيًا منهما أو يتحدث نيابة عنهما. يُذكر الاسمان هنا فقط لوصف التكامل التقني الذي تدعمه المنصة مع البيانات المتاحة عبر نُسك.</p>
+          </div>
+        </div>
+
+        <div class="about-principles">
+          <div class="section-head reveal">
+            <span class="eyebrow">ما الذي نلتزم به</span>
+            <h2>أربعة مبادئ توجّه كل قرار في المنتج.</h2>
+          </div>
+          <div class="feature-grid reveal-stagger">
+            <div class="feature-card">
+              <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>
+              <h3>بساطة</h3>
+              <p>مصمم لفرق العمليات، وليس للمستخدمين التقنيين. الأولوية دائمًا للوضوح على حساب التعقيد.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+              <h3>موثوقية</h3>
+              <p>معلومات الرحلات حساسة زمنيًا. نبني بحذر، ونتحقق قبل أن نطلق، ونفضّل الاستقرار على السرعة عند التعارض.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+              <h3>مسؤولية تجاه البيانات</h3>
+              <p>بيانات مجموعاتك وعملياتك ملك لك. نتعامل معها بجدية — راجع <a href="/security.html" style="color:var(--gold-deep); font-weight:700;">صفحة الأمان</a> و<a href="/privacy.html" style="color:var(--gold-deep); font-weight:700;">سياسة الخصوصية</a>.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></div>
+              <h3>دعم مستمر</h3>
+              <p>المنتج في تطور مستمر بناءً على احتياجات فرق العمليات الفعلية، لا افتراضات نظرية.</p>
+            </div>
+          </div>
         </div>
       </div>
-
-      <div class="about-principles">
-        <div class="section-head reveal">
-          <span class="eyebrow">ما الذي نلتزم به</span>
-          <h2>أربعة مبادئ توجّه كل قرار في المنتج.</h2>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="about-block reveal">
+          <p>UM Track started from a direct observation: operations teams at Umrah companies and offices manage a large amount of constantly changing information — arrival and departure times, inter-city movement, ziyarah trips — across disconnected tools: Excel files, WhatsApp messages, and manual copying from Nusuk. This pattern can work for a while, but it's fragile: any change to the schedule means updating every copy by hand, and one person's absence can mean an important detail is missed.</p>
+          <p>UM Track brings this information into one place, with automatic sync for supported trips from Nusuk, so the whole team works from the same up-to-date picture of the operation — instead of relying on scattered copies that can conflict with each other.</p>
+          <p>Our core focus is <strong>automation and operational visibility</strong>: reducing repetitive manual entry, and providing a clear view of every group's status at any moment — without unnecessary complexity or tools that day-to-day operations don't need.</p>
         </div>
-        <div class="feature-grid reveal-stagger">
-          <div class="feature-card">
-            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>
-            <h3>بساطة</h3>
-            <p>مصمم لفرق العمليات، وليس للمستخدمين التقنيين. الأولوية دائمًا للوضوح على حساب التعقيد.</p>
+
+        <div class="notice-banner reveal" style="margin-top:36px; max-width:68ch;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <div>
+            <strong>Independent product</strong>
+            <p>UM Track is an independent product, not affiliated with the Ministry of Hajj and Umrah or the Nusuk platform, and does not represent or speak on behalf of either. Both names are mentioned here only to describe the technical integration the platform supports with data available via Nusuk.</p>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
-            <h3>موثوقية</h3>
-            <p>معلومات الرحلات حساسة زمنيًا. نبني بحذر، ونتحقق قبل أن نطلق، ونفضّل الاستقرار على السرعة عند التعارض.</p>
+        </div>
+
+        <div class="about-principles">
+          <div class="section-head reveal">
+            <span class="eyebrow">What we commit to</span>
+            <h2>Four principles that guide every product decision.</h2>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
-            <h3>مسؤولية تجاه البيانات</h3>
-            <p>بيانات مجموعاتك وعملياتك ملك لك. نتعامل معها بجدية — راجع <a href="/security.html" style="color:var(--gold-deep); font-weight:700;">صفحة الأمان</a> و<a href="/privacy.html" style="color:var(--gold-deep); font-weight:700;">سياسة الخصوصية</a>.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></div>
-            <h3>دعم مستمر</h3>
-            <p>المنتج في تطور مستمر بناءً على احتياجات فرق العمليات الفعلية، لا افتراضات نظرية.</p>
+          <div class="feature-grid reveal-stagger">
+            <div class="feature-card">
+              <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>
+              <h3>Simplicity</h3>
+              <p>Built for operations teams, not technical users. Clarity always wins over complexity.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+              <h3>Reliability</h3>
+              <p>Trip information is time-sensitive. We build carefully, verify before we launch, and favor stability over speed when they conflict.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+              <h3>Data responsibility</h3>
+              <p>Your groups' and operations' data belongs to you. We take it seriously — see our <a href="/security.html" style="color:var(--gold-deep); font-weight:700;">security page</a> and <a href="/privacy.html" style="color:var(--gold-deep); font-weight:700;">privacy policy</a>.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></div>
+              <h3>Ongoing support</h3>
+              <p>The product keeps evolving based on the actual needs of operations teams, not theoretical assumptions.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -109,9 +164,16 @@
 
   <section class="cta-final">
     <div class="container reveal">
-      <h2>لديك سؤال قبل أن تبدأ؟</h2>
-      <p>فريقنا جاهز للإجابة عن أي استفسار حول المنتج أو التكامل مع نُسك.</p>
-      <a href="/contact.html" class="btn btn-primary">تواصل معنا</a>
+      <div data-lang="ar">
+        <h2>لديك سؤال قبل أن تبدأ؟</h2>
+        <p>فريقنا جاهز للإجابة عن أي استفسار حول المنتج أو التكامل مع نُسك.</p>
+        <a href="/contact.html" class="btn btn-primary">تواصل معنا</a>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <h2>Have a question before you start?</h2>
+        <p>Our team is ready to answer any question about the product or the Nusuk integration.</p>
+        <a href="/contact.html" class="btn btn-primary">Contact us</a>
+      </div>
     </div>
   </section>
 </main>
@@ -121,39 +183,40 @@
     <div class="footer-top">
       <div class="footer-brand">
         <img src="/assets/logo-wordmark.png" alt="UM Track" height="26" />
-        <p>عمليات مجموعات العمرة، ببساطة. رؤية تشغيلية واحدة من الوصول حتى المغادرة.</p>
+        <p><span data-lang="ar">عمليات مجموعات العمرة، ببساطة. رؤية تشغيلية واحدة من الوصول حتى المغادرة.</span><span data-lang="en" hidden>Umrah group operations, simplified. One operational view from arrival to departure.</span></p>
       </div>
       <div class="footer-col">
-        <h5>المنتج</h5>
+        <h5><span data-lang="ar">المنتج</span><span data-lang="en" hidden>Product</span></h5>
         <ul>
-          <li><a href="/home.html#features">المميزات</a></li>
-          <li><a href="/home.html#how-it-works">كيف يعمل</a></li>
-          <li><a href="/home.html#pricing">الأسعار</a></li>
-          <li><a href="/security.html">الأمان</a></li>
-          <li><a href="/home.html#faq">الأسئلة الشائعة</a></li>
+          <li><a href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a></li>
+          <li><a href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a></li>
+          <li><a href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a></li>
+          <li><a href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a></li>
+          <li><a href="/home.html#faq"><span data-lang="ar">الأسئلة الشائعة</span><span data-lang="en" hidden>FAQ</span></a></li>
         </ul>
       </div>
       <div class="footer-col">
-        <h5>الشركة</h5>
+        <h5><span data-lang="ar">الشركة</span><span data-lang="en" hidden>Company</span></h5>
         <ul>
-          <li><a href="/about.html">من نحن</a></li>
-          <li><a href="/contact.html">تواصل معنا</a></li>
+          <li><a href="/about.html"><span data-lang="ar">من نحن</span><span data-lang="en" hidden>About</span></a></li>
+          <li><a href="/contact.html"><span data-lang="ar">تواصل معنا</span><span data-lang="en" hidden>Contact</span></a></li>
         </ul>
-        <h5 style="margin-top:26px;">قانوني</h5>
+        <h5 style="margin-top:26px;"><span data-lang="ar">قانوني</span><span data-lang="en" hidden>Legal</span></h5>
         <ul>
-          <li><a href="/privacy.html">سياسة الخصوصية</a></li>
-          <li><a href="/terms.html">شروط الخدمة</a></li>
-          <li><a href="/cookies.html">سياسة الكوكيز</a></li>
+          <li><a href="/privacy.html"><span data-lang="ar">سياسة الخصوصية</span><span data-lang="en" hidden>Privacy policy</span></a></li>
+          <li><a href="/terms.html"><span data-lang="ar">شروط الخدمة</span><span data-lang="en" hidden>Terms of service</span></a></li>
+          <li><a href="/cookies.html"><span data-lang="ar">سياسة الكوكيز</span><span data-lang="en" hidden>Cookie policy</span></a></li>
         </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2026 UM Track. جميع الحقوق محفوظة.</span>
-      <a href="/" style="font-weight:700; color:var(--ink-2);">تسجيل الدخول</a>
+      <span><span data-lang="ar">© 2026 UM Track. جميع الحقوق محفوظة.</span><span data-lang="en" hidden>© 2026 UM Track. All rights reserved.</span></span>
+      <a href="/" style="font-weight:700; color:var(--ink-2);"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
     </div>
   </div>
 </footer>
 
+<script src="/lang.js" defer></script>
 <script src="/home.js" defer></script>
 </body>
 </html>

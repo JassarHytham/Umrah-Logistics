@@ -14,18 +14,19 @@
 
 <nav class="nav">
   <div class="container">
-    <a href="/home.html" class="brand" aria-label="UM Track — الرئيسية">
+    <a href="/home.html" class="brand" aria-label="UM Track">
       <img src="/assets/logo-icon.png" alt="UM Track" width="30" height="30" />
     </a>
     <div class="nav-links">
-      <a href="/home.html#features">المميزات</a>
-      <a href="/home.html#how-it-works">كيف يعمل</a>
-      <a href="/home.html#pricing">الأسعار</a>
-      <a href="/security.html">الأمان</a>
+      <a href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a>
+      <a href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a>
+      <a href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a>
+      <a href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a>
     </div>
     <div class="nav-actions">
-      <a href="/" class="nav-login">تسجيل الدخول</a>
-      <a href="/home.html#pricing" class="btn btn-primary btn-sm">ابدأ الآن</a>
+      <button type="button" class="lang-toggle">English</button>
+      <a href="/" class="nav-login"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
+      <a href="/home.html#pricing" class="btn btn-primary btn-sm"><span data-lang="ar">ابدأ الآن</span><span data-lang="en" hidden>Get started</span></a>
       <button class="nav-toggle" aria-label="فتح القائمة" aria-controls="mobile-menu" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </button>
@@ -41,90 +42,166 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
-    <a class="mobile-link" href="/home.html#features">المميزات</a>
-    <a class="mobile-link" href="/home.html#how-it-works">كيف يعمل</a>
-    <a class="mobile-link" href="/home.html#pricing">الأسعار</a>
-    <a class="mobile-link" href="/security.html">الأمان</a>
-    <a class="mobile-link" href="/home.html#faq">الأسئلة الشائعة</a>
-    <a class="nav-login-m" href="/">تسجيل الدخول</a>
-    <a href="/home.html#pricing" class="btn btn-primary btn-block">ابدأ الآن</a>
+    <a class="mobile-link" href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a>
+    <a class="mobile-link" href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a>
+    <a class="mobile-link" href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a>
+    <a class="mobile-link" href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a>
+    <a class="mobile-link" href="/home.html#faq"><span data-lang="ar">الأسئلة الشائعة</span><span data-lang="en" hidden>FAQ</span></a>
+    <a class="nav-login-m" href="/"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
+    <a href="/home.html#pricing" class="btn btn-primary btn-block"><span data-lang="ar">ابدأ الآن</span><span data-lang="en" hidden>Get started</span></a>
+    <button type="button" class="lang-toggle">English</button>
   </div>
 </div>
 
 <main>
   <section class="page-hero">
     <div class="container reveal">
-      <span class="eyebrow">الأمان</span>
-      <h1>حماية بيانات عملياتك جزء من تصميم المنتج، لا إضافة لاحقة.</h1>
-      <p class="lead">هذه الصفحة تشرح، بصراحة ووضوح، الإجراءات التقنية والتنظيمية التي نطبّقها فعليًا لحماية بيانات حسابك ومجموعاتك.</p>
-      <span class="updated">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        آخر مراجعة: سبتمبر 2026
-      </span>
+      <div data-lang="ar">
+        <span class="eyebrow">الأمان</span>
+        <h1>حماية بيانات عملياتك جزء من تصميم المنتج، لا إضافة لاحقة.</h1>
+        <p class="lead">هذه الصفحة تشرح، بصراحة ووضوح، الإجراءات التقنية والتنظيمية التي نطبّقها فعليًا لحماية بيانات حسابك ومجموعاتك.</p>
+        <span class="updated">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          آخر مراجعة: سبتمبر 2026
+        </span>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <span class="eyebrow">Security</span>
+        <h1>Protecting your operational data is part of the product's design, not an afterthought.</h1>
+        <p class="lead">This page explains, plainly and clearly, the technical and organizational measures we actually apply to protect your account and group data.</p>
+        <span class="updated">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Last reviewed: September 2026
+        </span>
+      </div>
     </div>
   </section>
 
   <section class="security-grid">
     <div class="container">
-      <div class="feature-grid reveal-stagger">
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
-          <h3>المصادقة وكلمات المرور</h3>
-          <p>كلمات المرور لا تُخزَّن كنص صريح أبدًا؛ يتم تجزئتها (hashing) قبل التخزين. الدخول للنظام يتم عبر جلسات موقّعة (JWT) محدودة الصلاحية.</p>
+      <div data-lang="ar">
+        <div class="feature-grid reveal-stagger">
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+            <h3>المصادقة وكلمات المرور</h3>
+            <p>كلمات المرور لا تُخزَّن كنص صريح أبدًا؛ يتم تجزئتها (hashing) قبل التخزين. الدخول للنظام يتم عبر جلسات موقّعة (JWT) محدودة الصلاحية.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"></path></svg></div>
+            <h3>التشفير أثناء النقل</h3>
+            <p>البيانات المتبادلة بين متصفحك وخوادمنا تُنقل عبر اتصال مشفّر (HTTPS/TLS)، لمنع اعتراض البيانات أثناء انتقالها.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path><circle cx="12" cy="16" r="1.5"></circle></svg></div>
+            <h3>تشفير الإعدادات الحساسة</h3>
+            <p>بيانات التكامل الحساسة (مثل إعدادات التنبيهات الخارجية) تُخزَّن في قاعدة البيانات بصيغة مشفّرة، لا كنص صريح.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+            <h3>الصلاحيات والتحكم بالوصول</h3>
+            <p>كل الطلبات إلى بيانات المجموعات والإعدادات تمر عبر طبقة تحقق من الهوية، وتكون رؤية البيانات محدودة بما يخص حساب المستخدم والمشاركات المصرَّح بها له.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></div>
+            <h3>الحماية من إساءة الاستخدام</h3>
+            <p>نطبّق حدودًا لمعدل الطلبات (rate limiting) ورؤوس أمان قياسية على مستوى الخادم للحد من الاستخدام الآلي أو الهجمات الشائعة.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg></div>
+            <h3>النسخ الاحتياطي</h3>
+            <p>تُؤخذ نسخ احتياطية آلية ودورية من قاعدة البيانات، للمساعدة في استرجاع البيانات عند حدوث عطل تقني.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
+            <h3>مراقبة الأنظمة</h3>
+            <p>نراقب توفر واستقرار الأنظمة ونستجيب للمشكلات التقنية عند اكتشافها، لتقليل فترات التعطل.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="10"></circle></svg></div>
+            <h3>الإبلاغ عن الثغرات الأمنية</h3>
+            <p>إذا اكتشفت ثغرة أمنية، نرجو إبلاغنا بمسؤولية عبر <a href="/contact.html" style="color:var(--gold-deep); font-weight:700;">صفحة التواصل</a> قبل الإفصاح العلني، وسنتعامل مع البلاغ بجدية وسرعة.</p>
+          </div>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"></path></svg></div>
-          <h3>التشفير أثناء النقل</h3>
-          <p>البيانات المتبادلة بين متصفحك وخوادمنا تُنقل عبر اتصال مشفّر (HTTPS/TLS)، لمنع اعتراض البيانات أثناء انتقالها.</p>
+
+        <div class="section-head reveal" style="margin-top:64px;">
+          <span class="eyebrow">التوافق التنظيمي</span>
+          <h2>التوافق مع الأطر التنظيمية في المملكة العربية السعودية.</h2>
+          <p>نعمل على مواءمة ممارساتنا مع المتطلبات التنظيمية السعودية ذات الصلة، وهذا التزام مستمر يتطور مع نمو المنصة.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path><circle cx="12" cy="16" r="1.5"></circle></svg></div>
-          <h3>تشفير الإعدادات الحساسة</h3>
-          <p>بيانات التكامل الحساسة (مثل إعدادات التنبيهات الخارجية) تُخزَّن في قاعدة البيانات بصيغة مشفّرة، لا كنص صريح.</p>
+
+        <div class="about-block reveal">
+          <p><strong>حماية البيانات الشخصية (PDPL):</strong> نتعامل مع البيانات الشخصية التي تتم معالجتها عبر UM Track وفق المبادئ العامة لنظام حماية البيانات الشخصية الصادر عن الهيئة السعودية للبيانات والذكاء الاصطناعي (سدايا)، من حيث الحد من جمع البيانات لما هو ضروري، وتحديد الغرض من المعالجة، ومنح المستخدمين حق الوصول إلى بياناتهم وتصحيحها أو طلب حذفها. التفاصيل الكاملة موضحة في <a href="/privacy.html">سياسة الخصوصية</a>.</p>
+          <p><strong>الضوابط الأساسية للأمن السيبراني (ECC):</strong> نسترشد بالمبادئ العامة للضوابط الأساسية للأمن السيبراني الصادرة عن الهيئة الوطنية للأمن السيبراني (NCA) في تصميم إجراءاتنا الأمنية الداخلية، مثل إدارة الهوية والوصول، وحماية البيانات، والاستجابة للحوادث.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
-          <h3>الصلاحيات والتحكم بالوصول</h3>
-          <p>كل الطلبات إلى بيانات المجموعات والإعدادات تمر عبر طبقة تحقق من الهوية، وتكون رؤية البيانات محدودة بما يخص حساب المستخدم والمشاركات المصرَّح بها له.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></div>
-          <h3>الحماية من إساءة الاستخدام</h3>
-          <p>نطبّق حدودًا لمعدل الطلبات (rate limiting) ورؤوس أمان قياسية على مستوى الخادم للحد من الاستخدام الآلي أو الهجمات الشائعة.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg></div>
-          <h3>النسخ الاحتياطي</h3>
-          <p>تُؤخذ نسخ احتياطية آلية ودورية من قاعدة البيانات، للمساعدة في استرجاع البيانات عند حدوث عطل تقني.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
-          <h3>مراقبة الأنظمة</h3>
-          <p>نراقب توفر واستقرار الأنظمة ونستجيب للمشكلات التقنية عند اكتشافها، لتقليل فترات التعطل.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="10"></circle></svg></div>
-          <h3>الإبلاغ عن الثغرات الأمنية</h3>
-          <p>إذا اكتشفت ثغرة أمنية، نرجو إبلاغنا بمسؤولية عبر <a href="/contact.html" style="color:var(--gold-deep); font-weight:700;">صفحة التواصل</a> قبل الإفصاح العلني، وسنتعامل مع البلاغ بجدية وسرعة.</p>
+
+        <div class="security-note reveal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <p>
+            هذه الصفحة وصف لممارساتنا الحالية، وليست شهادة اعتماد أو تدقيق رسمي صادر عن أي جهة تنظيمية. لا ندّعي حيازة اعتماد رسمي من الهيئة الوطنية للأمن السيبراني أو أي جهة أخرى ما لم يُذكر ذلك صراحة. لم نحدد بعد بشكل نهائي موقع استضافة البيانات؛ إن كانت لديك متطلبات محددة لإقامة البيانات داخل المملكة، يرجى <a href="/contact.html">التواصل معنا</a> لمناقشة التفاصيل. لأي أسئلة أمنية إضافية أو لطلب استبيان أمني، تواصل معنا مباشرة.
+          </p>
         </div>
       </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="feature-grid reveal-stagger">
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+            <h3>Authentication and passwords</h3>
+            <p>Passwords are never stored as plain text; they are hashed before storage. Access to the system goes through signed sessions (JWT) with a limited lifetime.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"></path></svg></div>
+            <h3>Encryption in transit</h3>
+            <p>Data exchanged between your browser and our servers is transmitted over an encrypted connection (HTTPS/TLS), preventing interception in transit.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path><circle cx="12" cy="16" r="1.5"></circle></svg></div>
+            <h3>Encrypted sensitive settings</h3>
+            <p>Sensitive integration data (such as external alert settings) is stored in the database in encrypted form, not as plain text.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+            <h3>Permissions and access control</h3>
+            <p>All requests to group data and settings pass through an identity verification layer, and data visibility is limited to the user's own account and the shares they've been granted.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></div>
+            <h3>Abuse protection</h3>
+            <p>We apply rate limiting and standard security headers at the server level to reduce automated abuse or common attacks.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14a9 3 0 0 0 18 0V5"></path><path d="M3 12a9 3 0 0 0 18 0"></path></svg></div>
+            <h3>Backups</h3>
+            <p>Automated, periodic backups are taken of the database, to help recover data in the event of a technical failure.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
+            <h3>System monitoring</h3>
+            <p>We monitor system availability and stability and respond to technical issues as they're detected, to reduce downtime.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"></path><circle cx="12" cy="12" r="10"></circle></svg></div>
+            <h3>Reporting security vulnerabilities</h3>
+            <p>If you discover a security vulnerability, please report it responsibly via our <a href="/contact.html" style="color:var(--gold-deep); font-weight:700;">contact page</a> before public disclosure, and we'll handle the report seriously and promptly.</p>
+          </div>
+        </div>
 
-      <div class="section-head reveal" style="margin-top:64px;">
-        <span class="eyebrow">التوافق التنظيمي</span>
-        <h2>التوافق مع الأطر التنظيمية في المملكة العربية السعودية.</h2>
-        <p>نعمل على مواءمة ممارساتنا مع المتطلبات التنظيمية السعودية ذات الصلة، وهذا التزام مستمر يتطور مع نمو المنصة.</p>
-      </div>
+        <div class="section-head reveal" style="margin-top:64px;">
+          <span class="eyebrow">Regulatory compliance</span>
+          <h2>Aligning with Saudi Arabia's regulatory frameworks.</h2>
+          <p>We work to align our practices with relevant Saudi regulatory requirements, and this is an ongoing commitment that evolves as the platform grows.</p>
+        </div>
 
-      <div class="about-block reveal">
-        <p><strong>حماية البيانات الشخصية (PDPL):</strong> نتعامل مع البيانات الشخصية التي تتم معالجتها عبر UM Track وفق المبادئ العامة لنظام حماية البيانات الشخصية الصادر عن الهيئة السعودية للبيانات والذكاء الاصطناعي (سدايا)، من حيث الحد من جمع البيانات لما هو ضروري، وتحديد الغرض من المعالجة، ومنح المستخدمين حق الوصول إلى بياناتهم وتصحيحها أو طلب حذفها. التفاصيل الكاملة موضحة في <a href="/privacy.html">سياسة الخصوصية</a>.</p>
-        <p><strong>الضوابط الأساسية للأمن السيبراني (ECC):</strong> نسترشد بالمبادئ العامة للضوابط الأساسية للأمن السيبراني الصادرة عن الهيئة الوطنية للأمن السيبراني (NCA) في تصميم إجراءاتنا الأمنية الداخلية، مثل إدارة الهوية والوصول، وحماية البيانات، والاستجابة للحوادث.</p>
-      </div>
+        <div class="about-block reveal">
+          <p><strong>Personal Data Protection (PDPL):</strong> We handle personal data processed through UM Track according to the general principles of Saudi Arabia's Personal Data Protection Law issued by the Saudi Data & AI Authority (SDAIA) — limiting data collection to what's necessary, defining the purpose of processing, and giving users the right to access, correct, or request deletion of their data. Full details are in our <a href="/privacy.html">privacy policy</a>.</p>
+          <p><strong>Essential Cybersecurity Controls (ECC):</strong> We're guided by the general principles of the Essential Cybersecurity Controls issued by the National Cybersecurity Authority (NCA) in designing our internal security measures, such as identity and access management, data protection, and incident response.</p>
+        </div>
 
-      <div class="security-note reveal">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-        <p>
-          هذه الصفحة وصف لممارساتنا الحالية، وليست شهادة اعتماد أو تدقيق رسمي صادر عن أي جهة تنظيمية. لا ندّعي حيازة اعتماد رسمي من الهيئة الوطنية للأمن السيبراني أو أي جهة أخرى ما لم يُذكر ذلك صراحة. لم نحدد بعد بشكل نهائي موقع استضافة البيانات؛ إن كانت لديك متطلبات محددة لإقامة البيانات داخل المملكة، يرجى <a href="/contact.html">التواصل معنا</a> لمناقشة التفاصيل. لأي أسئلة أمنية إضافية أو لطلب استبيان أمني، تواصل معنا مباشرة.
-        </p>
+        <div class="security-note reveal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          <p>
+            This page describes our current practices, and is not a formal certification or audit issued by any regulatory body. We do not claim to hold formal accreditation from the National Cybersecurity Authority or any other body unless explicitly stated. We have not yet finalized the data hosting location; if you have specific requirements for data residency within the Kingdom, please <a href="/contact.html">contact us</a> to discuss details. For any additional security questions or to request a security questionnaire, reach out to us directly.
+          </p>
+        </div>
       </div>
     </div>
   </section>
@@ -135,39 +212,40 @@
     <div class="footer-top">
       <div class="footer-brand">
         <img src="/assets/logo-wordmark.png" alt="UM Track" height="26" />
-        <p>عمليات مجموعات العمرة، ببساطة. رؤية تشغيلية واحدة من الوصول حتى المغادرة.</p>
+        <p><span data-lang="ar">عمليات مجموعات العمرة، ببساطة. رؤية تشغيلية واحدة من الوصول حتى المغادرة.</span><span data-lang="en" hidden>Umrah group operations, simplified. One operational view from arrival to departure.</span></p>
       </div>
       <div class="footer-col">
-        <h5>المنتج</h5>
+        <h5><span data-lang="ar">المنتج</span><span data-lang="en" hidden>Product</span></h5>
         <ul>
-          <li><a href="/home.html#features">المميزات</a></li>
-          <li><a href="/home.html#how-it-works">كيف يعمل</a></li>
-          <li><a href="/home.html#pricing">الأسعار</a></li>
-          <li><a href="/security.html">الأمان</a></li>
-          <li><a href="/home.html#faq">الأسئلة الشائعة</a></li>
+          <li><a href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a></li>
+          <li><a href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a></li>
+          <li><a href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a></li>
+          <li><a href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a></li>
+          <li><a href="/home.html#faq"><span data-lang="ar">الأسئلة الشائعة</span><span data-lang="en" hidden>FAQ</span></a></li>
         </ul>
       </div>
       <div class="footer-col">
-        <h5>الشركة</h5>
+        <h5><span data-lang="ar">الشركة</span><span data-lang="en" hidden>Company</span></h5>
         <ul>
-          <li><a href="/about.html">من نحن</a></li>
-          <li><a href="/contact.html">تواصل معنا</a></li>
+          <li><a href="/about.html"><span data-lang="ar">من نحن</span><span data-lang="en" hidden>About</span></a></li>
+          <li><a href="/contact.html"><span data-lang="ar">تواصل معنا</span><span data-lang="en" hidden>Contact</span></a></li>
         </ul>
-        <h5 style="margin-top:26px;">قانوني</h5>
+        <h5 style="margin-top:26px;"><span data-lang="ar">قانوني</span><span data-lang="en" hidden>Legal</span></h5>
         <ul>
-          <li><a href="/privacy.html">سياسة الخصوصية</a></li>
-          <li><a href="/terms.html">شروط الخدمة</a></li>
-          <li><a href="/cookies.html">سياسة الكوكيز</a></li>
+          <li><a href="/privacy.html"><span data-lang="ar">سياسة الخصوصية</span><span data-lang="en" hidden>Privacy policy</span></a></li>
+          <li><a href="/terms.html"><span data-lang="ar">شروط الخدمة</span><span data-lang="en" hidden>Terms of service</span></a></li>
+          <li><a href="/cookies.html"><span data-lang="ar">سياسة الكوكيز</span><span data-lang="en" hidden>Cookie policy</span></a></li>
         </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2026 UM Track. جميع الحقوق محفوظة.</span>
-      <a href="/" style="font-weight:700; color:var(--ink-2);">تسجيل الدخول</a>
+      <span><span data-lang="ar">© 2026 UM Track. جميع الحقوق محفوظة.</span><span data-lang="en" hidden>© 2026 UM Track. All rights reserved.</span></span>
+      <a href="/" style="font-weight:700; color:var(--ink-2);"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
     </div>
   </div>
 </footer>
 
+<script src="/lang.js" defer></script>
 <script src="/home.js" defer></script>
 </body>
 </html>

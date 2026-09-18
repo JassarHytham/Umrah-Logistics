@@ -13,20 +13,21 @@
 
 <nav class="nav">
   <div class="container">
-    <a href="#top" class="brand" aria-label="UM Track — الرئيسية">
+    <a href="#top" class="brand" aria-label="UM Track">
       <img src="/assets/logo-icon.png" alt="UM Track" width="30" height="30" />
     </a>
 
     <div class="nav-links">
-      <a href="#features">المميزات</a>
-      <a href="#how-it-works">كيف يعمل</a>
-      <a href="#pricing">الأسعار</a>
-      <a href="/security.html">الأمان</a>
+      <a href="#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a>
+      <a href="#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a>
+      <a href="#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a>
+      <a href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a>
     </div>
 
     <div class="nav-actions">
-      <a href="/" class="nav-login">تسجيل الدخول</a>
-      <a href="#pricing" class="btn btn-primary btn-sm">ابدأ الآن</a>
+      <button type="button" class="lang-toggle">English</button>
+      <a href="/" class="nav-login"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
+      <a href="#pricing" class="btn btn-primary btn-sm"><span data-lang="ar">ابدأ الآن</span><span data-lang="en" hidden>Get started</span></a>
       <button class="nav-toggle" aria-label="فتح القائمة" aria-controls="mobile-menu" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </button>
@@ -42,13 +43,14 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
-    <a class="mobile-link" href="#features">المميزات</a>
-    <a class="mobile-link" href="#how-it-works">كيف يعمل</a>
-    <a class="mobile-link" href="#pricing">الأسعار</a>
-    <a class="mobile-link" href="/security.html">الأمان</a>
-    <a class="mobile-link" href="#faq">الأسئلة الشائعة</a>
-    <a class="nav-login-m" href="/">تسجيل الدخول</a>
-    <a href="#pricing" class="btn btn-primary btn-block">ابدأ الآن</a>
+    <a class="mobile-link" href="#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a>
+    <a class="mobile-link" href="#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a>
+    <a class="mobile-link" href="#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a>
+    <a class="mobile-link" href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a>
+    <a class="mobile-link" href="#faq"><span data-lang="ar">الأسئلة الشائعة</span><span data-lang="en" hidden>FAQ</span></a>
+    <a class="nav-login-m" href="/"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
+    <a href="#pricing" class="btn btn-primary btn-block"><span data-lang="ar">ابدأ الآن</span><span data-lang="en" hidden>Get started</span></a>
+    <button type="button" class="lang-toggle">English</button>
   </div>
 </div>
 
@@ -58,31 +60,49 @@
   <section class="hero">
     <div class="container">
       <div class="hero-copy reveal">
-        <span class="eyebrow">منصّة إدارة مجموعات العمرة</span>
-        <h1>تتبّع كل مجموعة عمرة،<br>من الوصول <span class="accent">حتى المغادرة.</span></h1>
-        <p class="lead">UM Track يمنح شركات العمرة مكانًا واحدًا لمراقبة وصول ومغادرة المجموعات، والتنقل بين المدن، ورحلات الزيارة — مع مزامنة الرحلات مباشرة من نُسك.</p>
-        <div class="hero-cta">
-          <a href="#pricing" class="btn btn-primary">ابدأ الآن</a>
-          <a href="#how-it-works" class="btn btn-ghost">شاهد كيف يعمل</a>
+        <div data-lang="ar">
+          <span class="eyebrow">منصّة إدارة مجموعات العمرة</span>
+          <h1>تتبّع كل مجموعة عمرة،<br>من الوصول <span class="accent">حتى المغادرة.</span></h1>
+          <p class="lead">UM Track يمنح شركات العمرة مكانًا واحدًا لمراقبة وصول ومغادرة المجموعات، والتنقل بين المدن، ورحلات الزيارة — مع مزامنة الرحلات مباشرة من نُسك.</p>
+          <div class="hero-cta">
+            <a href="#pricing" class="btn btn-primary">ابدأ الآن</a>
+            <a href="#how-it-works" class="btn btn-ghost">شاهد كيف يعمل</a>
+          </div>
+          <ul class="hero-checklist">
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> مزامنة نُسك</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تحديثات الرحلات</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> رؤية المجموعات</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تعاون الفريق</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تنبيهات فورية</li>
+          </ul>
         </div>
-        <ul class="hero-checklist">
-          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> مزامنة نُسك</li>
-          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تحديثات الرحلات</li>
-          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> رؤية المجموعات</li>
-          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تعاون الفريق</li>
-          <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تنبيهات فورية</li>
-        </ul>
+        <div data-lang="en" hidden dir="ltr">
+          <span class="eyebrow">Umrah group management platform</span>
+          <h1>Track every Umrah group,<br>from arrival <span class="accent">to departure.</span></h1>
+          <p class="lead">UM Track gives Umrah companies one place to watch group arrivals and departures, inter-city movement, and ziyarah trips — with trips synced directly from Nusuk.</p>
+          <div class="hero-cta">
+            <a href="#pricing" class="btn btn-primary">Get started</a>
+            <a href="#how-it-works" class="btn btn-ghost">See how it works</a>
+          </div>
+          <ul class="hero-checklist">
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Nusuk sync</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Trip updates</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Group visibility</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Team collaboration</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Instant alerts</li>
+          </ul>
+        </div>
       </div>
 
       <div class="hero-visual reveal" style="transition-delay:.12s">
         <div class="mockup-glow" aria-hidden="true"></div>
         <div class="floaty floaty-1">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-          تنبيه مغادرة قريب
+          <span data-lang="ar">تنبيه مغادرة قريب</span><span data-lang="en" hidden>Departure alert soon</span>
         </div>
         <div class="floaty floaty-2">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-          مزامنة مع نُسك
+          <span data-lang="ar">مزامنة مع نُسك</span><span data-lang="en" hidden>Synced with Nusuk</span>
         </div>
 
         <div class="mockup">
@@ -92,14 +112,17 @@
           </div>
 
           <div class="mockup-stats">
-            <div class="mockup-stat"><b><span class="count" data-count="24">0</span></b><span>مجموعة اليوم</span></div>
-            <div class="mockup-stat"><b><span class="count" data-count="8">0</span></b><span>وصول</span></div>
-            <div class="mockup-stat"><b><span class="count" data-count="16">0</span></b><span>رحلة</span></div>
+            <div class="mockup-stat"><b><span class="count" data-count="24">0</span></b><span data-lang="ar">مجموعة اليوم</span><span data-lang="en" hidden>groups today</span></div>
+            <div class="mockup-stat"><b><span class="count" data-count="8">0</span></b><span data-lang="ar">وصول</span><span data-lang="en" hidden>arrivals</span></div>
+            <div class="mockup-stat"><b><span class="count" data-count="16">0</span></b><span data-lang="ar">رحلة</span><span data-lang="en" hidden>trips</span></div>
           </div>
 
           <div class="mockup-list">
             <div class="mockup-row">
-              <div class="mockup-row-top"><strong>مجموعة 102 — مكة → المدينة</strong><span class="badge badge-ok">قيد التنفيذ</span></div>
+              <div class="mockup-row-top">
+                <strong><span data-lang="ar">مجموعة 102 — مكة → المدينة</span><span data-lang="en" hidden>Group 102 — Makkah → Madinah</span></strong>
+                <span class="badge badge-ok"><span data-lang="ar">قيد التنفيذ</span><span data-lang="en" hidden>In progress</span></span>
+              </div>
               <div class="route">
                 <svg viewBox="0 0 240 18" preserveAspectRatio="none">
                   <path class="path" d="M4,9 C 80,9 160,9 236,9"></path>
@@ -109,7 +132,10 @@
               </div>
             </div>
             <div class="mockup-row">
-              <div class="mockup-row-top"><strong>مجموعة 114 — جدة → مكة</strong><span class="badge badge-info">مجدول</span></div>
+              <div class="mockup-row-top">
+                <strong><span data-lang="ar">مجموعة 114 — جدة → مكة</span><span data-lang="en" hidden>Group 114 — Jeddah → Makkah</span></strong>
+                <span class="badge badge-info"><span data-lang="ar">مجدول</span><span data-lang="en" hidden>Scheduled</span></span>
+              </div>
               <div class="route">
                 <svg viewBox="0 0 240 18" preserveAspectRatio="none">
                   <path class="path" d="M4,9 C 80,9 160,9 236,9"></path>
@@ -117,7 +143,10 @@
               </div>
             </div>
             <div class="mockup-row">
-              <div class="mockup-row-top"><strong>مجموعة 097 — رحلة زيارة</strong><span class="badge badge-warn">مغادرة قريبة</span></div>
+              <div class="mockup-row-top">
+                <strong><span data-lang="ar">مجموعة 097 — رحلة زيارة</span><span data-lang="en" hidden>Group 097 — Ziyarah trip</span></strong>
+                <span class="badge badge-warn"><span data-lang="ar">مغادرة قريبة</span><span data-lang="en" hidden>Departure soon</span></span>
+              </div>
               <div class="route">
                 <svg viewBox="0 0 240 18" preserveAspectRatio="none">
                   <path class="path" d="M4,9 C 80,9 160,9 236,9"></path>
@@ -133,26 +162,50 @@
   <!-- PROBLEM -->
   <section class="problem" id="problem">
     <div class="container">
-      <div class="section-head reveal">
-        <span class="eyebrow">المشكلة</span>
-        <h2>إدارة مجموعات العمرة لا يجب أن تعني إدارة جداول إكسل.</h2>
-      </div>
+      <div data-lang="ar">
+        <div class="section-head reveal">
+          <span class="eyebrow">المشكلة</span>
+          <h2>إدارة مجموعات العمرة لا يجب أن تعني إدارة جداول إكسل.</h2>
+        </div>
 
-      <div class="chain reveal-stagger" style="transition-delay:.05s">
-        <span class="chain-item">نُسك</span>
-        <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
-        <span class="chain-item">نسخ يدوي</span>
-        <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
-        <span class="chain-item">رسائل واتساب</span>
-        <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
-        <span class="chain-item">ملفات إكسل</span>
-        <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
-        <span class="chain-item">مكالمات هاتفية</span>
-        <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
-        <span class="chain-item">نسخ مختلفة من الجدول</span>
-      </div>
+        <div class="chain reveal-stagger" style="transition-delay:.05s">
+          <span class="chain-item">نُسك</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">نسخ يدوي</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">رسائل واتساب</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">ملفات إكسل</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">مكالمات هاتفية</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">نسخ مختلفة من الجدول</span>
+        </div>
 
-      <p class="problem-note reveal">عندما يتغيّر الجدول، لا يجب أن يضطر فريقك لتحديث كل نظام يدويًا.</p>
+        <p class="problem-note reveal">عندما يتغيّر الجدول، لا يجب أن يضطر فريقك لتحديث كل نظام يدويًا.</p>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="section-head reveal">
+          <span class="eyebrow">The problem</span>
+          <h2>Managing Umrah groups shouldn't mean managing spreadsheets.</h2>
+        </div>
+
+        <div class="chain reveal-stagger" style="transition-delay:.05s">
+          <span class="chain-item">Nusuk</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">Manual copying</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">WhatsApp messages</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">Excel files</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">Phone calls</span>
+          <span class="chain-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg></span>
+          <span class="chain-item">Different copies of the same sheet</span>
+        </div>
+
+        <p class="problem-note reveal">When the schedule changes, your team shouldn't have to update every system by hand.</p>
+      </div>
     </div>
   </section>
 
@@ -167,29 +220,40 @@
           <div class="diff-branch">
             <span class="stem"></span>
             <span class="dot-node"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
-            مجموعات
+            <span data-lang="ar">مجموعات</span><span data-lang="en" hidden>Groups</span>
           </div>
           <div class="diff-branch">
             <span class="stem"></span>
             <span class="dot-node"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></span>
-            حالة
+            <span data-lang="ar">حالة</span><span data-lang="en" hidden>Status</span>
           </div>
           <div class="diff-branch">
             <span class="stem"></span>
             <span class="dot-node"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
-            فريق
+            <span data-lang="ar">فريق</span><span data-lang="en" hidden>Team</span>
           </div>
         </div>
       </div>
 
       <div class="diff-copy reveal" style="transition-delay:.1s">
-        <span class="tag">الميزة الجوهرية</span>
-        <h2>متصل مباشرة بنُسك.</h2>
-        <p>الرحلات المستوردة من نُسك تبقى متزامنة مع أي تحديث يتم هناك، ما يقلل الإدخال المزدوج للبيانات ويساعد فريقك على العمل بأحدث المعلومات المتاحة.</p>
-        <span class="diff-pill">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-          مزامنة تلقائية
-        </span>
+        <div data-lang="ar">
+          <span class="tag">الميزة الجوهرية</span>
+          <h2>متصل مباشرة بنُسك.</h2>
+          <p>الرحلات المستوردة من نُسك تبقى متزامنة مع أي تحديث يتم هناك، ما يقلل الإدخال المزدوج للبيانات ويساعد فريقك على العمل بأحدث المعلومات المتاحة.</p>
+          <span class="diff-pill">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            مزامنة تلقائية
+          </span>
+        </div>
+        <div data-lang="en" hidden dir="ltr">
+          <span class="tag">Core advantage</span>
+          <h2>Connected directly to Nusuk.</h2>
+          <p>Trips imported from Nusuk stay in sync with any update made there, reducing duplicate data entry and helping your team work from the latest information available.</p>
+          <span class="diff-pill">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            Automatic sync
+          </span>
+        </div>
       </div>
     </div>
   </section>
@@ -197,42 +261,84 @@
   <!-- FEATURES -->
   <section class="features" id="features">
     <div class="container">
-      <div class="section-head center reveal">
-        <span class="eyebrow">المميزات</span>
-        <h2>كل ما يحتاجه فريق العمليات في مكان واحد.</h2>
-      </div>
+      <div data-lang="ar">
+        <div class="section-head center reveal">
+          <span class="eyebrow">المميزات</span>
+          <h2>كل ما يحتاجه فريق العمليات في مكان واحد.</h2>
+        </div>
 
-      <div class="feature-grid reveal-stagger">
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></div>
-          <h3>مزامنة نُسك</h3>
-          <p>رحلاتك، متزامنة تلقائيًا. تقليل الإدخال اليدوي عبر سحب الرحلات من نُسك وتحديثها عند حدوث تغييرات.</p>
+        <div class="feature-grid reveal-stagger">
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></div>
+            <h3>مزامنة نُسك</h3>
+            <p>رحلاتك، متزامنة تلقائيًا. تقليل الإدخال اليدوي عبر سحب الرحلات من نُسك وتحديثها عند حدوث تغييرات.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+            <h3>تتبع المجموعات</h3>
+            <p>اعرف مكان كل مجموعة في رحلتها: وصول، مكة، المدينة، تنقل بين المدن، رحلة زيارة، مغادرة.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></div>
+            <h3>رؤية شاملة للرحلات</h3>
+            <p>شاهد العملية بأكملها بنظرة واحدة، بدل التنقل بين عدة ملفات ومحادثات متفرقة.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+            <h3>مشاركة الفريق</h3>
+            <p>شارك معلومات الرحلات مع مستخدمين مخوّلين آخرين، ليعمل الجميع من نفس الجدول.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
+            <h3>لوحة الحالة</h3>
+            <p>نظرة سريعة على القادمين، الموجودين في مكة، المتجهين للمدينة، والمغادرين — لحظة بلحظة.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></div>
+            <h3>التنبيهات</h3>
+            <p>لا تعتمد على تذكّر أحد. تنبيهات فورية لأحداث الرحلات المهمة.</p>
+            <span class="beta-tag">تجريبي — بيتا</span>
+          </div>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
-          <h3>تتبع المجموعات</h3>
-          <p>اعرف مكان كل مجموعة في رحلتها: وصول، مكة، المدينة، تنقل بين المدن، رحلة زيارة، مغادرة.</p>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="section-head center reveal">
+          <span class="eyebrow">Features</span>
+          <h2>Everything your operations team needs, in one place.</h2>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></div>
-          <h3>رؤية شاملة للرحلات</h3>
-          <p>شاهد العملية بأكملها بنظرة واحدة، بدل التنقل بين عدة ملفات ومحادثات متفرقة.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
-          <h3>مشاركة الفريق</h3>
-          <p>شارك معلومات الرحلات مع مستخدمين مخوّلين آخرين، ليعمل الجميع من نفس الجدول.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
-          <h3>لوحة الحالة</h3>
-          <p>نظرة سريعة على القادمين، الموجودين في مكة، المتجهين للمدينة، والمغادرين — لحظة بلحظة.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></div>
-          <h3>التنبيهات</h3>
-          <p>لا تعتمد على تذكّر أحد. تنبيهات فورية لأحداث الرحلات المهمة.</p>
-          <span class="beta-tag">تجريبي — بيتا</span>
+
+        <div class="feature-grid reveal-stagger">
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></div>
+            <h3>Nusuk sync</h3>
+            <p>Your trips, synced automatically. Less manual entry by pulling trips from Nusuk and updating them as changes happen.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+            <h3>Group tracking</h3>
+            <p>Know where every group is in its journey: arrival, Makkah, Madinah, inter-city movement, ziyarah trip, departure.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></div>
+            <h3>Full trip visibility</h3>
+            <p>See the whole operation at a glance, instead of jumping between scattered files and chats.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+            <h3>Team sharing</h3>
+            <p>Share trip information with other authorized users, so everyone works from the same schedule.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
+            <h3>Status dashboard</h3>
+            <p>A quick view of who's arriving, who's in Makkah, who's headed to Madinah, and who's departing — moment to moment.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></div>
+            <h3>Alerts</h3>
+            <p>Don't rely on someone remembering. Instant alerts for important trip events.</p>
+            <span class="beta-tag">Beta</span>
+          </div>
         </div>
       </div>
     </div>
@@ -241,28 +347,56 @@
   <!-- HOW IT WORKS -->
   <section class="how" id="how-it-works">
     <div class="container">
-      <div class="section-head center reveal">
-        <span class="eyebrow">كيف يعمل</span>
-        <h2>من نُسك إلى لوحة عملياتك، في ثلاث خطوات.</h2>
-      </div>
+      <div data-lang="ar">
+        <div class="section-head center reveal">
+          <span class="eyebrow">كيف يعمل</span>
+          <h2>من نُسك إلى لوحة عملياتك، في ثلاث خطوات.</h2>
+        </div>
 
-      <div class="how-steps reveal-stagger">
-        <div class="how-step">
-          <span class="num">01</span>
-          <h3>اتصال</h3>
-          <p>يتم ربط رحلاتك بـ UM Track.</p>
-          <span class="how-connector"></span>
+        <div class="how-steps reveal-stagger">
+          <div class="how-step">
+            <span class="num">01</span>
+            <h3>اتصال</h3>
+            <p>يتم ربط رحلاتك بـ UM Track.</p>
+            <span class="how-connector"></span>
+          </div>
+          <div class="how-step">
+            <span class="num">02</span>
+            <h3>مزامنة</h3>
+            <p>التغييرات في معلومات الرحلات المدعومة من نُسك تنعكس داخل UM Track.</p>
+            <span class="how-connector"></span>
+          </div>
+          <div class="how-step">
+            <span class="num">03</span>
+            <h3>تشغيل</h3>
+            <p>يتتبع فريقك المجموعات، يدير التنقلات، يشارك المعلومات، ويراقب الحالة من نظام واحد.</p>
+          </div>
         </div>
-        <div class="how-step">
-          <span class="num">02</span>
-          <h3>مزامنة</h3>
-          <p>التغييرات في معلومات الرحلات المدعومة من نُسك تنعكس داخل UM Track.</p>
-          <span class="how-connector"></span>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="section-head center reveal">
+          <span class="eyebrow">How it works</span>
+          <h2>From Nusuk to your operations dashboard, in three steps.</h2>
         </div>
-        <div class="how-step">
-          <span class="num">03</span>
-          <h3>تشغيل</h3>
-          <p>يتتبع فريقك المجموعات، يدير التنقلات، يشارك المعلومات، ويراقب الحالة من نظام واحد.</p>
+
+        <div class="how-steps reveal-stagger">
+          <div class="how-step">
+            <span class="num">01</span>
+            <h3>Connect</h3>
+            <p>Your trips get linked to UM Track.</p>
+            <span class="how-connector"></span>
+          </div>
+          <div class="how-step">
+            <span class="num">02</span>
+            <h3>Sync</h3>
+            <p>Changes to supported trip information from Nusuk are reflected inside UM Track.</p>
+            <span class="how-connector"></span>
+          </div>
+          <div class="how-step">
+            <span class="num">03</span>
+            <h3>Operate</h3>
+            <p>Your team tracks groups, manages transfers, shares information, and monitors status from one system.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -271,36 +405,72 @@
   <!-- BEFORE / AFTER -->
   <section class="compare" id="compare">
     <div class="container">
-      <div class="section-head center reveal">
-        <span class="eyebrow">الفرق</span>
-        <h2>من الفوضى التشغيلية إلى عرض واحد موحّد.</h2>
-      </div>
-
-      <div class="compare-grid">
-        <div class="compare-card before reveal">
-          <span class="compare-label">قبل UM Track</span>
-          <h3>أنظمة متفرقة</h3>
-          <ul class="compare-list">
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> ملفات إكسل متعددة</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> رسائل واتساب متناثرة</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> نسخ يدوي من نُسك</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> مكالمات هاتفية متكررة</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> نسخ مختلفة من نفس الجدول</li>
-          </ul>
-          <p class="compare-result">= ارتباك تشغيلي</p>
+      <div data-lang="ar">
+        <div class="section-head center reveal">
+          <span class="eyebrow">الفرق</span>
+          <h2>من الفوضى التشغيلية إلى عرض واحد موحّد.</h2>
         </div>
 
-        <div class="compare-card after reveal" style="transition-delay:.1s">
-          <span class="compare-label">مع UM Track</span>
-          <h3>نظام واحد متصل</h3>
-          <ul class="compare-list">
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> مزامنة تلقائية من نُسك</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تتبع مجموعات موحّد</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> لوحة حالة لحظية</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> مشاركة مع الفريق بصلاحيات</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> جدول واحد موثوق للجميع</li>
-          </ul>
-          <p class="compare-result">= رؤية تشغيلية واحدة</p>
+        <div class="compare-grid">
+          <div class="compare-card before reveal">
+            <span class="compare-label">قبل UM Track</span>
+            <h3>أنظمة متفرقة</h3>
+            <ul class="compare-list">
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> ملفات إكسل متعددة</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> رسائل واتساب متناثرة</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> نسخ يدوي من نُسك</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> مكالمات هاتفية متكررة</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> نسخ مختلفة من نفس الجدول</li>
+            </ul>
+            <p class="compare-result">= ارتباك تشغيلي</p>
+          </div>
+
+          <div class="compare-card after reveal" style="transition-delay:.1s">
+            <span class="compare-label">مع UM Track</span>
+            <h3>نظام واحد متصل</h3>
+            <ul class="compare-list">
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> مزامنة تلقائية من نُسك</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تتبع مجموعات موحّد</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> لوحة حالة لحظية</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> مشاركة مع الفريق بصلاحيات</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> جدول واحد موثوق للجميع</li>
+            </ul>
+            <p class="compare-result">= رؤية تشغيلية واحدة</p>
+          </div>
+        </div>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="section-head center reveal">
+          <span class="eyebrow">The difference</span>
+          <h2>From operational chaos to one unified view.</h2>
+        </div>
+
+        <div class="compare-grid">
+          <div class="compare-card before reveal">
+            <span class="compare-label">Before UM Track</span>
+            <h3>Scattered systems</h3>
+            <ul class="compare-list">
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Multiple Excel files</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Scattered WhatsApp messages</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Manual copying from Nusuk</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Repeated phone calls</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Different copies of the same sheet</li>
+            </ul>
+            <p class="compare-result">= Operational confusion</p>
+          </div>
+
+          <div class="compare-card after reveal" style="transition-delay:.1s">
+            <span class="compare-label">With UM Track</span>
+            <h3>One connected system</h3>
+            <ul class="compare-list">
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Automatic sync from Nusuk</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Unified group tracking</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Real-time status dashboard</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Permissioned team sharing</li>
+              <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> One trusted schedule for everyone</li>
+            </ul>
+            <p class="compare-result">= One operational view</p>
+          </div>
         </div>
       </div>
     </div>
@@ -309,35 +479,70 @@
   <!-- WHY UM TRACK -->
   <section class="why" id="why">
     <div class="container">
-      <div class="section-head center reveal">
-        <span class="eyebrow">لماذا UM Track</span>
-        <h2>مصمم لفرق العمليات، لا للمستخدمين التقنيين.</h2>
-      </div>
+      <div data-lang="ar">
+        <div class="section-head center reveal">
+          <span class="eyebrow">لماذا UM Track</span>
+          <h2>مصمم لفرق العمليات، لا للمستخدمين التقنيين.</h2>
+        </div>
 
-      <div class="why-grid reveal-stagger">
-        <div class="why-item">
-          <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
-          <div><h4>مزامنة تلقائية</h4><p>تقليل التحديثات اليدوية المتكررة عبر ربط معلومات الرحلات بنُسك.</p></div>
+        <div class="why-grid reveal-stagger">
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
+            <div><h4>مزامنة تلقائية</h4><p>تقليل التحديثات اليدوية المتكررة عبر ربط معلومات الرحلات بنُسك.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
+            <div><h4>بساطة</h4><p>مصمم لفرق العمليات وليس للمستخدمين التقنيين.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg></span>
+            <div><h4>إمكانية الوصول</h4><p>راقب عملياتك من أي مكان تعمل منه فريقك.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+            <div><h4>تعاون</h4><p>شارك المعلومات ذات الصلة مع أعضاء الفريق المخوّلين.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
+            <div><h4>مدعوم</h4><p>احصل على مساعدة عندما لا يسير شيء كما هو متوقع.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
+            <div><h4>مدروس التكلفة</h4><p>القدرات التشغيلية التي تحتاجها شركتك، دون تعقيد إضافي.</p></div>
+          </div>
         </div>
-        <div class="why-item">
-          <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
-          <div><h4>بساطة</h4><p>مصمم لفرق العمليات وليس للمستخدمين التقنيين.</p></div>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="section-head center reveal">
+          <span class="eyebrow">Why UM Track</span>
+          <h2>Built for operations teams, not technical users.</h2>
         </div>
-        <div class="why-item">
-          <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg></span>
-          <div><h4>إمكانية الوصول</h4><p>راقب عملياتك من أي مكان تعمل منه فريقك.</p></div>
-        </div>
-        <div class="why-item">
-          <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
-          <div><h4>تعاون</h4><p>شارك المعلومات ذات الصلة مع أعضاء الفريق المخوّلين.</p></div>
-        </div>
-        <div class="why-item">
-          <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
-          <div><h4>مدعوم</h4><p>احصل على مساعدة عندما لا يسير شيء كما هو متوقع.</p></div>
-        </div>
-        <div class="why-item">
-          <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
-          <div><h4>مدروس التكلفة</h4><p>القدرات التشغيلية التي تحتاجها شركتك، دون تعقيد إضافي.</p></div>
+
+        <div class="why-grid reveal-stagger">
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
+            <div><h4>Automatic sync</h4><p>Fewer repetitive manual updates by linking trip information to Nusuk.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></span>
+            <div><h4>Simplicity</h4><p>Built for operations teams, not technical users.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg></span>
+            <div><h4>Accessibility</h4><p>Monitor your operations from wherever your team works.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+            <div><h4>Collaboration</h4><p>Share relevant information with authorized team members.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
+            <div><h4>Supported</h4><p>Get help when something doesn't go as expected.</p></div>
+          </div>
+          <div class="why-item">
+            <span class="why-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg></span>
+            <div><h4>Cost-conscious</h4><p>The operational capability your company needs, without extra complexity.</p></div>
+          </div>
         </div>
       </div>
     </div>
@@ -346,29 +551,58 @@
   <!-- PRICING -->
   <section class="pricing" id="pricing">
     <div class="container">
-      <div class="section-head center reveal">
-        <span class="eyebrow">الأسعار</span>
-        <h2>خطة واحدة، بدون تعقيد.</h2>
-        <p>كل ما تحتاجه شركتك لإدارة مجموعات ورحلات العمرة. جرّبها مجانًا لمدة 14 يومًا، ثم تواصل معنا للتسعير.</p>
-      </div>
+      <div data-lang="ar">
+        <div class="section-head center reveal">
+          <span class="eyebrow">الأسعار</span>
+          <h2>خطة واحدة، بدون تعقيد.</h2>
+          <p>كل ما تحتاجه شركتك لإدارة مجموعات ورحلات العمرة. جرّبها مجانًا لمدة 14 يومًا، ثم تواصل معنا للتسعير.</p>
+        </div>
 
-      <div class="price-grid single reveal-stagger">
-        <div class="price-card featured">
-          <span class="trial-badge">تجربة مجانية 14 يومًا</span>
-          <span class="price-name">UM Track</span>
-          <h3>خطة شاملة لكل عملياتك</h3>
-          <p class="price-desc">تشمل الخطة 3 مستخدمين، مع إمكانية إضافة مستخدمين إضافيين برسوم إضافية حسب حجم فريقك.</p>
-          <p class="price-value">تواصل معنا للتسعير</p>
-          <ul class="price-list">
-            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تتبع المجموعات</li>
-            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> إدارة الرحلات</li>
-            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> مزامنة نُسك</li>
-            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> لوحة حالة تشغيلية</li>
-            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تنبيهات القرب</li>
-            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> 3 مستخدمين ضمن الخطة، وإضافة مستخدمين إضافيين برسوم إضافية</li>
-            <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> دعم فني</li>
-          </ul>
-          <a href="/" class="btn btn-primary btn-block">ابدأ تجربتك المجانية</a>
+        <div class="price-grid single reveal-stagger">
+          <div class="price-card featured">
+            <span class="trial-badge">تجربة مجانية 14 يومًا</span>
+            <span class="price-name">UM Track</span>
+            <h3>خطة شاملة لكل عملياتك</h3>
+            <p class="price-desc">تشمل الخطة 3 مستخدمين، مع إمكانية إضافة مستخدمين إضافيين برسوم إضافية حسب حجم فريقك.</p>
+            <p class="price-value">تواصل معنا للتسعير</p>
+            <ul class="price-list">
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تتبع المجموعات</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> إدارة الرحلات</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> مزامنة نُسك</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> لوحة حالة تشغيلية</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> تنبيهات القرب</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> 3 مستخدمين ضمن الخطة، وإضافة مستخدمين إضافيين برسوم إضافية</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> دعم فني</li>
+            </ul>
+            <a href="/" class="btn btn-primary btn-block">ابدأ تجربتك المجانية</a>
+          </div>
+        </div>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="section-head center reveal">
+          <span class="eyebrow">Pricing</span>
+          <h2>One plan, no complexity.</h2>
+          <p>Everything your company needs to manage Umrah groups and trips. Try it free for 14 days, then contact us for pricing.</p>
+        </div>
+
+        <div class="price-grid single reveal-stagger">
+          <div class="price-card featured">
+            <span class="trial-badge">14-day free trial</span>
+            <span class="price-name">UM Track</span>
+            <h3>One plan for all your operations</h3>
+            <p class="price-desc">The plan includes 3 users, with the option to add extra users for an additional fee based on your team's size.</p>
+            <p class="price-value">Contact us for pricing</p>
+            <ul class="price-list">
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Group tracking</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Trip management</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Nusuk sync</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Operational status dashboard</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Proximity alerts</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> 3 users included, extra users for an additional fee</li>
+              <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Technical support</li>
+            </ul>
+            <a href="/" class="btn btn-primary btn-block">Start your free trial</a>
+          </div>
         </div>
       </div>
     </div>
@@ -377,39 +611,78 @@
   <!-- FAQ -->
   <section class="faq" id="faq">
     <div class="container">
-      <div class="section-head center reveal">
-        <span class="eyebrow">الأسئلة الشائعة</span>
-        <h2>كل ما تحتاج معرفته.</h2>
-      </div>
+      <div data-lang="ar">
+        <div class="section-head center reveal">
+          <span class="eyebrow">الأسئلة الشائعة</span>
+          <h2>كل ما تحتاج معرفته.</h2>
+        </div>
 
-      <div class="faq-list reveal">
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">ما هو UM Track؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
-          <div class="faq-a"><p>UM Track منصّة لإدارة ومراقبة تنقلات ورحلات مجموعات العمرة، مصممة لفرق العمليات في شركات العمرة.</p></div>
+        <div class="faq-list reveal">
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">ما هو UM Track؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>UM Track منصّة لإدارة ومراقبة تنقلات ورحلات مجموعات العمرة، مصممة لفرق العمليات في شركات العمرة.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">هل يتصل UM Track بنُسك؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>نعم. يمكن سحب الرحلات المدعومة من نُسك ومزامنتها تلقائيًا عند حدوث تغييرات، لتقليل الإدخال اليدوي.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">هل يجب إدخال الرحلات يدويًا؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>لا. الرحلات المدعومة يمكن مزامنتها تلقائيًا، بينما يبقى الإدخال اليدوي متاحًا للحالات خارج التكامل الآلي.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">ماذا يحدث عند تغيّر رحلة في نُسك؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>يتم انعكاس التغييرات المدعومة داخل UM Track، ليعمل فريقك دائمًا من أحدث المعلومات المتاحة.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">هل يمكن لعدة موظفين استخدام UM Track؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>نعم، حسب نموذج الحسابات والصلاحيات لديك، مع إمكانية مشاركة المعلومات بين المستخدمين المخوّلين.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">هل يمكنني الوصول إليه من الجوال؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>نعم. UM Track يعمل من متصفح الجوال مباشرة، دون الحاجة لتثبيت أي برنامج.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">هل بياناتي آمنة؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>نتعامل مع بيانات عملياتك بجدية. راجع <a href="/privacy.html" style="color:var(--gold-deep); font-weight:700;">سياسة الخصوصية</a> لمزيد من التفاصيل.</p></div>
+          </div>
         </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">هل يتصل UM Track بنُسك؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
-          <div class="faq-a"><p>نعم. يمكن سحب الرحلات المدعومة من نُسك ومزامنتها تلقائيًا عند حدوث تغييرات، لتقليل الإدخال اليدوي.</p></div>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="section-head center reveal">
+          <span class="eyebrow">FAQ</span>
+          <h2>Everything you need to know.</h2>
         </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">هل يجب إدخال الرحلات يدويًا؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
-          <div class="faq-a"><p>لا. الرحلات المدعومة يمكن مزامنتها تلقائيًا، بينما يبقى الإدخال اليدوي متاحًا للحالات خارج التكامل الآلي.</p></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">ماذا يحدث عند تغيّر رحلة في نُسك؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
-          <div class="faq-a"><p>يتم انعكاس التغييرات المدعومة داخل UM Track، ليعمل فريقك دائمًا من أحدث المعلومات المتاحة.</p></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">هل يمكن لعدة موظفين استخدام UM Track؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
-          <div class="faq-a"><p>نعم، حسب نموذج الحسابات والصلاحيات لديك، مع إمكانية مشاركة المعلومات بين المستخدمين المخوّلين.</p></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">هل يمكنني الوصول إليه من الجوال؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
-          <div class="faq-a"><p>نعم. UM Track يعمل من متصفح الجوال مباشرة، دون الحاجة لتثبيت أي برنامج.</p></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-q" aria-expanded="false">هل بياناتي آمنة؟<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
-          <div class="faq-a"><p>نتعامل مع بيانات عملياتك بجدية. راجع <a href="/privacy.html" style="color:var(--gold-deep); font-weight:700;">سياسة الخصوصية</a> لمزيد من التفاصيل.</p></div>
+
+        <div class="faq-list reveal">
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">What is UM Track?<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>UM Track is a platform for managing and monitoring Umrah group movements and trips, built for operations teams at Umrah companies.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">Does UM Track connect to Nusuk?<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>Yes. Supported trips can be pulled from Nusuk and synced automatically as changes happen, reducing manual entry.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">Do I have to enter trips manually?<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>No. Supported trips can be synced automatically, while manual entry remains available for cases outside the automated integration.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">What happens when a trip changes in Nusuk?<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>Supported changes are reflected inside UM Track, so your team always works from the latest information available.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">Can multiple staff use UM Track?<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>Yes, depending on your accounts and permissions setup, with the ability to share information between authorized users.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">Can I access it from mobile?<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>Yes. UM Track works directly from a mobile browser, with no software to install.</p></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">Is my data secure?<span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></button>
+            <div class="faq-a"><p>We take your operational data seriously. See our <a href="/privacy.html" style="color:var(--gold-deep); font-weight:700;">privacy policy</a> for details.</p></div>
+          </div>
         </div>
       </div>
     </div>
@@ -418,9 +691,16 @@
   <!-- FINAL CTA -->
   <section class="cta-final">
     <div class="container reveal">
-      <h2>جاهز لتبسيط عملياتك؟</h2>
-      <p>ابدأ في تنظيم مجموعاتك ورحلاتك من مكان واحد اليوم.</p>
-      <a href="#pricing" class="btn btn-primary">ابدأ الآن</a>
+      <div data-lang="ar">
+        <h2>جاهز لتبسيط عملياتك؟</h2>
+        <p>ابدأ في تنظيم مجموعاتك ورحلاتك من مكان واحد اليوم.</p>
+        <a href="#pricing" class="btn btn-primary">ابدأ الآن</a>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <h2>Ready to simplify your operations?</h2>
+        <p>Start organizing your groups and trips from one place today.</p>
+        <a href="#pricing" class="btn btn-primary">Get started</a>
+      </div>
     </div>
   </section>
 
@@ -431,39 +711,40 @@
     <div class="footer-top">
       <div class="footer-brand">
         <img src="/assets/logo-wordmark.png" alt="UM Track" height="26" />
-        <p>عمليات مجموعات العمرة، ببساطة. رؤية تشغيلية واحدة من الوصول حتى المغادرة.</p>
+        <p><span data-lang="ar">عمليات مجموعات العمرة، ببساطة. رؤية تشغيلية واحدة من الوصول حتى المغادرة.</span><span data-lang="en" hidden>Umrah group operations, simplified. One operational view from arrival to departure.</span></p>
       </div>
       <div class="footer-col">
-        <h5>المنتج</h5>
+        <h5><span data-lang="ar">المنتج</span><span data-lang="en" hidden>Product</span></h5>
         <ul>
-          <li><a href="#features">المميزات</a></li>
-          <li><a href="#how-it-works">كيف يعمل</a></li>
-          <li><a href="#pricing">الأسعار</a></li>
-          <li><a href="/security.html">الأمان</a></li>
-          <li><a href="#faq">الأسئلة الشائعة</a></li>
+          <li><a href="#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a></li>
+          <li><a href="#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a></li>
+          <li><a href="#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a></li>
+          <li><a href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a></li>
+          <li><a href="#faq"><span data-lang="ar">الأسئلة الشائعة</span><span data-lang="en" hidden>FAQ</span></a></li>
         </ul>
       </div>
       <div class="footer-col">
-        <h5>الشركة</h5>
+        <h5><span data-lang="ar">الشركة</span><span data-lang="en" hidden>Company</span></h5>
         <ul>
-          <li><a href="/about.html">من نحن</a></li>
-          <li><a href="/contact.html">تواصل معنا</a></li>
+          <li><a href="/about.html"><span data-lang="ar">من نحن</span><span data-lang="en" hidden>About</span></a></li>
+          <li><a href="/contact.html"><span data-lang="ar">تواصل معنا</span><span data-lang="en" hidden>Contact</span></a></li>
         </ul>
-        <h5 style="margin-top:26px;">قانوني</h5>
+        <h5 style="margin-top:26px;"><span data-lang="ar">قانوني</span><span data-lang="en" hidden>Legal</span></h5>
         <ul>
-          <li><a href="/privacy.html">سياسة الخصوصية</a></li>
-          <li><a href="/terms.html">شروط الخدمة</a></li>
-          <li><a href="/cookies.html">سياسة الكوكيز</a></li>
+          <li><a href="/privacy.html"><span data-lang="ar">سياسة الخصوصية</span><span data-lang="en" hidden>Privacy policy</span></a></li>
+          <li><a href="/terms.html"><span data-lang="ar">شروط الخدمة</span><span data-lang="en" hidden>Terms of service</span></a></li>
+          <li><a href="/cookies.html"><span data-lang="ar">سياسة الكوكيز</span><span data-lang="en" hidden>Cookie policy</span></a></li>
         </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2026 UM Track. جميع الحقوق محفوظة.</span>
-      <a href="/" style="font-weight:700; color:var(--ink-2);">تسجيل الدخول</a>
+      <span><span data-lang="ar">© 2026 UM Track. جميع الحقوق محفوظة.</span><span data-lang="en" hidden>© 2026 UM Track. All rights reserved.</span></span>
+      <a href="/" style="font-weight:700; color:var(--ink-2);"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
     </div>
   </div>
 </footer>
 
+<script src="/lang.js" defer></script>
 <script src="/home.js" defer></script>
 </body>
 </html>

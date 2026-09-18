@@ -14,18 +14,19 @@
 
 <nav class="nav">
   <div class="container">
-    <a href="/home.html" class="brand" aria-label="UM Track — الرئيسية">
+    <a href="/home.html" class="brand" aria-label="UM Track">
       <img src="/assets/logo-icon.png" alt="UM Track" width="30" height="30" />
     </a>
     <div class="nav-links">
-      <a href="/home.html#features">المميزات</a>
-      <a href="/home.html#how-it-works">كيف يعمل</a>
-      <a href="/home.html#pricing">الأسعار</a>
-      <a href="/security.html">الأمان</a>
+      <a href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a>
+      <a href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a>
+      <a href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a>
+      <a href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a>
     </div>
     <div class="nav-actions">
-      <a href="/" class="nav-login">تسجيل الدخول</a>
-      <a href="/home.html#pricing" class="btn btn-primary btn-sm">ابدأ الآن</a>
+      <button type="button" class="lang-toggle">English</button>
+      <a href="/" class="nav-login"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
+      <a href="/home.html#pricing" class="btn btn-primary btn-sm"><span data-lang="ar">ابدأ الآن</span><span data-lang="en" hidden>Get started</span></a>
       <button class="nav-toggle" aria-label="فتح القائمة" aria-controls="mobile-menu" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </button>
@@ -41,26 +42,38 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
-    <a class="mobile-link" href="/home.html#features">المميزات</a>
-    <a class="mobile-link" href="/home.html#how-it-works">كيف يعمل</a>
-    <a class="mobile-link" href="/home.html#pricing">الأسعار</a>
-    <a class="mobile-link" href="/security.html">الأمان</a>
-    <a class="mobile-link" href="/home.html#faq">الأسئلة الشائعة</a>
-    <a class="nav-login-m" href="/">تسجيل الدخول</a>
-    <a href="/home.html#pricing" class="btn btn-primary btn-block">ابدأ الآن</a>
+    <a class="mobile-link" href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a>
+    <a class="mobile-link" href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a>
+    <a class="mobile-link" href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a>
+    <a class="mobile-link" href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a>
+    <a class="mobile-link" href="/home.html#faq"><span data-lang="ar">الأسئلة الشائعة</span><span data-lang="en" hidden>FAQ</span></a>
+    <a class="nav-login-m" href="/"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
+    <a href="/home.html#pricing" class="btn btn-primary btn-block"><span data-lang="ar">ابدأ الآن</span><span data-lang="en" hidden>Get started</span></a>
+    <button type="button" class="lang-toggle">English</button>
   </div>
 </div>
 
 <main>
   <section class="page-hero">
     <div class="container reveal">
-      <span class="eyebrow">سياسة الكوكيز</span>
-      <h1>سياسة الكوكيز</h1>
-      <p class="lead">توضيح صريح ومباشر لما تستخدمه UM Track فعليًا — وما لا تستخدمه.</p>
-      <span class="updated">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        آخر تحديث: سبتمبر 2026
-      </span>
+      <div data-lang="ar">
+        <span class="eyebrow">سياسة الكوكيز</span>
+        <h1>سياسة الكوكيز</h1>
+        <p class="lead">توضيح صريح ومباشر لما تستخدمه UM Track فعليًا — وما لا تستخدمه.</p>
+        <span class="updated">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          آخر تحديث: سبتمبر 2026
+        </span>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <span class="eyebrow">Cookie policy</span>
+        <h1>Cookie policy</h1>
+        <p class="lead">A plain, direct explanation of what UM Track actually uses — and what it doesn't.</p>
+        <span class="updated">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Last updated: September 2026
+        </span>
+      </div>
     </div>
   </section>
 
@@ -69,33 +82,60 @@
       <div class="notice-banner reveal" style="max-width:72ch;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
         <div>
-          <strong>مسودة</strong>
-          <p>هذه الصفحة تعكس الاستخدام الفعلي الحالي للكوكيز في UM Track. إن تمت إضافة أدوات تحليلات أو تسويق مستقبلًا، ستُحدَّث هذه السياسة وسيُطلب موافقتك حيثما تطلّب النظام ذلك.</p>
+          <strong><span data-lang="ar">مسودة</span><span data-lang="en" hidden>Draft</span></strong>
+          <p><span data-lang="ar">هذه الصفحة تعكس الاستخدام الفعلي الحالي للكوكيز في UM Track. إن تمت إضافة أدوات تحليلات أو تسويق مستقبلًا، ستُحدَّث هذه السياسة وسيُطلب موافقتك حيثما تطلّب النظام ذلك.</span><span data-lang="en" hidden>This page reflects UM Track's current actual use of cookies. If analytics or marketing tools are added in the future, this policy will be updated and your consent will be requested wherever required by law.</span></p>
         </div>
       </div>
 
-      <div class="prose reveal">
-        <h2 class="no-rule">ما هي الكوكيز؟</h2>
-        <p>الكوكيز ملفات نصية صغيرة تُخزَّن في متصفحك عند زيارة موقع إلكتروني، وتُستخدم عادةً لتذكّر تفضيلاتك أو حالة تسجيل دخولك أو لأغراض تحليلية وتسويقية.</p>
+      <div data-lang="ar">
+        <div class="prose reveal">
+          <h2 class="no-rule">ما هي الكوكيز؟</h2>
+          <p>الكوكيز ملفات نصية صغيرة تُخزَّن في متصفحك عند زيارة موقع إلكتروني، وتُستخدم عادةً لتذكّر تفضيلاتك أو حالة تسجيل دخولك أو لأغراض تحليلية وتسويقية.</p>
 
-        <h2>ما تستخدمه UM Track فعليًا</h2>
-        <p>منصة UM Track <strong>لا تستخدم كوكيز لتسجيل الدخول أو المصادقة</strong>. بدلًا من ذلك، يُخزَّن رمز الجلسة (token) في التخزين المحلي لمتصفحك (Local Storage) على جهازك فقط، ولا تتم مشاركته مع أي طرف ثالث.</p>
-        <p>لا تستخدم UM Track حاليًا كوكيز تحليلية (Analytics) أو كوكيز تسويقية أو إعلانية أو كوكيز تتبع عبر مواقع أخرى.</p>
+          <h2>ما تستخدمه UM Track فعليًا</h2>
+          <p>منصة UM Track <strong>لا تستخدم كوكيز لتسجيل الدخول أو المصادقة</strong>. بدلًا من ذلك، يُخزَّن رمز الجلسة (token) في التخزين المحلي لمتصفحك (Local Storage) على جهازك فقط، ولا تتم مشاركته مع أي طرف ثالث.</p>
+          <p>لا تستخدم UM Track حاليًا كوكيز تحليلية (Analytics) أو كوكيز تسويقية أو إعلانية أو كوكيز تتبع عبر مواقع أخرى.</p>
 
-        <h2>خدمات الطرف الثالث</h2>
-        <p>تُحمَّل صفحاتنا التسويقية خط Tajawal من خدمة Google Fonts. هذا يعني أن متصفحك يُجري اتصالًا مباشرًا بخوادم Google لتحميل ملفات الخط، وهو ما قد يعرّض عنوان IP الخاص بجهازك لـ Google بحسب <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">سياسة خصوصية Google</a>. لا نستخدم هذه الخدمة لأي غرض تتبعي من جانبنا.</p>
+          <h2>خدمات الطرف الثالث</h2>
+          <p>تُحمَّل صفحاتنا التسويقية خط Tajawal من خدمة Google Fonts. هذا يعني أن متصفحك يُجري اتصالًا مباشرًا بخوادم Google لتحميل ملفات الخط، وهو ما قد يعرّض عنوان IP الخاص بجهازك لـ Google بحسب <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">سياسة خصوصية Google</a>. لا نستخدم هذه الخدمة لأي غرض تتبعي من جانبنا.</p>
 
-        <h2>كوكيز أساسية محتملة</h2>
-        <p>قد تُستخدم مستقبلًا كوكيز تقنية ضرورية بحتة (مثل حماية النماذج من الاستخدام الآلي) إن استدعت الحاجة ذلك. أي كوكيز من هذا النوع تكون ضرورية لعمل الخدمة ولا تتطلب موافقة مسبقة بحسب الممارسات المتعارف عليها، لكننا سنوضحها هنا فور إضافتها.</p>
+          <h2>كوكيز أساسية محتملة</h2>
+          <p>قد تُستخدم مستقبلًا كوكيز تقنية ضرورية بحتة (مثل حماية النماذج من الاستخدام الآلي) إن استدعت الحاجة ذلك. أي كوكيز من هذا النوع تكون ضرورية لعمل الخدمة ولا تتطلب موافقة مسبقة بحسب الممارسات المتعارف عليها، لكننا سنوضحها هنا فور إضافتها.</p>
 
-        <h2>التحكم بالكوكيز من متصفحك</h2>
-        <p>يمكنك في أي وقت مراجعة أو حذف أو حظر الكوكيز من إعدادات متصفحك مباشرة. نظرًا لأن UM Track لا يعتمد على كوكيز للمصادقة، فإن حظرها لن يمنعك من تسجيل الدخول، لكنه قد يؤثر على بعض المواقع الأخرى التي تعتمد عليها.</p>
+          <h2>التحكم بالكوكيز من متصفحك</h2>
+          <p>يمكنك في أي وقت مراجعة أو حذف أو حظر الكوكيز من إعدادات متصفحك مباشرة. نظرًا لأن UM Track لا يعتمد على كوكيز للمصادقة، فإن حظرها لن يمنعك من تسجيل الدخول، لكنه قد يؤثر على بعض المواقع الأخرى التي تعتمد عليها.</p>
 
-        <h2>التغييرات على هذه السياسة</h2>
-        <p>سنُحدّث هذه الصفحة إذا تغيّر استخدامنا الفعلي للكوكيز أو تقنيات التخزين المشابهة، وسيظهر تاريخ آخر تحديث أعلى الصفحة.</p>
+          <h2>التغييرات على هذه السياسة</h2>
+          <p>سنُحدّث هذه الصفحة إذا تغيّر استخدامنا الفعلي للكوكيز أو تقنيات التخزين المشابهة، وسيظهر تاريخ آخر تحديث أعلى الصفحة.</p>
 
-        <h2>التواصل</h2>
-        <p>لأي سؤال حول هذه السياسة، تواصل معنا عبر <a href="/contact.html">صفحة التواصل</a>.</p>
+          <h2>التواصل</h2>
+          <p>لأي سؤال حول هذه السياسة، تواصل معنا عبر <a href="/contact.html">صفحة التواصل</a>.</p>
+        </div>
+      </div>
+      <div data-lang="en" hidden dir="ltr">
+        <div class="prose reveal">
+          <h2 class="no-rule">What are cookies?</h2>
+          <p>Cookies are small text files stored in your browser when you visit a website, typically used to remember your preferences or login state, or for analytics and marketing purposes.</p>
+
+          <h2>What UM Track actually uses</h2>
+          <p>The UM Track platform <strong>does not use cookies for login or authentication</strong>. Instead, the session token is stored in your browser's local storage on your device only, and is never shared with any third party.</p>
+          <p>UM Track does not currently use analytics cookies, marketing or advertising cookies, or cross-site tracking cookies.</p>
+
+          <h2>Third-party services</h2>
+          <p>Our marketing pages load the Tajawal font from Google Fonts. This means your browser makes a direct connection to Google's servers to load the font files, which may expose your device's IP address to Google under <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>. We do not use this service for any tracking purpose of our own.</p>
+
+          <h2>Potential essential cookies</h2>
+          <p>Purely necessary technical cookies (such as protecting forms from automated abuse) may be used in the future if needed. Any cookies of this kind are necessary for the Service to function and do not require prior consent under standard practice, but we will describe them here as soon as they are added.</p>
+
+          <h2>Controlling cookies from your browser</h2>
+          <p>You can review, delete, or block cookies at any time directly from your browser settings. Since UM Track does not rely on cookies for authentication, blocking them will not prevent you from logging in, though it may affect other sites that depend on them.</p>
+
+          <h2>Changes to this policy</h2>
+          <p>We will update this page if our actual use of cookies or similar storage technologies changes, and the last-updated date at the top of the page will reflect that.</p>
+
+          <h2>Contact</h2>
+          <p>For any question about this policy, contact us via our <a href="/contact.html">contact page</a>.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -106,39 +146,40 @@
     <div class="footer-top">
       <div class="footer-brand">
         <img src="/assets/logo-wordmark.png" alt="UM Track" height="26" />
-        <p>عمليات مجموعات العمرة، ببساطة. رؤية تشغيلية واحدة من الوصول حتى المغادرة.</p>
+        <p><span data-lang="ar">عمليات مجموعات العمرة، ببساطة. رؤية تشغيلية واحدة من الوصول حتى المغادرة.</span><span data-lang="en" hidden>Umrah group operations, simplified. One operational view from arrival to departure.</span></p>
       </div>
       <div class="footer-col">
-        <h5>المنتج</h5>
+        <h5><span data-lang="ar">المنتج</span><span data-lang="en" hidden>Product</span></h5>
         <ul>
-          <li><a href="/home.html#features">المميزات</a></li>
-          <li><a href="/home.html#how-it-works">كيف يعمل</a></li>
-          <li><a href="/home.html#pricing">الأسعار</a></li>
-          <li><a href="/security.html">الأمان</a></li>
-          <li><a href="/home.html#faq">الأسئلة الشائعة</a></li>
+          <li><a href="/home.html#features"><span data-lang="ar">المميزات</span><span data-lang="en" hidden>Features</span></a></li>
+          <li><a href="/home.html#how-it-works"><span data-lang="ar">كيف يعمل</span><span data-lang="en" hidden>How it works</span></a></li>
+          <li><a href="/home.html#pricing"><span data-lang="ar">الأسعار</span><span data-lang="en" hidden>Pricing</span></a></li>
+          <li><a href="/security.html"><span data-lang="ar">الأمان</span><span data-lang="en" hidden>Security</span></a></li>
+          <li><a href="/home.html#faq"><span data-lang="ar">الأسئلة الشائعة</span><span data-lang="en" hidden>FAQ</span></a></li>
         </ul>
       </div>
       <div class="footer-col">
-        <h5>الشركة</h5>
+        <h5><span data-lang="ar">الشركة</span><span data-lang="en" hidden>Company</span></h5>
         <ul>
-          <li><a href="/about.html">من نحن</a></li>
-          <li><a href="/contact.html">تواصل معنا</a></li>
+          <li><a href="/about.html"><span data-lang="ar">من نحن</span><span data-lang="en" hidden>About</span></a></li>
+          <li><a href="/contact.html"><span data-lang="ar">تواصل معنا</span><span data-lang="en" hidden>Contact</span></a></li>
         </ul>
-        <h5 style="margin-top:26px;">قانوني</h5>
+        <h5 style="margin-top:26px;"><span data-lang="ar">قانوني</span><span data-lang="en" hidden>Legal</span></h5>
         <ul>
-          <li><a href="/privacy.html">سياسة الخصوصية</a></li>
-          <li><a href="/terms.html">شروط الخدمة</a></li>
-          <li><a href="/cookies.html">سياسة الكوكيز</a></li>
+          <li><a href="/privacy.html"><span data-lang="ar">سياسة الخصوصية</span><span data-lang="en" hidden>Privacy policy</span></a></li>
+          <li><a href="/terms.html"><span data-lang="ar">شروط الخدمة</span><span data-lang="en" hidden>Terms of service</span></a></li>
+          <li><a href="/cookies.html"><span data-lang="ar">سياسة الكوكيز</span><span data-lang="en" hidden>Cookie policy</span></a></li>
         </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2026 UM Track. جميع الحقوق محفوظة.</span>
-      <a href="/" style="font-weight:700; color:var(--ink-2);">تسجيل الدخول</a>
+      <span><span data-lang="ar">© 2026 UM Track. جميع الحقوق محفوظة.</span><span data-lang="en" hidden>© 2026 UM Track. All rights reserved.</span></span>
+      <a href="/" style="font-weight:700; color:var(--ink-2);"><span data-lang="ar">تسجيل الدخول</span><span data-lang="en" hidden>Log in</span></a>
     </div>
   </div>
 </footer>
 
+<script src="/lang.js" defer></script>
 <script src="/home.js" defer></script>
 </body>
 </html>

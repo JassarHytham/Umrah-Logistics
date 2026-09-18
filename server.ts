@@ -10,7 +10,7 @@ import helmet from "helmet";
 import http from "http";
 import { existsSync, readFileSync } from "node:fs";
 import path from "path";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { fileURLToPath } from "url";
 import { WebSocketServer } from "ws";
 import { parseDateTime, parseItineraryText } from "./utils/parser.js";
@@ -346,8 +346,12 @@ app.use("/api", cors({
 // come back undefined, which crashes express-rate-limit's default key
 // generator (it hashes the key without checking for one). Fall back to the
 // raw socket address, then a constant, instead of ever hashing undefined.
+// ipKeyGenerator normalizes the result (in particular, it collapses an IPv6
+// address to its /56 subnet) — express-rate-limit requires it for any custom
+// keyGenerator that touches an IP, otherwise a single client can dodge the
+// limit by cycling through addresses in its own IPv6 block.
 const rateLimitKeyGenerator = (req: any): string =>
-  req.ip ?? req.socket?.remoteAddress ?? "unknown";
+  ipKeyGenerator(req.ip ?? req.socket?.remoteAddress ?? "unknown");
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

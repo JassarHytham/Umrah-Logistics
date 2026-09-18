@@ -341,11 +341,20 @@ app.use("/api", cors({
   maxAge: 600,
 }));
 
+// req.ip is normally the client's socket address, but for malformed/aborted
+// connections (e.g. raw internet scanners hitting the exposed port) it can
+// come back undefined, which crashes express-rate-limit's default key
+// generator (it hashes the key without checking for one). Fall back to the
+// raw socket address, then a constant, instead of ever hashing undefined.
+const rateLimitKeyGenerator = (req: any): string =>
+  req.ip ?? req.socket?.remoteAddress ?? "unknown";
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 600,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
   skip: () => isTestEnv,
 });
 
@@ -355,6 +364,7 @@ const authLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   skipSuccessfulRequests: true,
+  keyGenerator: rateLimitKeyGenerator,
   skip: () => isTestEnv,
 });
 
@@ -363,6 +373,7 @@ const botLimiter = rateLimit({
   limit: 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
   skip: () => isTestEnv,
 });
 

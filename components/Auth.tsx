@@ -32,13 +32,13 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 font-['Tajawal']" dir="rtl">
-      <a href="/home" className="mb-6" title="الصفحة الرئيسية">
+      <a href="/home" className="mb-2" title="الصفحة الرئيسية">
         <img src="/assets/logo-icon.png" alt="UM Track" className="h-14 w-auto" />
       </a>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">UM Track</h1>
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
         <div className="bg-gradient-to-l from-gray-900 via-gray-800 to-gray-800 border-b border-gold-700/40 p-8 text-white text-center">
-          <h1 className="text-2xl font-bold">UM Track</h1>
-          <p className="text-gold-200 text-sm mt-2">سجل دخولك للوصول إلى بياناتك من أي مكان</p>
+          <p className="text-gold-200 text-sm">سجل دخولك للوصول إلى بياناتك من أي مكان</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">

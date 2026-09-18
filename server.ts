@@ -370,11 +370,29 @@ app.use("/api", apiLimiter);
 app.use("/api/auth", authLimiter);
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ limit: "2mb", extended: true }));
-// Public, unauthenticated bilingual privacy policy — linked from the login page
-// and used as the Chrome Web Store listing's privacy policy URL.
-app.get("/privacy", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "privacy.html"));
-});
+// Public, unauthenticated marketing pages, served at clean paths (no .html
+// extension) so the URL doesn't expose the underlying file layout. Each path
+// is hardcoded below — never built from request input — so there is no path
+// traversal surface here.
+const marketingPages: Record<string, string> = {
+  "/home": "home.html",
+  "/about": "about.html",
+  "/contact": "contact.html",
+  "/security": "security.html",
+  "/terms": "terms.html",
+  "/cookies": "cookies.html",
+  "/privacy": "privacy.html",
+};
+for (const [route, file] of Object.entries(marketingPages)) {
+  app.get(route, (_req, res) => {
+    res.sendFile(path.join(__dirname, "public", file));
+  });
+  // Redirect the old *.html URL (and any pre-existing bookmarks/links) to
+  // the clean path so only one canonical URL is ever served.
+  app.get(`/${file}`, (_req, res) => {
+    res.redirect(301, route);
+  });
+}
 app.get("/privacy.css", (_req, res) => {
   res.type("text/css");
   res.sendFile(path.join(__dirname, "public", "privacy.css"));

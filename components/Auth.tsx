@@ -35,8 +35,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
         <div className="bg-gradient-to-l from-gray-900 via-gray-800 to-gray-800 border-b border-gold-700/40 p-8 text-white text-center">
           <a href="/home" className="inline-block" title="الصفحة الرئيسية">
-            <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-              <img src="/assets/logo-icon.png" alt="UM Track" className="w-9 h-9" />
+            <div className="inline-flex items-center justify-center bg-white/10 rounded-2xl p-3 mx-auto mb-4 backdrop-blur-sm">
+              <img src="/assets/logo-icon.png" alt="UM Track" className="h-10 w-auto" />
             </div>
           </a>
           <h1 className="text-2xl font-bold">UM Track</h1>

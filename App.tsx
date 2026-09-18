@@ -796,7 +796,7 @@ export default function App() {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
           <div className="flex justify-between items-center">
             <a href="/home" className="flex items-center gap-3 sm:gap-4" title="الصفحة الرئيسية">
-              <div className="bg-white/10 p-2 sm:p-2.5 rounded-xl"><img src="/assets/logo-icon.png" alt="UM Track" className="h-6 w-auto sm:h-7" /></div>
+              <div className="bg-white p-2 sm:p-2.5 rounded-xl shadow-sm"><img src="/assets/logo-icon.png" alt="UM Track" className="h-6 w-auto sm:h-7" /></div>
               <div>
                 <h1 className="text-lg sm:text-xl font-bold">UM Track</h1>
                 <p className="text-gold-200 text-[10px] sm:text-xs">إدارة لوجستية متكاملة</p>

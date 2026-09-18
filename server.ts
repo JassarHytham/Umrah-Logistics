@@ -1985,6 +1985,15 @@ export { app, attachLiveUpdates };
 
 if (!isTestEnv) {
   const server = http.createServer(app);
+  // Node's default keepAliveTimeout (5s) can close a reused connection while
+  // a slow handler (e.g. /api/data's per-row access checks over a large
+  // table) is still synchronously computing its response, especially when
+  // a real page load has many other requests (JS/CSS/images/WebSocket)
+  // competing for the browser's limited per-origin connections. Raise both
+  // well above any realistic handler time; headersTimeout must exceed
+  // keepAliveTimeout per Node's docs.
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
   attachLiveUpdates(server);
 
   // Start alert worker immediately then every 60 s

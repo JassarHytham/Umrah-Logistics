@@ -139,8 +139,8 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const cellPad = density === 'comfortable' ? 'p-2' : 'p-1';
     const borderCellClass = borderStyle === 'thick' ? 'border-l-2 border-gray-400' : borderStyle === 'medium' ? 'border-l border-gray-300' : 'border-l border-gray-100';
     const borderHeaderClass = borderStyle === 'thick' ? 'border-b-2 border-gray-500' : borderStyle === 'medium' ? 'border-b-2 border-gray-300' : 'border-b border-gray-200';
-    const NOTE_ROW_BG: Record<string, string> = { amber: 'bg-amber-50', yellow: 'bg-yellow-50', blue: 'bg-blue-50', green: 'bg-green-50', pink: 'bg-pink-50', purple: 'bg-purple-50' };
-    const NOTE_BTN: Record<string, string> = { amber: 'text-amber-500 hover:bg-amber-50', yellow: 'text-yellow-500 hover:bg-yellow-50', blue: 'text-blue-500 hover:bg-blue-50', green: 'text-green-500 hover:bg-green-50', pink: 'text-pink-500 hover:bg-pink-50', purple: 'text-purple-500 hover:bg-purple-50' };
+    const NOTE_ROW_BG: Record<string, string> = { amber: 'bg-amber-50', yellow: 'bg-yellow-50', blue: 'bg-gold-50', green: 'bg-green-50', pink: 'bg-pink-50', purple: 'bg-purple-50' };
+    const NOTE_BTN: Record<string, string> = { amber: 'text-amber-500 hover:bg-amber-50', yellow: 'text-yellow-500 hover:bg-yellow-50', blue: 'text-gold-500 hover:bg-gold-50', green: 'text-green-500 hover:bg-green-50', pink: 'text-pink-500 hover:bg-pink-50', purple: 'text-purple-500 hover:bg-purple-50' };
     const [filters, setFilters] = useState<Record<string, string[]>>({});
     const [activeFilterCol, setActiveFilterCol] = useState<string | null>(null);
     const [filterSearch, setFilterSearch] = useState("");
@@ -494,10 +494,10 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             <button
                                 key={dateStr}
                                 onClick={() => toggleFilter(columnKey, dateStr)}
-                                className={`flex flex-col items-center justify-center p-1 rounded-md text-xs h-10 border transition-all ${isSelected ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white border-gray-100 text-gray-700 hover:border-blue-300 hover:bg-blue-50'}`}
+                                className={`flex flex-col items-center justify-center p-1 rounded-md text-xs h-10 border transition-all ${isSelected ? 'bg-gold-600 text-white border-gold-600 shadow-md' : 'bg-white border-gray-100 text-gray-700 hover:border-gold-300 hover:bg-gold-50'}`}
                             >
                                 <span className="font-bold">{dateObj.getDate()}</span>
-                                {count > 0 && <span className={`-mb-2 scale-75 px-1.5 rounded-full font-bold text-[9px] ${isSelected ? 'bg-white text-blue-600' : 'bg-red-100 text-red-600'}`}>{count}</span>}
+                                {count > 0 && <span className={`-mb-2 scale-75 px-1.5 rounded-full font-bold text-[9px] ${isSelected ? 'bg-white text-gold-600' : 'bg-red-100 text-red-600'}`}>{count}</span>}
                             </button>
                         );
                     })}
@@ -521,7 +521,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     <button
                         onClick={() => onDuplicateRow?.(row)}
                         title="تكرار الرحلة"
-                        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-1.5 text-gold-500 hover:bg-gold-50 rounded-lg transition-colors"
                     >
                         <Copy size={14} />
                     </button>
@@ -570,7 +570,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                         value={status}
                         onChange={(e) => onChange(row.id, 'status', e.target.value)}
                         disabled={statusLocked}
-                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all text-center ${statusLocked ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
+                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gold-500 transition-all text-center ${statusLocked ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
                     >
                         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                             <option key={key} value={key} className="bg-white text-gray-800 text-xs font-normal">{cfg.label}</option>
@@ -598,7 +598,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                    value={String(row[h.key] || '')} 
                    onChange={(e) => onChange(row.id, h.key, e.target.value)}
                    rows={2} 
-                   className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
+                   className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] focus:bg-white focus:ring-2 focus:ring-gold-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
                    placeholder="-"
                 />
             );
@@ -612,7 +612,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 type="text" 
                 value={String(row[h.key] || '')} 
                 onChange={(e) => onChange(row.id, h.key as keyof LogisticsRow, e.target.value)}
-                className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
+                className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs focus:bg-white focus:ring-2 focus:ring-gold-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
                 placeholder="-"
             />
         );
@@ -650,7 +650,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             summary.itinerary.forEach(row => onChange(row.id, 'status', value));
                         }}
                         disabled={statusLocked}
-                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 transition-all text-center ${statusLocked ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
+                        className={`w-full appearance-none px-2 py-1 rounded-full text-[10px] font-bold border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gold-500 transition-all text-center ${statusLocked ? 'cursor-default opacity-80' : 'cursor-pointer'} ${config.color}`}
                     >
                         {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                             <option key={key} value={key} className="bg-white text-gray-800 text-xs font-normal">{cfg.label}</option>
@@ -675,7 +675,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     <div className="flex items-center gap-2">
                          <button 
                             onClick={onAddNewRow}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition-all"
+                            className="flex items-center gap-2 px-4 py-2 bg-gold-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-gold-700 transition-all"
                         >
                             <Plus size={16} />
                             إضافة رحلة جديدة
@@ -686,7 +686,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 type="button"
                                 onClick={() => changeViewMode('detailed')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                    activeViewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                    activeViewMode === 'detailed' ? 'bg-gold-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                                 }`}
                             >
                                 تفصيلي
@@ -695,7 +695,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 type="button"
                                 onClick={() => changeViewMode('simple')}
                                 className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                    activeViewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                    activeViewMode === 'simple' ? 'bg-gold-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                                 }`}
                             >
                                 مبسط
@@ -710,7 +710,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 type="button"
                             onClick={() => changeViewMode('detailed')}
                             className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                activeViewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                activeViewMode === 'detailed' ? 'bg-gold-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                         >
                             تفصيلي
@@ -719,7 +719,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             type="button"
                             onClick={() => changeViewMode('simple')}
                             className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                                activeViewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                                activeViewMode === 'simple' ? 'bg-gold-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                             }`}
                         >
                             مبسط
@@ -758,7 +758,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                                             setActiveFilterCol(isActive ? null : column.key as string);
                                                             setFilterSearch("");
                                                         }}
-                                                        className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${isColumnFiltered ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`}
+                                                        className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${isColumnFiltered ? 'text-gold-600 bg-gold-50' : 'text-gray-400'}`}
                                                         title="تصفية"
                                                     >
                                                         <Filter size={12} fill={isColumnFiltered ? "currentColor" : "none"} />
@@ -793,7 +793,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                                                             type="checkbox"
                                                                             checked={filters[column.key as string]?.includes(val) || false}
                                                                             onChange={() => toggleFilter(column.key as string, val)}
-                                                                            className="rounded border-gray-300 text-blue-600 w-3.5 h-3.5"
+                                                                            className="rounded border-gray-300 text-gold-600 w-3.5 h-3.5"
                                                                         />
                                                                         <span className="text-xs text-gray-700 truncate">{column.key === 'status' ? STATUS_CONFIG[val as TripStatus]?.label : (val || '(فارغ)')}</span>
                                                                     </label>
@@ -803,7 +803,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                                     )}
                                                     <div className="p-2 border-t border-gray-100 bg-gray-50 flex justify-between">
                                                         <button onClick={() => clearColumnFilter(column.key as string)} className="text-xs text-red-500 font-medium" disabled={!isColumnFiltered}>مسح</button>
-                                                        <button onClick={() => setActiveFilterCol(null)} className="text-xs text-blue-600 font-medium">إغلاق</button>
+                                                        <button onClick={() => setActiveFilterCol(null)} className="text-xs text-gold-600 font-medium">إغلاق</button>
                                                     </div>
                                                 </div>
                                             )}
@@ -817,7 +817,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 const hasNote = summary.itinerary.some(row => Boolean(row.notes));
 
                                 return (
-                                    <tr key={summary.summaryKey} className={`align-top transition-colors hover:bg-blue-50/40 ${noteHighlightEnabled && hasNote ? NOTE_ROW_BG[noteHighlightColor] : ''}`}>
+                                    <tr key={summary.summaryKey} className={`align-top transition-colors hover:bg-gold-50/40 ${noteHighlightEnabled && hasNote ? NOTE_ROW_BG[noteHighlightColor] : ''}`}>
                                         {simpleColumns.map((column, index) => (
                                             <td key={column.key} className={`${cellPad} ${borderCellClass} ${index === simpleColumns.length - 1 ? 'last:border-l-0' : ''}`}>
                                                 {renderSimpleCellContent(summary, column)}
@@ -858,7 +858,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                     <th key={h.key} className={`px-2 py-3 ${borderHeaderClass} relative align-top ${widthClass}`} style={{ width: widthClass }}>
                                         <div className="flex items-start justify-between gap-1">
                                             <div 
-                                                className={`flex items-center gap-1 flex-wrap cursor-pointer hover:text-blue-600 transition-colors`}
+                                                className={`flex items-center gap-1 flex-wrap cursor-pointer hover:text-gold-600 transition-colors`}
                                                 onClick={() => h.key !== 'actions' && handleSort(h.key as keyof LogisticsRow)}
                                             >
                                                 <span>{h.label}</span>
@@ -879,7 +879,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                                         setActiveFilterCol(isActive ? null : h.key as string);
                                                         setFilterSearch("");
                                                     }}
-                                                    className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${isColumnFiltered ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`}
+                                                    className={`p-0.5 rounded hover:bg-gray-200 transition-colors ${isColumnFiltered ? 'text-gold-600 bg-gold-50' : 'text-gray-400'}`}
                                                 >
                                                     <Filter size={12} fill={isColumnFiltered ? "currentColor" : "none"} />
                                                 </button>
@@ -909,7 +909,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                                                     <input 
                                                                         type="checkbox" checked={filters[h.key as string]?.includes(val) || false}
                                                                         onChange={() => toggleFilter(h.key as string, val)}
-                                                                        className="rounded border-gray-300 text-blue-600 w-3.5 h-3.5"
+                                                                        className="rounded border-gray-300 text-gold-600 w-3.5 h-3.5"
                                                                     />
                                                                     <span className="text-xs text-gray-700 truncate">{h.key === 'status' ? STATUS_CONFIG[val as TripStatus]?.label : (val || '(فارغ)')}</span>
                                                                 </label>
@@ -919,7 +919,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                                 )}
                                                 <div className="p-2 border-t border-gray-100 bg-gray-50 flex justify-between">
                                                     <button onClick={() => clearColumnFilter(h.key as string)} className="text-xs text-red-500 font-medium" disabled={!isColumnFiltered}>مسح</button>
-                                                    <button onClick={() => setActiveFilterCol(null)} className="text-xs text-blue-600 font-medium">إغلاق</button>
+                                                    <button onClick={() => setActiveFilterCol(null)} className="text-xs text-gold-600 font-medium">إغلاق</button>
                                                 </div>
                                             </div>
                                         )}
@@ -981,7 +981,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             const upcoming = isUpcoming(row);
                             return (
                                 <React.Fragment key={row.id}>
-                                    <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-blue-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}>
+                                    <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-gold-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}>
                                         {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0`}>{renderCellContent(row, h)}</td>)}
                                     </tr>
                                     {expandedNoteRowId === row.id && (
@@ -1008,7 +1008,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             {enableFiltering && Object.keys(filters).length > 0 && (
                  <div className="absolute bottom-2 right-4 flex gap-2 z-10">
                     {Object.entries(filters).map(([key, vals]) => (vals as string[]).length > 0 && (
-                        <span key={key} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                        <span key={key} className="bg-gold-100 text-gold-800 text-xs px-2 py-1 rounded-full flex items-center gap-1">
                             {getFilterLabel(key)}: {(vals as string[]).length}
                             <button onClick={() => clearColumnFilter(key)}><X size={12} /></button>
                         </span>
@@ -1022,7 +1022,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 <div className="flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:h-auto sm:max-h-[85vh] sm:rounded-3xl">
                   <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-4 py-4 sm:px-6">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-blue-700">
+                      <div className="flex items-center gap-2 text-gold-700">
                         <MapPinned size={16} />
                         <span className="text-xs font-bold">مسار الرحلة</span>
                       </div>
@@ -1049,7 +1049,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                         <div key={item.id} className="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="text-[11px] font-bold text-blue-700">المحطة {index + 1}</div>
+                              <div className="text-[11px] font-bold text-gold-700">المحطة {index + 1}</div>
                               <div className="mt-1 text-sm font-bold text-gray-900">{item.Column1 || '-'}</div>
                             </div>
                             <div className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-bold text-gray-600">

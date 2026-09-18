@@ -56,15 +56,15 @@ const STATUS_OPTIONS: { value: TripStatus; label: string }[] = [
 ];
 
 const NOTE_ROW_COLORS: Record<string, string> = {
-  amber: 'bg-amber-50', yellow: 'bg-yellow-50', blue: 'bg-blue-50',
+  amber: 'bg-amber-50', yellow: 'bg-yellow-50', blue: 'bg-gold-50',
   green: 'bg-green-50', pink: 'bg-pink-50', purple: 'bg-purple-50',
 };
 const NOTE_ICON_COLORS: Record<string, string> = {
-  amber: 'text-amber-500', yellow: 'text-yellow-500', blue: 'text-blue-500',
+  amber: 'text-amber-500', yellow: 'text-yellow-500', blue: 'text-gold-500',
   green: 'text-green-500', pink: 'text-pink-500', purple: 'text-purple-500',
 };
 const NOTE_SWATCH_BG: Record<string, string> = {
-  amber: 'bg-amber-400', yellow: 'bg-yellow-400', blue: 'bg-blue-500',
+  amber: 'bg-amber-400', yellow: 'bg-yellow-400', blue: 'bg-gold-500',
   green: 'bg-green-500', pink: 'bg-pink-400', purple: 'bg-purple-500',
 };
 const SAMPLE_PREVIEW_ROWS = [
@@ -73,7 +73,7 @@ const SAMPLE_PREVIEW_ROWS = [
   { id: 'p3', groupName: 'مجموعة الإخلاص', Column1: 'وصول',    flight: 'SV١٠٧', date: '٢٢/٦', time: '١٨:١٥', status: 'Planned'     as const, notes: '' },
 ];
 const SAMPLE_STATUS_COLORS: Record<string, string> = {
-  Confirmed: 'bg-blue-100 text-blue-700', 'In Progress': 'bg-yellow-100 text-yellow-800', Planned: 'bg-gray-100 text-gray-700',
+  Confirmed: 'bg-gold-100 text-gold-700', 'In Progress': 'bg-yellow-100 text-yellow-800', Planned: 'bg-gray-100 text-gray-700',
 };
 const SAMPLE_STATUS_LABELS: Record<string, string> = {
   Confirmed: 'مؤكد', 'In Progress': 'قيد التنفيذ', Planned: 'مخطط',
@@ -135,13 +135,13 @@ export const Settings: React.FC<SettingsProps> = ({
                 onClick={() => setActivePage(id)}
                 className={`flex-1 sm:flex-none sm:w-full flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-3 px-2 sm:px-4 py-3 text-center sm:text-right transition-all border-b-2 sm:border-b-0 sm:border-l-2 ${
                   active
-                    ? 'bg-blue-50 border-blue-600 text-blue-700'
+                    ? 'bg-gold-50 border-gold-600 text-gold-700'
                     : 'border-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800'
                 }`}
               >
-                <Icon size={18} className={active ? 'text-blue-600' : 'text-gray-400'} />
+                <Icon size={18} className={active ? 'text-gold-600' : 'text-gray-400'} />
                 <div className="min-w-0">
-                  <p className={`hidden sm:block text-sm font-bold truncate ${active ? 'text-blue-700' : 'text-gray-700'}`}>{label}</p>
+                  <p className={`hidden sm:block text-sm font-bold truncate ${active ? 'text-gold-700' : 'text-gray-700'}`}>{label}</p>
                   <p className="hidden sm:block text-[10px] text-gray-400 truncate">{sublabel}</p>
                 </div>
               </button>
@@ -157,7 +157,7 @@ export const Settings: React.FC<SettingsProps> = ({
             <div className="space-y-6 max-w-xl">
               <div>
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
-                  <Send size={20} className="text-blue-600" /> ربط بوت تيليجرام
+                  <Send size={20} className="text-gold-600" /> ربط بوت تيليجرام
                 </h2>
                 <p className="text-sm text-gray-400">تنبيهات تلقائية ومساعد ذكي للرد على الاستفسارات</p>
               </div>
@@ -170,7 +170,7 @@ export const Settings: React.FC<SettingsProps> = ({
                     value={tgConfig.token}
                     onChange={(e) => onTgConfigChange({ ...tgConfig, token: e.target.value })}
                     placeholder="7483XXXXXX:AAHyXXXXXX..."
-                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none text-left"
+                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none text-left"
                     dir="ltr"
                   />
                 </div>
@@ -181,20 +181,20 @@ export const Settings: React.FC<SettingsProps> = ({
                     value={tgConfig.chatId}
                     onChange={(e) => onTgConfigChange({ ...tgConfig, chatId: e.target.value })}
                     placeholder="مثال: 123456789"
-                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none text-left"
+                    className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-mono focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none text-left"
                     dir="ltr"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between bg-blue-50 p-4 rounded-2xl border border-blue-100">
+              <div className="flex items-center justify-between bg-gold-50 p-4 rounded-2xl border border-gold-100">
                 <div className="flex items-center gap-3">
                   <div className={`w-2.5 h-2.5 rounded-full ${tgConfig.enabled ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-gray-300'}`} />
-                  <span className="text-sm font-bold text-blue-900">التنبيهات التلقائية</span>
+                  <span className="text-sm font-bold text-gold-900">التنبيهات التلقائية</span>
                 </div>
                 <button
                   onClick={() => onTgConfigChange({ ...tgConfig, enabled: !tgConfig.enabled })}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${tgConfig.enabled ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold transition-all ${tgConfig.enabled ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gold-600 text-white hover:bg-gold-700'}`}
                 >
                   {tgConfig.enabled ? 'إيقاف' : 'تشغيل'}
                 </button>
@@ -203,14 +203,14 @@ export const Settings: React.FC<SettingsProps> = ({
               <button
                 onClick={onTestTelegram}
                 disabled={!tgConfig.token || !tgConfig.chatId || isTestingTg}
-                className="w-full flex items-center justify-center gap-3 p-4 bg-white border-2 border-blue-600 text-blue-600 rounded-2xl font-black text-sm hover:bg-blue-50 transition-all active:scale-95 disabled:opacity-40 disabled:border-gray-200 disabled:text-gray-400"
+                className="w-full flex items-center justify-center gap-3 p-4 bg-white border-2 border-gold-600 text-gold-600 rounded-2xl font-black text-sm hover:bg-gold-50 transition-all active:scale-95 disabled:opacity-40 disabled:border-gray-200 disabled:text-gray-400"
               >
                 {isTestingTg ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} className="fill-current" />}
                 اختبار اتصال البوت
               </button>
 
               <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 text-xs text-gray-500 space-y-2">
-                <p className="font-bold text-gray-700 flex items-center gap-2"><Info size={13} className="text-blue-500" /> كيف تحصل على Chat ID؟</p>
+                <p className="font-bold text-gray-700 flex items-center gap-2"><Info size={13} className="text-gold-500" /> كيف تحصل على Chat ID؟</p>
                 <ol className="list-decimal mr-4 space-y-1.5">
                   <li>ابحث عن <b>@userinfobot</b> في تيليجرام</li>
                   <li>أرسل له أي رسالة — سيرد بالـ ID الخاص بك</li>
@@ -228,9 +228,9 @@ export const Settings: React.FC<SettingsProps> = ({
                       type="range" min={10} max={1440} step={15}
                       value={alertSettings.arrivalMinutes}
                       onChange={(e) => onAlertSettingsChange({ ...alertSettings, arrivalMinutes: Number(e.target.value) })}
-                      className="flex-1 accent-blue-600"
+                      className="flex-1 accent-gold-600"
                     />
-                    <span className="text-xl font-black text-blue-700 w-20 text-center">{fmtMin(alertSettings.arrivalMinutes)}</span>
+                    <span className="text-xl font-black text-gold-700 w-20 text-center">{fmtMin(alertSettings.arrivalMinutes)}</span>
                   </div>
                 </div>
 
@@ -285,7 +285,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center">
-                  <p className="text-3xl font-black text-blue-900">{allRowsCount}</p>
+                  <p className="text-3xl font-black text-gold-900">{allRowsCount}</p>
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">رحلة مسجلة</p>
                 </div>
                 <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center">
@@ -378,10 +378,10 @@ export const Settings: React.FC<SettingsProps> = ({
                   {([['compact', 'مضغوط', LayoutList], ['comfortable', 'مريح', AlignJustify]] as const).map(([val, label, Icon]) => (
                     <button key={val}
                       onClick={() => onDisplaySettingsChange({ ...displaySettings, density: val })}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${displaySettings.density === val ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${displaySettings.density === val ? 'border-gold-600 bg-gold-50' : 'border-gray-100 hover:border-gray-300'}`}
                     >
-                      <Icon size={22} className={displaySettings.density === val ? 'text-blue-600' : 'text-gray-400'} />
-                      <span className={`text-xs font-bold ${displaySettings.density === val ? 'text-blue-700' : 'text-gray-400'}`}>{label}</span>
+                      <Icon size={22} className={displaySettings.density === val ? 'text-gold-600' : 'text-gray-400'} />
+                      <span className={`text-xs font-bold ${displaySettings.density === val ? 'text-gold-700' : 'text-gray-400'}`}>{label}</span>
                     </button>
                   ))}
                 </div>
@@ -396,14 +396,14 @@ export const Settings: React.FC<SettingsProps> = ({
                     return (
                       <button key={val}
                         onClick={() => onDisplaySettingsChange({ ...displaySettings, borderStyle: val })}
-                        className={`flex flex-col items-center gap-2.5 py-3 px-2 rounded-2xl border-2 transition-all ${active ? 'border-blue-600 bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}
+                        className={`flex flex-col items-center gap-2.5 py-3 px-2 rounded-2xl border-2 transition-all ${active ? 'border-gold-600 bg-gold-50' : 'border-gray-100 hover:border-gray-300'}`}
                       >
-                        <div className={`w-12 h-6 rounded ${active ? 'bg-blue-100' : 'bg-gray-100'} flex flex-col justify-around p-1 gap-0.5`}>
+                        <div className={`w-12 h-6 rounded ${active ? 'bg-gold-100' : 'bg-gray-100'} flex flex-col justify-around p-1 gap-0.5`}>
                           {[...Array(3)].map((_, i) => (
-                            <div key={i} className={`w-full rounded-full ${active ? 'bg-blue-400' : 'bg-gray-300'} ${val === 'thick' ? 'h-[3px]' : val === 'medium' ? 'h-[2px]' : 'h-px'}`} />
+                            <div key={i} className={`w-full rounded-full ${active ? 'bg-gold-400' : 'bg-gray-300'} ${val === 'thick' ? 'h-[3px]' : val === 'medium' ? 'h-[2px]' : 'h-px'}`} />
                           ))}
                         </div>
-                        <span className={`text-[11px] font-bold ${active ? 'text-blue-700' : 'text-gray-400'}`}>{label}</span>
+                        <span className={`text-[11px] font-bold ${active ? 'text-gold-700' : 'text-gray-400'}`}>{label}</span>
                       </button>
                     );
                   })}
@@ -447,7 +447,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
                 <button
                   onClick={() => onDisplaySettingsChange({ ...displaySettings, wrapCells: !(displaySettings.wrapCells ?? true) })}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${(displaySettings.wrapCells ?? true) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${(displaySettings.wrapCells ?? true) ? 'bg-gold-600 text-white' : 'bg-gray-200 text-gray-500'}`}
                 >
                   {(displaySettings.wrapCells ?? true) ? 'مفعّل' : 'معطّل'}
                 </button>
@@ -460,7 +460,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
                 <button
                   onClick={() => onDisplaySettingsChange({ ...displaySettings, showEnrichmentTrips: !(displaySettings.showEnrichmentTrips ?? true) })}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${(displaySettings.showEnrichmentTrips ?? true) ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${(displaySettings.showEnrichmentTrips ?? true) ? 'bg-gold-600 text-white' : 'bg-gray-200 text-gray-500'}`}
                 >
                   {(displaySettings.showEnrichmentTrips ?? true) ? 'مفعّل' : 'مخفي'}
                 </button>
@@ -488,7 +488,7 @@ export const Settings: React.FC<SettingsProps> = ({
                           setDragIndex(null);
                         }}
                         onDragEnd={() => setDragIndex(null)}
-                        className={`flex items-center gap-3 px-3 py-2.5 border-b border-gray-100 last:border-b-0 cursor-grab active:cursor-grabbing transition-colors ${dragIndex === i ? 'bg-blue-50' : 'bg-white hover:bg-gray-50'}`}
+                        className={`flex items-center gap-3 px-3 py-2.5 border-b border-gray-100 last:border-b-0 cursor-grab active:cursor-grabbing transition-colors ${dragIndex === i ? 'bg-gold-50' : 'bg-white hover:bg-gray-50'}`}
                       >
                         <GripVertical size={14} className="text-gray-300 flex-shrink-0" />
                         <span className={`flex-1 text-sm ${isHidden ? 'text-gray-300' : 'text-gray-700'}`}>{label}</span>
@@ -578,7 +578,7 @@ export const Settings: React.FC<SettingsProps> = ({
                             <span className="text-sm font-black text-gray-800">{grant.username}</span>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
                               grant.scopeType === 'agency'
-                                ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                ? 'bg-gold-50 text-gold-700 border-gold-100'
                                 : grant.scopeType === 'group'
                                 ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
                                 : 'bg-teal-50 text-teal-700 border-teal-100'

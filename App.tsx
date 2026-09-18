@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import {
-  Download, Edit3, FileText, AlertCircle, Plane, Users, ChevronDown,
+  Download, Edit3, FileText, AlertCircle, Users, ChevronDown,
   Upload, Trash2, History, RotateCcw, XCircle,
   Eraser, Clock,
   LayoutDashboard, Settings as SettingsIcon, Share2,
@@ -771,7 +771,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
         <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto" />
+          <Loader2 className="w-12 h-12 text-gold-600 animate-spin mx-auto" />
           <p className="text-gray-500 font-bold">جاري تحميل بياناتك الآمنة...</p>
         </div>
       </div>
@@ -792,16 +792,16 @@ export default function App() {
 
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
 
-      <div className="bg-gradient-to-l from-slate-900 via-blue-900 to-indigo-900 text-white shadow-lg sticky top-0 z-40">
+      <div className="bg-gradient-to-l from-gray-900 via-gray-800 to-gray-800 text-white shadow-lg sticky top-0 z-40 border-b border-gold-700/40">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
           <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="bg-white/10 p-2 sm:p-2.5 rounded-xl"><Plane size={24} className="sm:w-7 sm:h-7" /></div>
+            <a href="/home" className="flex items-center gap-3 sm:gap-4" title="الصفحة الرئيسية">
+              <div className="bg-white/10 p-2 sm:p-2.5 rounded-xl"><img src="/assets/logo-icon.png" alt="UM Track" className="w-6 h-6 sm:w-7 sm:h-7" /></div>
               <div>
-                <h1 className="text-lg sm:text-xl font-bold">UM For Logistics</h1>
-                <p className="text-blue-200 text-[10px] sm:text-xs">إدارة لوجستية متكاملة</p>
+                <h1 className="text-lg sm:text-xl font-bold">UM Track</h1>
+                <p className="text-gold-200 text-[10px] sm:text-xs">إدارة لوجستية متكاملة</p>
               </div>
-            </div>
+            </a>
             {/* Hamburger Button */}
             <button
               className="xl:hidden p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
@@ -815,7 +815,7 @@ export default function App() {
             {/* Desktop Navigation */}
             <div className="hidden xl:flex items-center gap-4">
               {isSyncing && (
-                <div className="flex items-center gap-2 text-blue-200 text-xs animate-pulse">
+                <div className="flex items-center gap-2 text-gold-200 text-xs animate-pulse">
                   <RotateCw size={12} className="animate-spin" />
                   <span>جاري المزامنة...</span>
                 </div>
@@ -829,13 +829,13 @@ export default function App() {
                   {user?.avatar ? (
                     <img src={user.avatar} alt="" className="w-6 h-6 rounded-lg object-cover" />
                   ) : (
-                    <Users size={16} className="text-blue-200" />
+                    <Users size={16} className="text-gold-200" />
                   )}
                   <span className="flex flex-col items-start leading-tight">
                     <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
-                    {user?.companyName && <span className="text-[10px] text-blue-200 font-normal">{user.companyName}</span>}
+                    {user?.companyName && <span className="text-[10px] text-gold-200 font-normal">{user.companyName}</span>}
                   </span>
-                  <ChevronDown size={14} className={`text-blue-200 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`text-gold-200 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isProfileMenuOpen && (
                   <>
@@ -845,7 +845,7 @@ export default function App() {
                         onClick={() => { setView('profile'); setIsProfileMenuOpen(false); }}
                         className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold hover:bg-gray-50 transition-colors"
                       >
-                        <UserIcon size={16} className="text-blue-600" /> الملف الشخصي
+                        <UserIcon size={16} className="text-gold-600" /> الملف الشخصي
                       </button>
                       <button
                         onClick={() => api.auth.logout()}
@@ -858,9 +858,9 @@ export default function App() {
                 )}
               </div>
               <div className="flex bg-white/10 p-1 rounded-xl">
-                <button onClick={() => setView('operational')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SettingsIcon size={16} className="inline ml-1" />العمليات</button>
-                <button onClick={() => setView('analytics')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />احصائيات</button>
-                <button onClick={() => setView('settings')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'settings' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={16} className="inline ml-1" />الإعدادات</button>
+                <button onClick={() => setView('operational')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'operational' ? 'bg-white text-gold-900' : 'hover:bg-white/10'}`}><SettingsIcon size={16} className="inline ml-1" />العمليات</button>
+                <button onClick={() => setView('analytics')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'analytics' ? 'bg-white text-gold-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={16} className="inline ml-1" />احصائيات</button>
+                <button onClick={() => setView('settings')} style={{ minHeight: '44px' }} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'settings' ? 'bg-white text-gold-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={16} className="inline ml-1" />الإعدادات</button>
               </div>
             </div>
           </div>
@@ -869,9 +869,9 @@ export default function App() {
           {isMobileMenuOpen && (
             <div className="xl:hidden mt-4 flex flex-col gap-3 animate-fade-in pb-2">
               <div className="flex flex-col sm:flex-row gap-2 bg-white/5 p-2 rounded-xl">
-                <button onClick={() => { setView('operational'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'operational' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SettingsIcon size={18} /> العمليات</button>
-                <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'analytics' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={18} /> احصائيات</button>
-                <button onClick={() => { setView('settings'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'settings' ? 'bg-white text-blue-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={18} /> الإعدادات</button>
+                <button onClick={() => { setView('operational'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'operational' ? 'bg-white text-gold-900' : 'hover:bg-white/10'}`}><SettingsIcon size={18} /> العمليات</button>
+                <button onClick={() => { setView('analytics'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'analytics' ? 'bg-white text-gold-900' : 'hover:bg-white/10'}`}><LayoutDashboard size={18} /> احصائيات</button>
+                <button onClick={() => { setView('settings'); setIsMobileMenuOpen(false); }} style={{ minHeight: '44px' }} className={`w-full px-4 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${view === 'settings' ? 'bg-white text-gold-900' : 'hover:bg-white/10'}`}><SlidersHorizontal size={18} /> الإعدادات</button>
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white/5 px-4 py-3 rounded-xl">
@@ -882,11 +882,11 @@ export default function App() {
                   {user?.avatar ? (
                     <img src={user.avatar} alt="" className="w-6 h-6 rounded-lg object-cover shrink-0" />
                   ) : (
-                    <Users size={16} className="text-blue-200 shrink-0" />
+                    <Users size={16} className="text-gold-200 shrink-0" />
                   )}
                   <span className="flex flex-col items-start leading-tight min-w-0">
                     <span className="font-bold truncate">{user?.username || 'مستخدم'}</span>
-                    {user?.companyName && <span className="text-[10px] text-blue-200 font-normal truncate">{user.companyName}</span>}
+                    {user?.companyName && <span className="text-[10px] text-gold-200 font-normal truncate">{user.companyName}</span>}
                   </span>
                 </button>
 
@@ -935,13 +935,13 @@ export default function App() {
         ) : (
           <>
             <section className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="p-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+              <div className="p-1 bg-gradient-to-r from-gold-500 to-indigo-500"></div>
               <button
                 onClick={() => setInputSectionOpen(o => !o)}
                 className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
               >
                 <h2 className="text-lg sm:text-xl font-bold flex items-center gap-2">
-                  <span className="bg-blue-100 text-blue-700 p-2 rounded-lg"><Edit3 size={20} /></span>
+                  <span className="bg-gold-100 text-gold-700 p-2 rounded-lg"><Edit3 size={20} /></span>
                   إدخال بيانات الرحلة
                 </h2>
                 <ChevronDown size={20} className={`text-gray-400 transition-transform duration-200 ${inputSectionOpen ? 'rotate-180' : ''}`} />
@@ -950,12 +950,12 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8">
                 <div className="md:col-span-4 space-y-4">
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
-                    <input type="text" placeholder="رقم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.groupNo} onChange={(e) => setInputs({ ...inputs, groupNo: e.target.value })} />
-                    <input type="text" placeholder="اسم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.groupName} onChange={(e) => setInputs({ ...inputs, groupName: e.target.value })} />
-                    <input type="text" placeholder="الوكيل" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.agency || ''} onChange={(e) => setInputs({ ...inputs, agency: e.target.value })} />
-                    <input type="number" placeholder="العدد" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 min-h-[44px]" value={inputs.count} onChange={(e) => setInputs({ ...inputs, count: e.target.value })} />
+                    <input type="text" placeholder="رقم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-gold-500 min-h-[44px]" value={inputs.groupNo} onChange={(e) => setInputs({ ...inputs, groupNo: e.target.value })} />
+                    <input type="text" placeholder="اسم المجموعة" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-gold-500 min-h-[44px]" value={inputs.groupName} onChange={(e) => setInputs({ ...inputs, groupName: e.target.value })} />
+                    <input type="text" placeholder="الوكيل" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-gold-500 min-h-[44px]" value={inputs.agency || ''} onChange={(e) => setInputs({ ...inputs, agency: e.target.value })} />
+                    <input type="number" placeholder="العدد" className="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-gold-500 min-h-[44px]" value={inputs.count} onChange={(e) => setInputs({ ...inputs, count: e.target.value })} />
                   </div>
-                  <button onClick={handleExtract} className="w-full bg-blue-600 text-white p-3.5 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 min-h-[44px]">
+                  <button onClick={handleExtract} className="w-full bg-gold-600 text-white p-3.5 rounded-xl font-bold hover:bg-gold-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-gold-100 min-h-[44px]">
                     <FileText size={20} /> تحليل واستخراج
                   </button>
                 </div>
@@ -967,12 +967,12 @@ export default function App() {
             </section>
 
             {showPreview && (
-              <section className="bg-white rounded-2xl shadow-xl border-2 border-blue-500 overflow-hidden animate-slide-up">
-                <div className="bg-blue-500 p-4 flex justify-between items-center text-white">
+              <section className="bg-white rounded-2xl shadow-xl border-2 border-gold-500 overflow-hidden animate-slide-up">
+                <div className="bg-gold-500 p-4 flex justify-between items-center text-white">
                   <h3 className="font-bold flex items-center gap-2"><Clock size={18} /> معاينة النتائج قبل الاعتماد</h3>
                   <div className="flex gap-2">
                     <button onClick={() => setShowPreview(false)} className="bg-white/10 hover:bg-white/20 px-4 py-1.5 rounded-lg text-sm">إلغاء</button>
-                    <button onClick={() => { setAllRows([...previewRows, ...allRows]); setShowPreview(false); setInputs({ ...inputs, text: '' }); showNotification("تم اعتماد الرحلات", "success"); }} className="bg-white text-blue-600 px-6 py-1.5 rounded-lg font-bold">حفظ واعتماد</button>
+                    <button onClick={() => { setAllRows([...previewRows, ...allRows]); setShowPreview(false); setInputs({ ...inputs, text: '' }); showNotification("تم اعتماد الرحلات", "success"); }} className="bg-white text-gold-600 px-6 py-1.5 rounded-lg font-bold">حفظ واعتماد</button>
                   </div>
                 </div>
                 <div className="p-4"><TableEditor rows={visiblePreviewRows} onChange={(id, f, v) => setPreviewRows(prev => prev.map(r => r.id === id ? { ...r, [f]: v } : r))} isPreview={true} requiredFields={previewSettings.requiredFields} /></div>
@@ -1004,7 +1004,7 @@ export default function App() {
                       type="button"
                       onClick={() => setTableViewMode('detailed')}
                       className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                        tableViewMode === 'detailed' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        tableViewMode === 'detailed' ? 'bg-gold-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       <Rows3 size={16} />
@@ -1014,14 +1014,14 @@ export default function App() {
                       type="button"
                       onClick={() => setTableViewMode('simple')}
                       className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                        tableViewMode === 'simple' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                        tableViewMode === 'simple' ? 'bg-gold-600 text-white' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       <Table2 size={16} />
                       مبسط
                     </button>
                   </div>
-                  <button onClick={() => setIsEditing(!isEditing)} className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 sm:py-2 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center justify-center ${isEditing ? 'bg-green-600 text-white' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}>
+                  <button onClick={() => setIsEditing(!isEditing)} className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 sm:py-2 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center justify-center ${isEditing ? 'bg-green-600 text-white' : 'bg-gold-50 text-gold-600 hover:bg-gold-100'}`}>
                     {isEditing ? 'إنهاء التعديل وحفظ' : 'بدء تعديل الجدول'}
                   </button>
                 </div>

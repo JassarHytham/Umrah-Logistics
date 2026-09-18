@@ -61,7 +61,7 @@ const DistributionCard: React.FC<{
           <>
             <div className="flex justify-between text-xs mb-1.5 font-bold">
               <span className="text-gray-700 group-hover:text-gray-900 truncate">{item.label}</span>
-              <span className="text-blue-600 bg-blue-50 px-2 rounded-full shrink-0">{item.count}</span>
+              <span className="text-gold-600 bg-gold-50 px-2 rounded-full shrink-0">{item.count}</span>
             </div>
             <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden border border-gray-100">
               <div className={`h-full ${item.barColor} rounded-full transition-all duration-1000`} style={{ width: `${percentage}%` }}></div>
@@ -261,7 +261,7 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
       {/* SECTION 1: Executive Snapshot */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
         {[
-          { label: 'رحلات اليوم', val: stats.today, icon: Clock, color: 'from-blue-600 to-blue-400', onClick: () => onNavigateToTable({ date: [todayStr] }) },
+          { label: 'رحلات اليوم', val: stats.today, icon: Clock, color: 'from-gold-600 to-gold-400', onClick: () => onNavigateToTable({ date: [todayStr] }) },
           { label: 'رحلات الغد', val: stats.tomorrow, icon: Calendar, color: 'from-indigo-600 to-indigo-400', onClick: () => onNavigateToTable({ date: [tomorrowStr] }) },
           { label: 'رحلات هذا الأسبوع', val: stats.thisWeek, icon: CalendarRange, color: 'from-cyan-600 to-cyan-400', onClick: () => onNavigateToTable({ date: stats.weekDates }) },
           { label: 'عدد المجموعات', val: stats.groups, icon: Users, color: 'from-violet-600 to-violet-400' },
@@ -294,12 +294,12 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
         <div className="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col">
           <div className="flex justify-between items-center mb-8">
             <h3 className="font-bold text-gray-800 flex items-center gap-2">
-              <BarChart3 className="text-blue-500" size={20} />
+              <BarChart3 className="text-gold-500" size={20} />
               تحليل ضغط العمليات
             </h3>
             <div className="flex bg-gray-50 p-1 rounded-lg text-xs font-bold">
-              <button onClick={() => setChartMode('days')} className={`px-3 py-1.5 rounded-md transition-all ${chartMode === 'days' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400'}`}>10 أيام</button>
-              <button onClick={() => setChartMode('weeks')} className={`px-3 py-1.5 rounded-md transition-all ${chartMode === 'weeks' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400'}`}>4 أسابيع</button>
+              <button onClick={() => setChartMode('days')} className={`px-3 py-1.5 rounded-md transition-all ${chartMode === 'days' ? 'bg-white shadow-sm text-gold-700' : 'text-gray-400'}`}>10 أيام</button>
+              <button onClick={() => setChartMode('weeks')} className={`px-3 py-1.5 rounded-md transition-all ${chartMode === 'weeks' ? 'bg-white shadow-sm text-gold-700' : 'text-gray-400'}`}>4 أسابيع</button>
             </div>
           </div>
 
@@ -307,7 +307,7 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
             {chartItems.map((d) => {
               const height = (d.count / chartMax) * 100;
 
-              let barColor = 'bg-blue-400';
+              let barColor = 'bg-gold-400';
               if (d.count >= 5) barColor = 'bg-amber-400';
               if (d.count >= 8) barColor = 'bg-red-400';
 
@@ -316,7 +316,7 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
                    {/* Bar Container acting as Track */}
                    <div className="w-full flex-1 bg-gray-50/50 rounded-t-lg flex flex-col justify-end overflow-hidden mb-2 relative">
                       <div
-                        className={`w-full rounded-t-sm transition-all duration-700 ${barColor} ${d.highlight ? 'ring-2 ring-blue-600 ring-offset-1' : 'opacity-80 group-hover:opacity-100'}`}
+                        className={`w-full rounded-t-sm transition-all duration-700 ${barColor} ${d.highlight ? 'ring-2 ring-gold-600 ring-offset-1' : 'opacity-80 group-hover:opacity-100'}`}
                         style={{ height: d.count > 0 ? `${height}%` : '2px' }}
                       >
                         {/* Tooltip */}
@@ -325,7 +325,7 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
                         </div>
                       </div>
                    </div>
-                  <div className={`text-[10px] font-bold ${chartMode === 'days' ? 'transform -rotate-45 origin-top-right whitespace-nowrap' : ''} mt-1 ${d.highlight ? 'text-blue-700' : 'text-gray-400'}`}>
+                  <div className={`text-[10px] font-bold ${chartMode === 'days' ? 'transform -rotate-45 origin-top-right whitespace-nowrap' : ''} mt-1 ${d.highlight ? 'text-gold-700' : 'text-gray-400'}`}>
                     {d.label}
                   </div>
                 </button>
@@ -339,7 +339,7 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
           <DistributionCard
             title="توزيع الرحلات حسب الحالة"
             icon={ListChecks}
-            iconColor="text-blue-500"
+            iconColor="text-gold-500"
             total={rows.length}
             emptyText="لا توجد بيانات حالات"
             limit={9}
@@ -409,14 +409,14 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
         <DistributionCard
           title="أكثر المسارات تكراراً"
           icon={Route}
-          iconColor="text-blue-500"
+          iconColor="text-gold-500"
           total={rows.length}
           emptyText="لا توجد بيانات مسارات"
           items={topRoutes.map(r => ({
             key: `${r.from}->${r.to}`,
             label: `${r.from} ← ${r.to}`,
             count: r.count,
-            barColor: 'bg-blue-500',
+            barColor: 'bg-gold-500',
             onClick: () => onNavigateToTable({ from: r.fromRaw, to: r.toRaw }),
           }))}
         />
@@ -484,13 +484,13 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
               className={`flex items-start gap-4 p-4 rounded-xl border transition-all text-right group hover:shadow-md ${
                 alert.type === 'error' ? 'bg-red-50 border-red-100 hover:bg-red-100' :
                 alert.type === 'warning' ? 'bg-amber-50 border-amber-100 hover:bg-amber-100' :
-                'bg-blue-50 border-blue-100 hover:bg-blue-100'
+                'bg-gold-50 border-gold-100 hover:bg-gold-100'
               }`}
             >
               <div className={`mt-0.5 ${
                 alert.type === 'error' ? 'text-red-600' :
                 alert.type === 'warning' ? 'text-amber-600' :
-                'text-blue-600'
+                'text-gold-600'
               }`}>
                 {alert.type === 'error' ? <AlertCircle size={20} /> :
                  alert.type === 'warning' ? <AlertTriangle size={20} /> : <Info size={20} />}
@@ -518,7 +518,7 @@ export const OperationsIntelligence: React.FC<AnalyticsProps> = ({ rows, onNavig
             <TrendingUp size={14} className="text-emerald-400" />
             <span>الوجهة الأكثر طلباً: <span className="text-emerald-300">{distributions.cities[0]?.label || '---'}</span></span>
             <div className="w-px h-3 bg-white/20"></div>
-            <span>الأسطول الأكثر طلباً: <span className="text-blue-300">{distributions.vehicles[0]?.label || '---'}</span></span>
+            <span>الأسطول الأكثر طلباً: <span className="text-gold-300">{distributions.vehicles[0]?.label || '---'}</span></span>
             {topRoutes[0] && (
               <>
                 <div className="w-px h-3 bg-white/20"></div>

@@ -175,7 +175,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
 
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
-            <User size={20} className="text-blue-600" /> الملف الشخصي
+            <User size={20} className="text-gold-600" /> الملف الشخصي
           </h2>
           <p className="text-sm text-gray-400">معلومات حسابك وصورتك واسم الشركة</p>
         </div>
@@ -183,18 +183,18 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
         {/* ── Avatar ── */}
         <div className="flex items-center gap-5">
           <div className="relative shrink-0">
-            <div className="w-20 h-20 rounded-2xl bg-blue-100 border border-blue-200 overflow-hidden flex items-center justify-center">
+            <div className="w-20 h-20 rounded-2xl bg-gold-100 border border-gold-200 overflow-hidden flex items-center justify-center">
               {user.avatar ? (
                 <img src={user.avatar} alt="" className="w-full h-full object-cover" />
               ) : (
-                <User size={32} className="text-blue-400" />
+                <User size={32} className="text-gold-400" />
               )}
             </div>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={avatarBusy}
-              className="absolute -bottom-2 -left-2 w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 transition-all disabled:opacity-50"
+              className="absolute -bottom-2 -left-2 w-8 h-8 rounded-xl bg-gold-600 text-white flex items-center justify-center shadow-lg hover:bg-gold-700 transition-all disabled:opacity-50"
               aria-label="تغيير الصورة"
             >
               {avatarBusy ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
@@ -221,7 +221,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
         {/* ── Company name ── */}
         <form onSubmit={handleCompanySave} className="border-t border-gray-100 pt-6 space-y-3">
           <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider flex items-center gap-1.5">
-            <Building2 size={13} className="text-blue-500" /> اسم الشركة
+            <Building2 size={13} className="text-gold-500" /> اسم الشركة
           </label>
           <input
             type="text"
@@ -229,14 +229,14 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
             onChange={(e) => { setCompanyName(e.target.value); setCompanySuccess(false); }}
             maxLength={200}
             placeholder="اسم شركتك أو وكالتك"
-            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
           />
           {companyError && <FieldError message={companyError} />}
           {companySuccess && <FieldSuccess message="تم حفظ اسم الشركة" />}
           <button
             type="submit"
             disabled={companyBusy}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-gold-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gold-700 transition-all disabled:opacity-50 flex items-center gap-2"
           >
             {companyBusy && <Loader2 size={14} className="animate-spin" />} حفظ
           </button>
@@ -245,14 +245,14 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
         {/* ── Username ── */}
         <form onSubmit={handleUsernameSave} className="border-t border-gray-100 pt-6 space-y-3">
           <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider flex items-center gap-1.5">
-            <User size={13} className="text-blue-500" /> اسم المستخدم
+            <User size={13} className="text-gold-500" /> اسم المستخدم
           </label>
           <input
             type="text"
             value={username}
             onChange={(e) => { setUsername(e.target.value); setUsernameSuccess(false); }}
             placeholder="اسم المستخدم"
-            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
             dir="ltr"
           />
           <input
@@ -260,14 +260,14 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
             value={usernamePassword}
             onChange={(e) => setUsernamePassword(e.target.value)}
             placeholder="كلمة المرور الحالية لتأكيد التغيير"
-            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
           />
           {usernameError && <FieldError message={usernameError} />}
           {usernameSuccess && <FieldSuccess message="تم تغيير اسم المستخدم" />}
           <button
             type="submit"
             disabled={usernameBusy || username.trim() === user.username}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-gold-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gold-700 transition-all disabled:opacity-50 flex items-center gap-2"
           >
             {usernameBusy && <Loader2 size={14} className="animate-spin" />} حفظ
           </button>
@@ -276,35 +276,35 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
         {/* ── Password ── */}
         <form onSubmit={handlePasswordSave} className="border-t border-gray-100 pt-6 space-y-3">
           <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider flex items-center gap-1.5">
-            <KeyRound size={13} className="text-blue-500" /> تغيير كلمة المرور
+            <KeyRound size={13} className="text-gold-500" /> تغيير كلمة المرور
           </label>
           <input
             type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             placeholder="كلمة المرور الحالية"
-            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
           />
           <input
             type="password"
             value={newPassword}
             onChange={(e) => { setNewPassword(e.target.value); setPasswordSuccess(false); }}
             placeholder="كلمة المرور الجديدة (10 أحرف على الأقل)"
-            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
           />
           <input
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="تأكيد كلمة المرور الجديدة"
-            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none"
+            className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
           />
           {passwordError && <FieldError message={passwordError} />}
           {passwordSuccess && <FieldSuccess message="تم تغيير كلمة المرور" />}
           <button
             type="submit"
             disabled={passwordBusy || !currentPassword || !newPassword || !confirmPassword}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-gold-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gold-700 transition-all disabled:opacity-50 flex items-center gap-2"
           >
             {passwordBusy && <Loader2 size={14} className="animate-spin" />} حفظ
           </button>

@@ -103,7 +103,7 @@
             <li><strong>بيانات الحساب:</strong> اسم المستخدم وكلمة المرور (مخزَّنة بصيغة مُشفّرة عبر bcrypt، ولا يمكن لأحد استرجاعها كنص واضح).</li>
             <li><strong>بيانات الرحلات والمجموعات:</strong> ما يُدخله الموظف من بيانات — اسم المجموعة، رقم الرحلة، التاريخ والوقت، نقطة الانطلاق والوجهة، الحالة، وأي ملاحظات مرفقة. قد تتضمن هذه البيانات أسماء المعتمرين إذا أدرجها الموظف ضمن نص الرحلة.</li>
             <li><strong>إعدادات بوت تيليجرام (اختياري):</strong> إذا فعّل المستخدم إشعارات تيليجرام، يُخزَّن رمز البوت ومعرّف المحادثة الذي أدخله بنفسه لإرسال التنبيهات.</li>
-            <li><strong>بيانات إضافة المتصفح (اختياري):</strong> عند استخدام إضافة UM Track، تقرأ الإضافة نص الصفحة النشطة فقط عند نقر المستخدم على زر الالتقاط، أو تلقائيًا على صفحات بوابتَي نُسك وحج الرسميتين، ثم ترسل هذا النص إلى حساب المستخدم نفسه على خادمنا.</li>
+            <li><strong>بيانات إضافة المتصفح (اختياري):</strong> عند استخدام إضافة UM Track، تقرأ الإضافة بيانات الرحلات ذات الصلة أثناء تصفّحك للصفحات المدعومة، ثم ترسلها إلى حساب المستخدم نفسه على خادمنا.</li>
           </ul>
 
           <h2 id="use">٣. كيفية استخدام البيانات</h2>
@@ -194,7 +194,7 @@
             <li><strong>Account data:</strong> username and password (stored hashed via bcrypt; never recoverable as plain text).</li>
             <li><strong>Trip and group data:</strong> information staff enter — group name, trip number, date/time, origin/destination, status, and any attached notes. This may include pilgrim names if a staff member includes them in the trip text.</li>
             <li><strong>Telegram bot settings (optional):</strong> if the user enables Telegram notifications, we store the bot token and chat ID the user provided to send their own alerts.</li>
-            <li><strong>Browser extension data (optional):</strong> when using the UM Track extension, it reads the active tab's text only when the user clicks the capture button, or automatically on the official Nusuk and Haj portal pages, and sends that text to the user's own account on our server.</li>
+            <li><strong>Browser extension data (optional):</strong> when using the UM Track extension, it reads relevant trip data while you work on supported pages, and sends it to the user's own account on our server.</li>
           </ul>
 
           <h2 id="use-en">3. How We Use Data</h2>

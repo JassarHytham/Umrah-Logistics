@@ -866,6 +866,123 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
     return res.status(400).json({ error: "Rows must be an array of at most 5000 objects with string ids" });
   }
 
+  const userId = req.user.id;
+
+  // This loop used to run getRowAccessForUser / getVisibleUserIdsFor* per row
+  // (each up to several queries), so syncing a large table meant thousands of
+  // synchronous round trips inside one transaction. Batch-fetch everything a
+  // sync of this payload could possibly need up front instead.
+  const ids = Array.from(new Set((rows as any[]).map((r) => r?.id).filter((id): id is string => typeof id === "string")));
+  const existingById = new Map<string, LogisticsRowRecord>();
+  if (ids.length > 0) {
+    const placeholders = ids.map(() => "?").join(",");
+    (db.prepare(`SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id IN (${placeholders})`)
+      .all(...ids) as LogisticsRowRecord[])
+      .forEach((r) => existingById.set(r.id, r));
+  }
+
+  // The current user's own row/group/agency shares — reused both for the
+  // edit-permission check on existing rows and the insert-permission check
+  // on new ones (the original code queried these individually for each).
+  const rowRoles = new Map<string, ShareRole>(
+    (db.prepare("SELECT row_id, role FROM trip_row_access WHERE user_id = ?").all(userId) as { row_id: string; role: string }[])
+      .map((r) => [r.row_id, normalizeShareRole(r.role)]),
+  );
+  const groupRoles = new Map<string, ShareRole>(
+    (db.prepare("SELECT group_no, role FROM trip_group_access WHERE user_id = ?").all(userId) as { group_no: string; role: string }[])
+      .map((r) => [r.group_no, normalizeShareRole(r.role)]),
+  );
+  const agencyRoles = new Map<string, ShareRole>(
+    (db.prepare("SELECT agency, role FROM trip_agency_access WHERE user_id = ?").all(userId) as { agency: string; role: string }[])
+      .map((r) => [r.agency, normalizeShareRole(r.role)]),
+  );
+  const resolveAccess = (record: LogisticsRowRecord): { scope: AccessScope; role: AccessRole } | null => {
+    if (Number(record.user_id) === Number(userId)) return { scope: "owner", role: "owner" };
+    const candidates: { scope: AccessScope; role: ShareRole }[] = [];
+    const rowRole = rowRoles.get(record.id);
+    if (rowRole) candidates.push({ scope: "row", role: rowRole });
+    const parsed = parseRowData(record.data);
+    if (parsed.groupNo) {
+      const groupRole = groupRoles.get(String(parsed.groupNo));
+      if (groupRole) candidates.push({ scope: "group", role: groupRole });
+    }
+    const agency = normalizeAgency(parsed.agency);
+    if (agency) {
+      const agencyRole = agencyRoles.get(agency);
+      if (agencyRole) candidates.push({ scope: "agency", role: agencyRole });
+    }
+    const editorAccess = candidates.find((access) => access.role === "editor");
+    return editorAccess ?? candidates[0] ?? null;
+  };
+
+  // Everyone (any user, not just req.user) who can see a given row/group/agency —
+  // needed to fan out the live-update notification. Scoped to the identifiers
+  // this payload could actually touch (existing rows' own groupNo/agency, plus
+  // every incoming row's), fetched in 3 queries instead of per row.
+  const groupNosInvolved = new Set<string>();
+  const agenciesInvolved = new Set<string>();
+  for (const record of existingById.values()) {
+    const parsed = parseRowData(record.data);
+    if (parsed.groupNo) groupNosInvolved.add(String(parsed.groupNo));
+    const agencyFromRecord = normalizeAgency(parsed.agency);
+    if (agencyFromRecord) agenciesInvolved.add(agencyFromRecord);
+  }
+  for (const row of rows as any[]) {
+    const stored = sanitizeRowForStorage(row);
+    const groupNo = String(stored.groupNo || "").trim();
+    if (groupNo) groupNosInvolved.add(groupNo);
+    const agencyFromRow = normalizeAgency(stored.agency);
+    if (agencyFromRow) agenciesInvolved.add(agencyFromRow);
+  }
+  const rowIdToUserIds = new Map<string, Set<number>>();
+  if (ids.length > 0) {
+    const placeholders = ids.map(() => "?").join(",");
+    (db.prepare(`SELECT row_id, user_id FROM trip_row_access WHERE row_id IN (${placeholders})`).all(...ids) as { row_id: string; user_id: number }[])
+      .forEach(({ row_id, user_id: uid }) => {
+        if (!rowIdToUserIds.has(row_id)) rowIdToUserIds.set(row_id, new Set());
+        rowIdToUserIds.get(row_id)!.add(Number(uid));
+      });
+  }
+  const groupNoToUserIds = new Map<string, Set<number>>();
+  if (groupNosInvolved.size > 0) {
+    const groupList = Array.from(groupNosInvolved);
+    const placeholders = groupList.map(() => "?").join(",");
+    (db.prepare(`SELECT group_no, user_id FROM trip_group_access WHERE group_no IN (${placeholders})`).all(...groupList) as { group_no: string; user_id: number }[])
+      .forEach(({ group_no, user_id: uid }) => {
+        if (!groupNoToUserIds.has(group_no)) groupNoToUserIds.set(group_no, new Set());
+        groupNoToUserIds.get(group_no)!.add(Number(uid));
+      });
+  }
+  const agencyToUserIds = new Map<string, Set<number>>();
+  if (agenciesInvolved.size > 0) {
+    const agencyList = Array.from(agenciesInvolved);
+    const placeholders = agencyList.map(() => "?").join(",");
+    (db.prepare(`SELECT agency, user_id FROM trip_agency_access WHERE agency IN (${placeholders})`).all(...agencyList) as { agency: string; user_id: number }[])
+      .forEach(({ agency, user_id: uid }) => {
+        if (!agencyToUserIds.has(agency)) agencyToUserIds.set(agency, new Set());
+        agencyToUserIds.get(agency)!.add(Number(uid));
+      });
+  }
+  const visibleUserIdsForRowRecord = (record: LogisticsRowRecord): Set<number> => {
+    const userIds = new Set<number>([Number(record.user_id)]);
+    (rowIdToUserIds.get(record.id) ?? new Set()).forEach((id) => userIds.add(id));
+    const parsed = parseRowData(record.data);
+    if (parsed.groupNo) (groupNoToUserIds.get(String(parsed.groupNo)) ?? new Set()).forEach((id) => userIds.add(id));
+    const agencyFromRecord = normalizeAgency(parsed.agency);
+    if (agencyFromRecord) (agencyToUserIds.get(agencyFromRecord) ?? new Set()).forEach((id) => userIds.add(id));
+    return userIds;
+  };
+  const visibleUserIdsForGroupNo = (groupNo: string, ownerUserId: number): Set<number> => {
+    const userIds = new Set<number>([Number(ownerUserId)]);
+    (groupNoToUserIds.get(groupNo) ?? new Set()).forEach((id) => userIds.add(id));
+    return userIds;
+  };
+  const visibleUserIdsForAgency = (agency: string, ownerUserId: number): Set<number> => {
+    const userIds = new Set<number>([Number(ownerUserId)]);
+    (agencyToUserIds.get(normalizeAgency(agency)) ?? new Set()).forEach((id) => userIds.add(id));
+    return userIds;
+  };
+
   const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
   const updateStmt = db.prepare("UPDATE logistics_rows SET data = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
   const affectedUserIds = new Set<number>();
@@ -874,24 +991,26 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
   const sync = db.transaction((rows) => {
     for (const row of rows) {
       if (!row?.id) continue;
-      const existing = db
-        .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
-        .get(row.id) as LogisticsRowRecord | undefined;
+      // existingById is kept in sync as we go (not just a static pre-fetch), so a
+      // duplicate id within the same payload still sees its own prior write here,
+      // exactly as a fresh SELECT would have.
+      const existing = existingById.get(row.id);
 
       const storedRow = sanitizeRowForStorage(row);
       if (existing) {
-        const access = getRowAccessForUser(req.user.id, existing);
+        const access = resolveAccess(existing);
         if (access && canEditAccessRole(access.role) && !existing.deleted_at) {
           const current = parseRowData(existing.data);
           const next = { ...current, ...storedRow, id: current.id };
           if (row._version !== undefined && Number(row._version) !== Number(existing.version)) {
             if (JSON.stringify(next) !== JSON.stringify(current)) {
-              conflicts.push({ id: existing.id, row: decorateRowForUser(existing, req.user.id) });
+              conflicts.push({ id: existing.id, row: decorateRowForUser(existing, userId, access) });
             }
             continue;
           }
           updateStmt.run(JSON.stringify(next), existing.id);
-          getVisibleUserIdsForRowId(existing.id).forEach((id) => affectedUserIds.add(id));
+          visibleUserIdsForRowRecord(existing).forEach((id) => affectedUserIds.add(id));
+          existingById.set(existing.id, { ...existing, data: JSON.stringify(next), version: Number(existing.version || 1) + 1 });
         }
       } else {
         // `_version` is only ever handed out by the server, so a row that carries one
@@ -903,28 +1022,21 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
         const groupNo = String(storedRow.groupNo || "").trim();
         const agency = normalizeAgency(storedRow.agency);
         if (groupNo) {
-          const groupAccess = db
-            .prepare("SELECT role FROM trip_group_access WHERE group_no = ? AND user_id = ?")
-            .get(groupNo, req.user.id) as { role: ShareRole } | undefined;
-          const agencyAccess = agency
-            ? db
-              .prepare("SELECT role FROM trip_agency_access WHERE agency = ? AND user_id = ?")
-              .get(agency, req.user.id) as { role: ShareRole } | undefined
-            : undefined;
-          const hasReadonlySharedScope = [groupAccess, agencyAccess].some((access) => access && !canEditAccessRole(access.role));
-          const hasEditableSharedScope = [groupAccess, agencyAccess].some((access) => access && canEditAccessRole(access.role));
+          const groupRole = groupRoles.get(groupNo);
+          const agencyRole = agency ? agencyRoles.get(agency) : undefined;
+          const hasReadonlySharedScope = [groupRole, agencyRole].some((role) => role && !canEditAccessRole(role));
+          const hasEditableSharedScope = [groupRole, agencyRole].some((role) => role && canEditAccessRole(role));
           if (hasReadonlySharedScope && !hasEditableSharedScope) continue;
         } else if (agency) {
-          const agencyAccess = db
-            .prepare("SELECT role FROM trip_agency_access WHERE agency = ? AND user_id = ?")
-            .get(agency, req.user.id) as { role: ShareRole } | undefined;
-          if (agencyAccess && !canEditAccessRole(agencyAccess.role)) continue;
+          const agencyRole = agencyRoles.get(agency);
+          if (agencyRole && !canEditAccessRole(agencyRole)) continue;
         }
-        insertStmt.run(row.id, req.user.id, JSON.stringify(storedRow));
-        const recipients = new Set<number>([req.user.id]);
-        if (groupNo) getVisibleUserIdsForGroupNo(groupNo, req.user.id).forEach((id) => recipients.add(id));
-        if (agency) getVisibleUserIdsForAgency(agency, req.user.id).forEach((id) => recipients.add(id));
+        insertStmt.run(row.id, userId, JSON.stringify(storedRow));
+        const recipients = new Set<number>([userId]);
+        if (groupNo) visibleUserIdsForGroupNo(groupNo, userId).forEach((id) => recipients.add(id));
+        if (agency) visibleUserIdsForAgency(agency, userId).forEach((id) => recipients.add(id));
         recipients.forEach((id) => affectedUserIds.add(id));
+        existingById.set(row.id, { id: row.id, user_id: userId, data: JSON.stringify(storedRow), version: 1, updated_at: new Date().toISOString(), deleted_at: null as any, deleted_by_user_id: null as any });
       }
     }
   });

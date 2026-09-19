@@ -192,7 +192,12 @@ export default function App() {
 
   // Sync on changes (debounced or simple)
   useEffect(() => {
-    if (user && !loading) {
+    // Admin sessions never load operational data (loadUserData is skipped for
+    // them — see the initial-load effect above), so this debounced sync must
+    // not fire for an admin: it would issue a spurious empty syncRows([]) call
+    // and, worse, write a real settings row (with default Telegram config) for
+    // an account that never uses it.
+    if (user && !loading && user.role !== 'admin') {
       const timer = setTimeout(syncAllData, 2000);
       return () => clearTimeout(timer);
     }
@@ -233,7 +238,10 @@ export default function App() {
   useEffect(() => { alertSettingsRef.current = alertSettings; }, [alertSettings]);
 
   useEffect(() => {
-    if (!user) return;
+    // Same reasoning as the sync effect above: an admin session never uses
+    // this operational live-update channel, so opening a socket for it here
+    // would just be a connection that's immediately dead weight.
+    if (!user || user.role === 'admin') return;
 
     const token = localStorage.getItem('umrah_auth_token');
     if (!token) return;

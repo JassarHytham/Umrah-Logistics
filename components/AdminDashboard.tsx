@@ -65,7 +65,7 @@ const CreateUserModal: React.FC<{ companies: AdminCompany[]; onClose: () => void
         </div>
         <div>
           <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">كلمة المرور</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gold-500" />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={10} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-gold-500" />
         </div>
         <div>
           <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">الشركة (اختياري)</label>
@@ -226,6 +226,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     loadAll();
   }, []);
 
+  const handleChangeCompany = async (target: AdminUser, companyId: string) => {
+    try {
+      await api.admin.updateUser(target.id, { companyId: companyId ? Number(companyId) : null });
+      loadAll();
+    } catch (err: any) {
+      setError(err.message || 'فشل تحديث شركة المستخدم');
+    }
+  };
+
   const handleToggleActive = async (target: AdminUser) => {
     try {
       await api.admin.updateUser(target.id, { isActive: !target.isActive });
@@ -336,7 +345,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   {users.map((u) => (
                     <tr key={u.id} className="border-b hover:bg-gray-50">
                       <td className="p-3 font-bold">{u.username}{u.role === 'admin' && <span className="mr-2 text-[10px] bg-gold-100 text-gold-700 px-2 py-0.5 rounded-full">مسؤول</span>}</td>
-                      <td className="p-3 text-gray-500">{u.companyName || '—'}</td>
+                      <td className="p-3 text-gray-500">
+                        {u.role === 'admin' ? (
+                          u.companyName || '—'
+                        ) : (
+                          <select
+                            value={u.companyId ?? ''}
+                            onChange={(e) => handleChangeCompany(u, e.target.value)}
+                            className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-gold-500"
+                          >
+                            <option value="">بدون شركة</option>
+                            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        )}
+                      </td>
                       <td className="p-3">
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${u.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
                           {u.isActive ? 'نشط' : 'معطل'}

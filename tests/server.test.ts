@@ -275,6 +275,159 @@ describe('Admin route protection, overview, and audit log', () => {
   });
 });
 
+describe('Admin user management', () => {
+  let createdUserId: number;
+  let createdUsername: string;
+
+  it('creates a new user via the admin endpoint', async () => {
+    createdUsername = `admincreated_${Date.now()}`;
+    const res = await request(app)
+      .post('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ username: createdUsername, password: 'Password123!' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user.username).toBe(createdUsername);
+    expect(res.body.user.role).toBe('user');
+    expect(res.body.user.isActive).toBe(true);
+    createdUserId = res.body.user.id;
+  });
+
+  it('rejects duplicate username with 400', async () => {
+    const res = await request(app)
+      .post('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(TEST_USER);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/already exists/i);
+  });
+
+  it('rejects missing username or password with 400', async () => {
+    const res1 = await request(app).post('/api/admin/users').set('Authorization', `Bearer ${adminToken}`).send({ password: 'Password123!' });
+    expect(res1.status).toBe(400);
+    const res2 = await request(app).post('/api/admin/users').set('Authorization', `Bearer ${adminToken}`).send({ username: 'someuser' });
+    expect(res2.status).toBe(400);
+  });
+
+  it('rejects creating a user as a non-admin', async () => {
+    const res = await request(app)
+      .post('/api/admin/users')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ username: `blocked_${Date.now()}`, password: 'Password123!' });
+    expect(res.status).toBe(403);
+  });
+
+  it('lists users including the newly created one', async () => {
+    const res = await request(app)
+      .get('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.users.some((u: any) => u.id === createdUserId)).toBe(true);
+  });
+
+  it("resets a user's password and the user can log in with the new one", async () => {
+    const res = await request(app)
+      .post(`/api/admin/users/${createdUserId}/reset-password`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ password: 'NewPassword456!' });
+    expect(res.status).toBe(200);
+
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ username: createdUsername, password: 'NewPassword456!' });
+    expect(login.status).toBe(200);
+  });
+
+  it('disables a user, blocking both their login and their existing token, then re-enables them', async () => {
+    const loginBeforeDisable = await request(app)
+      .post('/api/auth/login')
+      .send({ username: createdUsername, password: 'NewPassword456!' });
+    const tokenIssuedBeforeDisable = loginBeforeDisable.body.token as string;
+
+    const disable = await request(app)
+      .patch(`/api/admin/users/${createdUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ isActive: false });
+    expect(disable.status).toBe(200);
+    expect(disable.body.user.isActive).toBe(false);
+
+    const blockedLogin = await request(app)
+      .post('/api/auth/login')
+      .send({ username: createdUsername, password: 'NewPassword456!' });
+    expect(blockedLogin.status).toBe(401);
+
+    // The token issued before disabling must also stop working immediately,
+    // not just future logins (authenticateToken re-checks is_active per request).
+    const blockedApiCall = await request(app)
+      .get('/api/data')
+      .set('Authorization', `Bearer ${tokenIssuedBeforeDisable}`);
+    expect(blockedApiCall.status).toBe(401);
+
+    const enable = await request(app)
+      .patch(`/api/admin/users/${createdUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ isActive: true });
+    expect(enable.status).toBe(200);
+    expect(enable.body.user.isActive).toBe(true);
+  });
+
+  it('refuses to delete a user who still owns trip rows, then allows it once rows are gone', async () => {
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ username: createdUsername, password: 'NewPassword456!' });
+    const createdUserToken = login.body.token as string;
+
+    const row = {
+      id: `admin-delete-test-${Date.now()}`,
+      groupNo: 'ADMIN001',
+      groupName: 'Admin Delete Test',
+      agency: 'Admin Test Agency',
+      count: '1',
+      Column1: 'وصول',
+      date: '15/01/2026',
+      time: '14:30',
+      flight: 'SV999',
+      route: 'JED-MED',
+      status: 'Planned',
+    };
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${createdUserToken}`)
+      .send({ rows: [row] });
+
+    const blocked = await request(app)
+      .delete(`/api/admin/users/${createdUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.error).toMatch(/owns trip rows/i);
+
+    await request(app)
+      .post(`/api/data/${row.id}/delete`)
+      .set('Authorization', `Bearer ${createdUserToken}`);
+    await request(app)
+      .delete(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${createdUserToken}`);
+
+    const deleted = await request(app)
+      .delete(`/api/admin/users/${createdUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.success).toBe(true);
+  });
+
+  it('refuses to delete your own (the admin) account', async () => {
+    const meRes = await request(app)
+      .post('/api/auth/login')
+      .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+    const adminUserId = meRes.body.user.id;
+
+    const res = await request(app)
+      .delete(`/api/admin/users/${adminUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(400);
+  });
+});
+
 // ─────────────────────────────────────────────
 // Auth Middleware
 // ─────────────────────────────────────────────

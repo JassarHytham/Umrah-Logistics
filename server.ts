@@ -964,6 +964,115 @@ app.get("/api/admin/audit", authenticateToken, requireAdmin, (req, res) => {
   });
 });
 
+app.get("/api/admin/users", authenticateToken, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT
+      u.id, u.username, u.role,
+      u.is_active AS isActive,
+      u.company_id AS companyId,
+      c.name AS companyName,
+      u.created_at AS createdAt,
+      u.last_login_at AS lastLoginAt
+    FROM users u
+    LEFT JOIN companies c ON c.id = u.company_id
+    ORDER BY u.created_at DESC
+  `).all() as any[];
+  res.json({ users: rows.map((r) => ({ ...r, isActive: !!r.isActive })) });
+});
+
+app.post("/api/admin/users", authenticateToken, requireAdmin, async (req: any, res) => {
+  const username = normalizeUsername(req.body?.username);
+  const { password } = req.body;
+  const companyId = req.body?.companyId ?? null;
+
+  if (!isValidUsername(username)) return res.status(400).json({ error: "Username must be 3-32 lowercase letters, numbers, underscores, or hyphens" });
+  if (!isValidPassword(password)) return res.status(400).json({ error: "Password must be 10-128 characters" });
+  if (companyId !== null) {
+    const company = db.prepare("SELECT 1 FROM companies WHERE id = ?").get(companyId);
+    if (!company) return res.status(400).json({ error: "Company not found" });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const info = db.prepare("INSERT INTO users (username, password, company_id) VALUES (?, ?, ?)").run(username, hashedPassword, companyId);
+    const userId = Number(info.lastInsertRowid);
+
+    db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_created', ?, ?)").run(req.user.id, userId);
+
+    const created = db.prepare(`
+      SELECT u.id, u.username, u.role, u.is_active AS isActive, u.company_id AS companyId, c.name AS companyName, u.created_at AS createdAt, u.last_login_at AS lastLoginAt
+      FROM users u LEFT JOIN companies c ON c.id = u.company_id WHERE u.id = ?
+    `).get(userId) as any;
+    res.status(201).json({ user: { ...created, isActive: !!created.isActive } });
+  } catch (err: any) {
+    if (err.code?.includes("SQLITE_CONSTRAINT")) {
+      res.status(400).json({ error: "Username already exists" });
+    } else {
+      res.status(500).json({ error: "Server error" });
+    }
+  }
+});
+
+app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, res) => {
+  const userId = Number(req.params.id);
+  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "companyId")) {
+    const companyId = req.body.companyId;
+    if (companyId !== null) {
+      const company = db.prepare("SELECT 1 FROM companies WHERE id = ?").get(companyId);
+      if (!company) return res.status(400).json({ error: "Company not found" });
+    }
+    db.prepare("UPDATE users SET company_id = ? WHERE id = ?").run(companyId, userId);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "isActive")) {
+    const isActive = req.body.isActive ? 1 : 0;
+    db.prepare("UPDATE users SET is_active = ? WHERE id = ?").run(isActive, userId);
+    db.prepare(
+      "INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES (?, ?, ?)"
+    ).run(isActive ? "user_enabled" : "user_disabled", req.user.id, userId);
+  }
+
+  const updated = db.prepare(`
+    SELECT u.id, u.username, u.role, u.is_active AS isActive, u.company_id AS companyId, c.name AS companyName, u.created_at AS createdAt, u.last_login_at AS lastLoginAt
+    FROM users u LEFT JOIN companies c ON c.id = u.company_id WHERE u.id = ?
+  `).get(userId) as any;
+  res.json({ user: { ...updated, isActive: !!updated.isActive } });
+});
+
+app.post("/api/admin/users/:id/reset-password", authenticateToken, requireAdmin, async (req: any, res) => {
+  const userId = Number(req.params.id);
+  const { password } = req.body;
+  if (!isValidPassword(password)) return res.status(400).json({ error: "Password must be 10-128 characters" });
+
+  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashedPassword, userId);
+  db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_password_reset', ?, ?)").run(req.user.id, userId);
+
+  res.json({ success: true });
+});
+
+app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, res) => {
+  const userId = Number(req.params.id);
+  if (userId === Number(req.user.id)) return res.status(400).json({ error: "Cannot delete your own account" });
+
+  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const ownsRows = db.prepare("SELECT 1 FROM logistics_rows WHERE user_id = ? LIMIT 1").get(userId);
+  if (ownsRows) return res.status(400).json({ error: "Cannot delete a user that still owns trip rows" });
+
+  db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_deleted', ?, ?)").run(req.user.id, userId);
+
+  res.json({ success: true });
+});
+
 // Data Routes
 app.get("/api/data", authenticateToken, (req: any, res) => {
   res.json(listVisibleRowsForUser(req.user.id, false));

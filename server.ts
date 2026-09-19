@@ -1076,6 +1076,72 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, r
   res.json({ success: true });
 });
 
+app.get("/api/admin/companies", authenticateToken, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT c.id, c.name, c.created_at AS createdAt, COUNT(u.id) AS userCount
+    FROM companies c
+    LEFT JOIN users u ON u.company_id = c.id
+    GROUP BY c.id
+    ORDER BY c.name ASC
+  `).all();
+  res.json({ companies: rows });
+});
+
+app.post("/api/admin/companies", authenticateToken, requireAdmin, (req: any, res) => {
+  const name = String(req.body?.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Company name is required" });
+
+  try {
+    const info = db.prepare("INSERT INTO companies (name) VALUES (?)").run(name);
+    const companyId = Number(info.lastInsertRowid);
+    db.prepare("INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('company_created', ?, ?)").run(req.user.id, JSON.stringify({ companyId, name }));
+    res.status(201).json({ company: { id: companyId, name, userCount: 0, createdAt: new Date().toISOString() } });
+  } catch (err: any) {
+    if (err.code?.includes("SQLITE_CONSTRAINT")) {
+      res.status(400).json({ error: "A company with that name already exists" });
+    } else {
+      res.status(500).json({ error: "Server error" });
+    }
+  }
+});
+
+app.patch("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any, res) => {
+  const companyId = Number(req.params.id);
+  const name = String(req.body?.name || "").trim();
+  if (!name) return res.status(400).json({ error: "Company name is required" });
+
+  const existing = db.prepare("SELECT id FROM companies WHERE id = ?").get(companyId);
+  if (!existing) return res.status(404).json({ error: "Company not found" });
+
+  try {
+    db.prepare("UPDATE companies SET name = ? WHERE id = ?").run(name, companyId);
+  } catch (err: any) {
+    if (err.code?.includes("SQLITE_CONSTRAINT")) {
+      return res.status(400).json({ error: "A company with that name already exists" });
+    }
+    return res.status(500).json({ error: "Server error" });
+  }
+
+  db.prepare("INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('company_renamed', ?, ?)").run(req.user.id, JSON.stringify({ companyId, name }));
+
+  const userCount = (db.prepare("SELECT COUNT(*) AS count FROM users WHERE company_id = ?").get(companyId) as { count: number }).count;
+  res.json({ company: { id: companyId, name, userCount } });
+});
+
+app.delete("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any, res) => {
+  const companyId = Number(req.params.id);
+  const existing = db.prepare("SELECT id, name FROM companies WHERE id = ?").get(companyId) as { id: number; name: string } | undefined;
+  if (!existing) return res.status(404).json({ error: "Company not found" });
+
+  const hasUsers = db.prepare("SELECT 1 FROM users WHERE company_id = ? LIMIT 1").get(companyId);
+  if (hasUsers) return res.status(400).json({ error: "Cannot delete a company with assigned users" });
+
+  db.prepare("DELETE FROM companies WHERE id = ?").run(companyId);
+  db.prepare("INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('company_deleted', ?, ?)").run(req.user.id, JSON.stringify({ companyId, name: existing.name }));
+
+  res.json({ success: true });
+});
+
 // Data Routes
 app.get("/api/data", authenticateToken, (req: any, res) => {
   res.json(listVisibleRowsForUser(req.user.id, false));

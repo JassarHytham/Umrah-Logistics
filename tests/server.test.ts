@@ -449,6 +449,81 @@ describe('Admin user management', () => {
   });
 });
 
+describe('Admin company management', () => {
+  let companyId: number;
+
+  it('creates a company', async () => {
+    const res = await request(app)
+      .post('/api/admin/companies')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `Test Travel Co ${Date.now()}` });
+    expect(res.status).toBe(201);
+    expect(res.body.company.userCount).toBe(0);
+    companyId = res.body.company.id;
+  });
+
+  it('rejects an empty company name', async () => {
+    const res = await request(app)
+      .post('/api/admin/companies')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: '  ' });
+    expect(res.status).toBe(400);
+  });
+
+  it('lists companies including the newly created one', async () => {
+    const res = await request(app)
+      .get('/api/admin/companies')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.companies.some((c: any) => c.id === companyId)).toBe(true);
+  });
+
+  it('renames a company', async () => {
+    const newName = `Renamed Co ${Date.now()}`;
+    const res = await request(app)
+      .patch(`/api/admin/companies/${companyId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: newName });
+    expect(res.status).toBe(200);
+    expect(res.body.company.name).toBe(newName);
+  });
+
+  it('assigns a user to the company, blocks deleting the company, then allows it once unassigned', async () => {
+    const unique = `companyuser_${Date.now()}`;
+    const create = await request(app)
+      .post('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ username: unique, password: 'Password123!', companyId });
+    expect(create.status).toBe(201);
+    expect(create.body.user.companyId).toBe(companyId);
+
+    const blocked = await request(app)
+      .delete(`/api/admin/companies/${companyId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(blocked.status).toBe(400);
+
+    const unassign = await request(app)
+      .patch(`/api/admin/users/${create.body.user.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ companyId: null });
+    expect(unassign.status).toBe(200);
+    expect(unassign.body.user.companyId).toBeNull();
+
+    const deleted = await request(app)
+      .delete(`/api/admin/companies/${companyId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(deleted.status).toBe(200);
+  });
+
+  it('rejects an unknown companyId when creating a user', async () => {
+    const res = await request(app)
+      .post('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ username: `badcompany_${Date.now()}`, password: 'Password123!', companyId: 999999 });
+    expect(res.status).toBe(400);
+  });
+});
+
 // ─────────────────────────────────────────────
 // Auth Middleware
 // ─────────────────────────────────────────────

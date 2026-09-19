@@ -173,5 +173,60 @@ export const api = {
         body: JSON.stringify(payload),
       });
     }
+  },
+
+  admin: {
+    async overview() {
+      return api.request('/admin/overview');
+    },
+    async listUsers() {
+      return api.request('/admin/users');
+    },
+    async createUser(payload: { username: string; password: string; companyId?: number | null }) {
+      return api.request('/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
+    async updateUser(id: number, payload: { companyId?: number | null; isActive?: boolean }) {
+      return api.request(`/admin/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+    },
+    async resetPassword(id: number, password: string) {
+      return api.request(`/admin/users/${id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      });
+    },
+    async deleteUser(id: number) {
+      return api.request(`/admin/users/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    async listCompanies() {
+      return api.request('/admin/companies');
+    },
+    async createCompany(name: string) {
+      return api.request('/admin/companies', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      });
+    },
+    async updateCompany(id: number, name: string) {
+      return api.request(`/admin/companies/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
+    },
+    async deleteCompany(id: number) {
+      return api.request(`/admin/companies/${id}`, {
+        method: 'DELETE',
+      });
+    },
+    async listAuditLog() {
+      return api.request('/admin/audit');
+    }
   }
 };

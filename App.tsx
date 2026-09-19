@@ -23,6 +23,7 @@ import { resolveImportedStatus } from './utils/statusImport';
 import { TableEditor } from './components/TableEditor';
 import { OperationsIntelligence } from './components/OperationsIntelligence';
 import { Auth } from './components/Auth';
+import { AdminDashboard } from './components/AdminDashboard';
 import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { api } from './services/api';
@@ -110,8 +111,13 @@ export default function App() {
     if (token && typeof token === 'string' && token.split('.').length === 3) {
       // We assume the token is valid for now, or the first API call will fail and trigger logout
       const savedUser = localStorage.getItem('umrah_user');
-      setUser(savedUser ? { ...JSON.parse(savedUser), token } : { token });
-      loadUserData();
+      const parsedUser = savedUser ? { ...JSON.parse(savedUser), token } : { token };
+      setUser(parsedUser);
+      if (parsedUser.role === 'admin') {
+        setLoading(false);
+      } else {
+        loadUserData();
+      }
     } else {
       if (token) localStorage.removeItem('umrah_auth_token');
       setLoading(false);
@@ -779,7 +785,11 @@ export default function App() {
   }
 
   if (!user) {
-    return <Auth onLogin={(u: any) => { setUser(u); loadUserData(); }} />;
+    return <Auth onLogin={(u: any) => { setUser(u); if (u.role === 'admin') { setLoading(false); } else { loadUserData(); } }} />;
+  }
+
+  if (user.role === 'admin') {
+    return <AdminDashboard user={user} />;
   }
 
   return (

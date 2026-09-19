@@ -6,6 +6,36 @@ export interface UserAccount {
   username: string;
   companyName: string | null;
   avatar: string | null;
+  role?: 'user' | 'admin';
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  role: 'user' | 'admin';
+  isActive: boolean;
+  companyId: number | null;
+  companyName: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export interface AdminCompany {
+  id: number;
+  name: string;
+  userCount: number;
+  createdAt: string;
+}
+
+export interface AdminAuditEvent {
+  id: number;
+  eventType: string;
+  actorUserId: number | null;
+  actorUsername: string | null;
+  targetUserId: number | null;
+  targetUsername: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
 }
 
 export type NoteHighlightColor = 'amber' | 'yellow' | 'blue' | 'green' | 'pink' | 'purple';

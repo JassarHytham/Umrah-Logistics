@@ -18,6 +18,19 @@ const authGet = (path: string) =>
 const authPost = (path: string) =>
   request(app).post(path).set('Authorization', `Bearer ${authToken}`);
 
+// Self-signup is gone; bootstrap test users the same way the admin dashboard
+// does — create via the admin endpoint, then log in as them. Returns a
+// supertest-Response-shaped object so it's a drop-in for the old
+// `request(app).post('/api/auth/register').send(credentials)` call sites.
+const registerTestUser = async (credentials: { username?: string; password?: string }) => {
+  const createRes = await request(app)
+    .post('/api/admin/users')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send(credentials);
+  if (createRes.status !== 201) return createRes;
+  return request(app).post('/api/auth/login').send(credentials);
+};
+
 const startLiveTestServer = async () => {
   const server = createServer(app);
   attachLiveUpdates(server);
@@ -55,66 +68,23 @@ const waitForLiveEvent = async (socket: WebSocket, expectedType: string) => {
 
 // Register once and reuse the token for all tests in this file
 beforeAll(async () => {
-  const res = await request(app)
-    .post('/api/auth/register')
-    .send(TEST_USER);
-  authToken = res.body.token;
-  userId = res.body.user?.id;
-
   const adminRes = await request(app)
     .post('/api/auth/login')
     .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
   adminToken = adminRes.body.token;
+
+  const res = await registerTestUser(TEST_USER);
+  authToken = res.body.token;
+  userId = res.body.user?.id;
 });
 
 // ─────────────────────────────────────────────
-// POST /api/auth/register
+// POST /api/auth/register (removed — see Admin user management)
 // ─────────────────────────────────────────────
 describe('POST /api/auth/register', () => {
-  it('creates a new user and returns a token', async () => {
-    const unique = `newuser_${Date.now()}`;
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({ username: unique, password: 'Password123!' });
-
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('token');
-    expect(res.body.user.username).toBe(unique);
-  });
-
-  it('rejects duplicate username with 400', async () => {
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send(TEST_USER); // already registered in beforeAll
-
-    expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/already exists/i);
-  });
-
-  it('rejects missing username with 400', async () => {
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({ password: 'Password123!' });
-
-    expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty('error');
-  });
-
-  it('rejects missing password with 400', async () => {
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({ username: 'someuser' });
-
-    expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty('error');
-  });
-
-  it('rejects empty body with 400', async () => {
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({});
-
-    expect(res.status).toBe(400);
+  it('no longer exists; new users are created via POST /api/admin/users', async () => {
+    const res = await request(app).post('/api/auth/register').send({ username: 'someone', password: 'Password123!' });
+    expect(res.status).toBe(404);
   });
 });
 
@@ -162,7 +132,7 @@ describe('POST /api/auth/login', () => {
 
   it('preserves companyName and avatar set via /api/account after a fresh login', async () => {
     const user = { username: `login_persist_${Date.now()}`, password: 'Password123!' };
-    const reg = await request(app).post('/api/auth/register').send(user);
+    const reg = await registerTestUser(user);
     const token = reg.body.token as string;
 
     const avatar = `data:image/png;base64,${'A'.repeat(100)}==`;
@@ -227,7 +197,7 @@ describe('Admin bootstrap and role on login', () => {
 
   it('defaults a newly registered user to role "user"', async () => {
     const unique = `roletest_${Date.now()}`;
-    await request(app).post('/api/auth/register').send({ username: unique, password: 'Password123!' });
+    await registerTestUser({ username: unique, password: 'Password123!' });
     const res = await request(app).post('/api/auth/login').send({ username: unique, password: 'Password123!' });
     expect(res.status).toBe(200);
     expect(res.body.user.role).toBe('user');
@@ -639,9 +609,7 @@ describe('GET /api/extension/info', () => {
 describe('Security limits', () => {
   it('issues expiring JWTs', async () => {
     const unique = `jwt_${Date.now()}`;
-    const res = await request(app)
-      .post('/api/auth/register')
-      .send({ username: unique, password: 'Password123!' });
+    const res = await registerTestUser({ username: unique, password: 'Password123!' });
 
     const payload = JSON.parse(Buffer.from(res.body.token.split('.')[1], 'base64url').toString('utf8'));
     expect(payload.exp).toEqual(expect.any(Number));
@@ -782,7 +750,7 @@ describe('POST /api/data/sync', () => {
   it('data is user-isolated: another user does not see these rows', async () => {
     // Register a second user
     const user2 = { username: `user2_${Date.now()}`, password: 'Password123!' };
-    const regRes = await request(app).post('/api/auth/register').send(user2);
+    const regRes = await registerTestUser(user2);
     const token2 = regRes.body.token;
 
     // Sync rows for the primary test user
@@ -807,7 +775,7 @@ describe('GET /api/settings', () => {
 
   it('returns default settings for new user', async () => {
     const newUser = { username: `fresh_${Date.now()}`, password: 'Password123!' };
-    const reg = await request(app).post('/api/auth/register').send(newUser);
+    const reg = await registerTestUser(newUser);
     const token = reg.body.token;
 
     const res = await request(app)
@@ -880,7 +848,7 @@ describe('POST /api/settings', () => {
 
   it('defaults fontSize to 100 when not provided', async () => {
     const fresh = { username: `font_default_${Date.now()}`, password: 'Password123!' };
-    const reg = await request(app).post('/api/auth/register').send(fresh);
+    const reg = await registerTestUser(fresh);
     const token = reg.body.token;
     const { fontSize: _, ...noFontSize } = sampleSettings;
     await request(app)
@@ -899,7 +867,7 @@ describe('POST /api/settings', () => {
 
     // Register a completely fresh user
     const fresh = { username: `isolated_${Date.now()}`, password: 'Password123!' };
-    const reg = await request(app).post('/api/auth/register').send(fresh);
+    const reg = await registerTestUser(fresh);
     const freshToken = reg.body.token;
 
     // Fresh user should have default settings
@@ -944,7 +912,7 @@ describe('GET /api/account', () => {
 describe('PATCH /api/account', () => {
   const registerFresh = async () => {
     const user = { username: `acct_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, password: 'Password123!' };
-    const reg = await request(app).post('/api/auth/register').send(user);
+    const reg = await registerTestUser(user);
     return { user, token: reg.body.token as string, userId: reg.body.user.id as number };
   };
   const authPatchAs = (token: string, path: string) =>
@@ -1073,7 +1041,7 @@ const registerSharedTestUser = async (prefix: string) => {
     username: `${safePrefix}_${suffix}`,
     password: 'Password123!',
   };
-  const res = await request(app).post('/api/auth/register').send(credentials);
+  const res = await registerTestUser(credentials);
   return { ...credentials, token: res.body.token, user: res.body.user };
 };
 

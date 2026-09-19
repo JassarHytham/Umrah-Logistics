@@ -20,11 +20,26 @@ import { app } from '../server';
 // ─────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────
+let adminToken = '';
+const getAdminToken = async () => {
+  if (adminToken) return adminToken;
+  const res = await request(app)
+    .post('/api/auth/login')
+    .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+  adminToken = res.body.token;
+  return adminToken;
+};
+
 const registerUser = async (prefix: string) => {
   const safePrefix = prefix.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 8) || 'user';
   const suffix = Math.random().toString(36).slice(2, 10);
   const credentials = { username: `${safePrefix}_${suffix}`, password: 'Password123!' };
-  const res = await request(app).post('/api/auth/register').send(credentials);
+  const token = await getAdminToken();
+  await request(app)
+    .post('/api/admin/users')
+    .set('Authorization', `Bearer ${token}`)
+    .send(credentials);
+  const res = await request(app).post('/api/auth/login').send(credentials);
   return { ...credentials, token: res.body.token, user: res.body.user };
 };
 

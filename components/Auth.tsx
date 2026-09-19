@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { LogIn, UserPlus, Loader2 } from 'lucide-react';
+import { LogIn, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 
 interface AuthProps {
@@ -8,7 +7,6 @@ interface AuthProps {
 }
 
 export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
-  const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,9 +17,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     setLoading(true);
     setError('');
     try {
-      const user = isLogin 
-        ? await api.auth.login({ username, password })
-        : await api.auth.register({ username, password });
+      const user = await api.auth.login({ username, password });
       onLogin(user);
     } catch (err: any) {
       setError(err.message);
@@ -51,8 +47,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">اسم المستخدم</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
@@ -62,8 +58,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">كلمة المرور</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
@@ -73,35 +69,20 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </div>
           </div>
 
-          <button 
+          <button
             type="submit"
             disabled={loading}
             className="w-full bg-gold-600 text-white p-4 rounded-2xl font-bold hover:bg-gold-700 transition-all flex items-center justify-center gap-3 shadow-lg shadow-gold-100 disabled:opacity-50"
           >
             {loading ? (
               <Loader2 className="animate-spin" />
-            ) : isLogin ? (
+            ) : (
               <>
                 <LogIn size={20} />
                 تسجيل الدخول
               </>
-            ) : (
-              <>
-                <UserPlus size={20} />
-                إنشاء حساب جديد
-              </>
             )}
           </button>
-
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-gold-600 font-bold hover:underline"
-            >
-              {isLogin ? 'ليس لديك حساب؟ سجل الآن' : 'لديك حساب بالفعل؟ سجل دخولك'}
-            </button>
-          </div>
 
           <div className="text-center pt-2 border-t border-gray-100">
             <a

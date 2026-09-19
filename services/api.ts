@@ -45,15 +45,6 @@ export const api = {
       localStorage.setItem('umrah_user', JSON.stringify(data.user));
       return data.user;
     },
-    async register(credentials: any) {
-      const data = await api.request('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(credentials),
-      });
-      localStorage.setItem('umrah_auth_token', data.token);
-      localStorage.setItem('umrah_user', JSON.stringify(data.user));
-      return data.user;
-    },
     logout() {
       localStorage.removeItem('umrah_auth_token');
       localStorage.removeItem('umrah_user');

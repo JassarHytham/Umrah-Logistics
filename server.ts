@@ -863,28 +863,6 @@ const authResponse = (user: { id: number; username: string; company_name?: strin
   },
 });
 
-app.post("/api/auth/register", async (req, res) => {
-  const username = normalizeUsername(req.body?.username);
-  const { password } = req.body;
-  if (!isValidUsername(username)) return res.status(400).json({ error: "Username must be 3-32 lowercase letters, numbers, underscores, or hyphens" });
-  if (!isValidPassword(password)) return res.status(400).json({ error: "Password must be 10-128 characters" });
-
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const stmt = db.prepare("INSERT INTO users (username, password) VALUES (?, ?)");
-    const info = stmt.run(username, hashedPassword);
-
-    const userId = Number(info.lastInsertRowid);
-    res.json(authResponse({ id: userId, username }));
-  } catch (err: any) {
-    if (err.code?.includes("SQLITE_CONSTRAINT")) {
-      res.status(400).json({ error: "Username already exists" });
-    } else {
-      res.status(500).json({ error: "Server error" });
-    }
-  }
-});
-
 app.post("/api/auth/login", async (req, res) => {
   const username = normalizeUsername(req.body?.username);
   const { password } = req.body;

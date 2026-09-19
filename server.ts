@@ -1029,6 +1029,9 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
 
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "isActive")) {
     const isActive = req.body.isActive ? 1 : 0;
+    if (userId === Number(req.user.id) && !req.body.isActive) {
+      return res.status(400).json({ error: "Cannot disable your own account" });
+    }
     db.prepare("UPDATE users SET is_active = ? WHERE id = ?").run(isActive, userId);
     db.prepare(
       "INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES (?, ?, ?)"

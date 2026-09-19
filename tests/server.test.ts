@@ -426,6 +426,27 @@ describe('Admin user management', () => {
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(400);
   });
+
+  it('refuses to disable your own (the admin) account', async () => {
+    const meRes = await request(app)
+      .post('/api/auth/login')
+      .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+    const adminUserId = meRes.body.user.id;
+
+    const res = await request(app)
+      .patch(`/api/admin/users/${adminUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ isActive: false });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/cannot disable your own account/i);
+
+    // Verify is_active is still 1 (true)
+    const check = await request(app)
+      .get('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const admin = check.body.users.find((u: any) => u.id === adminUserId);
+    expect(admin.isActive).toBe(true);
+  });
 });
 
 // ─────────────────────────────────────────────

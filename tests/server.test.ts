@@ -230,7 +230,7 @@ describe('Admin route protection, overview, and audit log', () => {
     }));
   });
 
-  it('records and returns login_success and login_failure audit events', async () => {
+  it('records and returns login_success and login_failure audit events, with a correct actor and an ISO-8601 timestamp', async () => {
     await request(app).post('/api/auth/login').send({ username: TEST_USER.username, password: 'wrong-password' });
     await request(app).post('/api/auth/login').send(TEST_USER);
 
@@ -242,6 +242,19 @@ describe('Admin route protection, overview, and audit log', () => {
     const types = res.body.events.map((e: any) => e.eventType);
     expect(types).toContain('login_success');
     expect(types).toContain('login_failure');
+
+    // SQLite's CURRENT_TIMESTAMP stores naive UTC as a space-separated
+    // string, which `new Date(...)` on the client parses as *local* time.
+    // The admin routes must format created_at as proper ISO-8601 (with a
+    // trailing Z) so every client agrees on the actual instant, and the
+    // actor of a login_success event must be resolvable to the user who
+    // actually logged in.
+    const successEvent = res.body.events.find(
+      (e: any) => e.eventType === 'login_success' && e.actorUsername === TEST_USER.username
+    );
+    expect(successEvent).toBeTruthy();
+    expect(successEvent.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+    expect(new Date(successEvent.createdAt).toString()).not.toBe('Invalid Date');
   });
 });
 
@@ -339,6 +352,36 @@ describe('Admin user management', () => {
       .send({ isActive: true });
     expect(enable.status).toBe(200);
     expect(enable.body.user.isActive).toBe(true);
+  });
+
+  it('rejects a disabled user at POST /api/auth/refresh, even with a still-valid refresh token', async () => {
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ username: createdUsername, password: 'NewPassword456!' });
+    expect(login.status).toBe(200);
+    const refreshToken = login.body.refreshToken as string;
+
+    const disable = await request(app)
+      .patch(`/api/admin/users/${createdUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ isActive: false });
+    expect(disable.status).toBe(200);
+
+    try {
+      // The refresh token itself is still cryptographically valid and unexpired —
+      // only the account's is_active flag changed — so this must be rejected by
+      // an explicit DB check, not just signature verification.
+      const refreshed = await request(app)
+        .post('/api/auth/refresh')
+        .send({ refreshToken });
+      expect(refreshed.status).toBe(401);
+    } finally {
+      // Restore state for the tests that follow (which expect this user active).
+      await request(app)
+        .patch(`/api/admin/users/${createdUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ isActive: true });
+    }
   });
 
   it('refuses to delete a user who still owns trip rows, then allows it once rows are gone', async () => {

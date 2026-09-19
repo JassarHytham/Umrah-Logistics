@@ -781,6 +781,20 @@ const attachLiveUpdates = (server: http.Server) => {
         audience: JWT_AUDIENCE,
         algorithms: ["HS256"],
       }) as { id: number; username: string };
+
+      // The JWT signature alone only proves the token was issued by us — it
+      // says nothing about whether the account still exists or is still
+      // active, unlike every HTTP route (see authenticateToken). Without this,
+      // a disabled user's existing socket survives until token expiry and can
+      // even open new ones.
+      const current = db.prepare("SELECT role, is_active FROM users WHERE id = ?").get(Number(user.id)) as
+        | { role: string; is_active: number }
+        | undefined;
+      if (!current || !current.is_active) {
+        socket.destroy();
+        return;
+      }
+
       wss.handleUpgrade(req, socket, head, (ws) => {
         (ws as any).userId = Number(user.id);
         wss.emit("connection", ws, req);
@@ -851,7 +865,7 @@ const signRefreshToken = (user: { id: number; username: string }) =>
     },
   );
 
-const authResponse = (user: { id: number; username: string; company_name?: string | null; avatar?: string | null; role?: string }) => ({
+const authResponse = (user: { id: number; username: string; company_name?: string | null; avatar?: string | null; role: string }) => ({
   token: signAuthToken(user),
   refreshToken: signRefreshToken(user),
   user: {
@@ -870,14 +884,26 @@ app.post("/api/auth/login", async (req, res) => {
   const user: any = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
 
   if (!user || !(await bcrypt.compare(password, user.password)) || !user.is_active) {
-    db.prepare(
-      "INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('login_failure', ?, ?)"
-    ).run(user ? user.id : null, JSON.stringify({ username }));
+    try {
+      db.prepare(
+        "INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('login_failure', ?, ?)"
+      ).run(user ? user.id : null, JSON.stringify({ username }));
+    } catch (err) {
+      // Best-effort auditing must never block authentication (or the lack
+      // of it, here) — log and continue.
+      console.error("Failed to record login_failure audit event", err);
+    }
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  db.prepare("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?").run(user.id);
-  db.prepare("INSERT INTO audit_log (event_type, actor_user_id) VALUES ('login_success', ?)").run(user.id);
+  try {
+    db.prepare("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?").run(user.id);
+    db.prepare("INSERT INTO audit_log (event_type, actor_user_id) VALUES ('login_success', ?)").run(user.id);
+  } catch (err) {
+    // Same as above: a write failure here (SQLITE_BUSY, full disk, ...) must
+    // not turn best-effort auditing into a hard dependency of authentication.
+    console.error("Failed to record login_success audit event", err);
+  }
 
   res.json(authResponse(user));
 });
@@ -899,10 +925,10 @@ app.post("/api/auth/refresh", (req, res) => {
       return res.status(401).json({ error: "Invalid refresh token" });
     }
 
-    const user = db.prepare("SELECT id, username, company_name, avatar FROM users WHERE id = ?").get(Number(payload.id)) as
-      | { id: number; username: string; company_name: string | null; avatar: string | null }
+    const user = db.prepare("SELECT id, username, company_name, avatar, role, is_active FROM users WHERE id = ?").get(Number(payload.id)) as
+      | { id: number; username: string; company_name: string | null; avatar: string | null; role: string; is_active: number }
       | undefined;
-    if (!user) return res.status(401).json({ error: "Invalid refresh token" });
+    if (!user || !user.is_active) return res.status(401).json({ error: "Invalid refresh token" });
 
     return res.json(authResponse(user));
   } catch {
@@ -929,7 +955,7 @@ app.get("/api/admin/audit", authenticateToken, requireAdmin, (req, res) => {
       a.target_user_id AS targetUserId,
       target.username AS targetUsername,
       a.metadata,
-      a.created_at AS createdAt
+      strftime('%Y-%m-%dT%H:%M:%SZ', a.created_at) AS createdAt
     FROM audit_log a
     LEFT JOIN users actor ON actor.id = a.actor_user_id
     LEFT JOIN users target ON target.id = a.target_user_id
@@ -949,8 +975,8 @@ app.get("/api/admin/users", authenticateToken, requireAdmin, (req, res) => {
       u.is_active AS isActive,
       u.company_id AS companyId,
       c.name AS companyName,
-      u.created_at AS createdAt,
-      u.last_login_at AS lastLoginAt
+      strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS createdAt,
+      strftime('%Y-%m-%dT%H:%M:%SZ', u.last_login_at) AS lastLoginAt
     FROM users u
     LEFT JOIN companies c ON c.id = u.company_id
     ORDER BY u.created_at DESC
@@ -978,7 +1004,7 @@ app.post("/api/admin/users", authenticateToken, requireAdmin, async (req: any, r
     db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_created', ?, ?)").run(req.user.id, userId);
 
     const created = db.prepare(`
-      SELECT u.id, u.username, u.role, u.is_active AS isActive, u.company_id AS companyId, c.name AS companyName, u.created_at AS createdAt, u.last_login_at AS lastLoginAt
+      SELECT u.id, u.username, u.role, u.is_active AS isActive, u.company_id AS companyId, c.name AS companyName, strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS createdAt, strftime('%Y-%m-%dT%H:%M:%SZ', u.last_login_at) AS lastLoginAt
       FROM users u LEFT JOIN companies c ON c.id = u.company_id WHERE u.id = ?
     `).get(userId) as any;
     res.status(201).json({ user: { ...created, isActive: !!created.isActive } });
@@ -1017,7 +1043,7 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
   }
 
   const updated = db.prepare(`
-    SELECT u.id, u.username, u.role, u.is_active AS isActive, u.company_id AS companyId, c.name AS companyName, u.created_at AS createdAt, u.last_login_at AS lastLoginAt
+    SELECT u.id, u.username, u.role, u.is_active AS isActive, u.company_id AS companyId, c.name AS companyName, strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS createdAt, strftime('%Y-%m-%dT%H:%M:%SZ', u.last_login_at) AS lastLoginAt
     FROM users u LEFT JOIN companies c ON c.id = u.company_id WHERE u.id = ?
   `).get(userId) as any;
   res.json({ user: { ...updated, isActive: !!updated.isActive } });
@@ -1048,15 +1074,26 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, r
   const ownsRows = db.prepare("SELECT 1 FROM logistics_rows WHERE user_id = ? LIMIT 1").get(userId);
   if (ownsRows) return res.status(400).json({ error: "Cannot delete a user that still owns trip rows" });
 
-  db.prepare("DELETE FROM users WHERE id = ?").run(userId);
-  db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_deleted', ?, ?)").run(req.user.id, userId);
+  // The route above already refuses to delete a user who still owns any
+  // logistics_rows, so it's always safe to clean up everything else keyed by
+  // this user_id — otherwise these become orphaned cruft (including a stale
+  // Telegram bot token sitting in `settings`).
+  db.transaction(() => {
+    db.prepare("DELETE FROM settings WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM trip_row_access WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM trip_group_access WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM trip_agency_access WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM trip_share_invitations WHERE sender_user_id = ? OR receiver_user_id = ?").run(userId, userId);
+    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+    db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_deleted', ?, ?)").run(req.user.id, userId);
+  })();
 
   res.json({ success: true });
 });
 
 app.get("/api/admin/companies", authenticateToken, requireAdmin, (req, res) => {
   const rows = db.prepare(`
-    SELECT c.id, c.name, c.created_at AS createdAt, COUNT(u.id) AS userCount
+    SELECT c.id, c.name, strftime('%Y-%m-%dT%H:%M:%SZ', c.created_at) AS createdAt, COUNT(u.id) AS userCount
     FROM companies c
     LEFT JOIN users u ON u.company_id = c.id
     GROUP BY c.id
@@ -1103,7 +1140,8 @@ app.patch("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any
   db.prepare("INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('company_renamed', ?, ?)").run(req.user.id, JSON.stringify({ companyId, name }));
 
   const userCount = (db.prepare("SELECT COUNT(*) AS count FROM users WHERE company_id = ?").get(companyId) as { count: number }).count;
-  res.json({ company: { id: companyId, name, userCount } });
+  const createdAt = (db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS createdAt FROM companies WHERE id = ?").get(companyId) as { createdAt: string }).createdAt;
+  res.json({ company: { id: companyId, name, userCount, createdAt } });
 });
 
 app.delete("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any, res) => {
@@ -2021,6 +2059,7 @@ app.patch("/api/account", authenticateToken, async (req: any, res) => {
     username: nextUsername,
     company_name: nextCompanyName,
     avatar: nextAvatar,
+    role: existing.role,
   }));
 });
 

@@ -11,6 +11,7 @@ import { app, attachLiveUpdates } from '../server';
 const TEST_USER = { username: `testuser_${Date.now()}`, password: 'Password123!' };
 let authToken = '';
 let userId: number;
+let adminToken = '';
 
 const authGet = (path: string) =>
   request(app).get(path).set('Authorization', `Bearer ${authToken}`);
@@ -59,6 +60,11 @@ beforeAll(async () => {
     .send(TEST_USER);
   authToken = res.body.token;
   userId = res.body.user?.id;
+
+  const adminRes = await request(app)
+    .post('/api/auth/login')
+    .send({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD });
+  adminToken = adminRes.body.token;
 });
 
 // ─────────────────────────────────────────────
@@ -225,6 +231,47 @@ describe('Admin bootstrap and role on login', () => {
     const res = await request(app).post('/api/auth/login').send({ username: unique, password: 'Password123!' });
     expect(res.status).toBe(200);
     expect(res.body.user.role).toBe('user');
+  });
+});
+
+describe('Admin route protection, overview, and audit log', () => {
+  it('rejects admin routes with no token', async () => {
+    const res = await request(app).get('/api/admin/overview');
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects admin routes for a non-admin user', async () => {
+    const res = await request(app)
+      .get('/api/admin/overview')
+      .set('Authorization', `Bearer ${authToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns overview counts for the admin', async () => {
+    const res = await request(app)
+      .get('/api/admin/overview')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(expect.objectContaining({
+      totalUsers: expect.any(Number),
+      activeUsers: expect.any(Number),
+      totalCompanies: expect.any(Number),
+      totalRows: expect.any(Number),
+    }));
+  });
+
+  it('records and returns login_success and login_failure audit events', async () => {
+    await request(app).post('/api/auth/login').send({ username: TEST_USER.username, password: 'wrong-password' });
+    await request(app).post('/api/auth/login').send(TEST_USER);
+
+    const res = await request(app)
+      .get('/api/admin/audit')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    const types = res.body.events.map((e: any) => e.eventType);
+    expect(types).toContain('login_success');
+    expect(types).toContain('login_failure');
   });
 });
 

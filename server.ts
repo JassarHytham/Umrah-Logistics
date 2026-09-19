@@ -491,6 +491,11 @@ const authenticateToken = (req: any, res: any, next: any) => {
   });
 };
 
+const requireAdmin = (req: any, res: any, next: any) => {
+  if (req.user?.role !== "admin") return res.status(403).json({ error: "Forbidden" });
+  next();
+};
+
 type LogisticsRowRecord = {
   id: string;
   user_id: number;
@@ -925,6 +930,38 @@ app.post("/api/auth/refresh", (req, res) => {
   } catch {
     return res.status(401).json({ error: "Invalid refresh token" });
   }
+});
+
+// Admin Routes
+app.get("/api/admin/overview", authenticateToken, requireAdmin, (req, res) => {
+  const totalUsers = (db.prepare("SELECT COUNT(*) AS count FROM users").get() as { count: number }).count;
+  const activeUsers = (db.prepare("SELECT COUNT(*) AS count FROM users WHERE is_active = 1").get() as { count: number }).count;
+  const totalCompanies = (db.prepare("SELECT COUNT(*) AS count FROM companies").get() as { count: number }).count;
+  const totalRows = (db.prepare("SELECT COUNT(*) AS count FROM logistics_rows WHERE deleted_at IS NULL").get() as { count: number }).count;
+  res.json({ totalUsers, activeUsers, totalCompanies, totalRows });
+});
+
+app.get("/api/admin/audit", authenticateToken, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT
+      a.id,
+      a.event_type AS eventType,
+      a.actor_user_id AS actorUserId,
+      actor.username AS actorUsername,
+      a.target_user_id AS targetUserId,
+      target.username AS targetUsername,
+      a.metadata,
+      a.created_at AS createdAt
+    FROM audit_log a
+    LEFT JOIN users actor ON actor.id = a.actor_user_id
+    LEFT JOIN users target ON target.id = a.target_user_id
+    ORDER BY a.id DESC
+    LIMIT 200
+  `).all() as any[];
+
+  res.json({
+    events: rows.map((r) => ({ ...r, metadata: r.metadata ? JSON.parse(r.metadata) : null })),
+  });
 });
 
 // Data Routes

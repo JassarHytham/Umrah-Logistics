@@ -225,8 +225,12 @@ export const api = {
         method: 'DELETE',
       });
     },
-    async listAuditLog() {
-      return api.request('/admin/audit');
+    async listAuditLog(filters?: { category?: string; level?: string }) {
+      const params = new URLSearchParams();
+      if (filters?.category) params.set('category', filters.category);
+      if (filters?.level) params.set('level', filters.level);
+      const query = params.toString();
+      return api.request(`/admin/audit${query ? `?${query}` : ''}`);
     }
   }
 };

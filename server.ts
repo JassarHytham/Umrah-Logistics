@@ -333,6 +333,66 @@ db.exec(`
   );
 `);
 
+// audit_log started out covering only account/security events. It now covers
+// activity system-wide (data, sharing, settings, integrations, errors), so it
+// needs a severity (level) and a coarse bucket (category) for the admin
+// panel to filter on. Follows the same try/catch ALTER TABLE pattern as the
+// other migrations in this file.
+try {
+  db.exec("ALTER TABLE audit_log ADD COLUMN level TEXT NOT NULL DEFAULT 'info'");
+} catch (err: any) {
+  if (!String(err.message || "").includes("duplicate column")) console.error("Migration audit_log.level failed", err);
+}
+try {
+  db.exec("ALTER TABLE audit_log ADD COLUMN category TEXT");
+} catch (err: any) {
+  if (!String(err.message || "").includes("duplicate column")) console.error("Migration audit_log.category failed", err);
+}
+db.exec(`
+  UPDATE audit_log SET category = 'auth' WHERE category IS NULL AND event_type IN ('login_success', 'login_failure');
+  UPDATE audit_log SET level = 'warning' WHERE event_type = 'login_failure';
+  UPDATE audit_log SET category = 'user_mgmt' WHERE category IS NULL AND event_type LIKE 'user_%';
+  UPDATE audit_log SET category = 'company_mgmt' WHERE category IS NULL AND event_type LIKE 'company_%';
+`);
+
+type AuditLevel = "info" | "warning" | "error";
+
+function logEvent(eventType: string, opts: {
+  level?: AuditLevel;
+  category: string;
+  actorUserId?: number | null;
+  targetUserId?: number | null;
+  metadata?: unknown;
+}) {
+  try {
+    db.prepare(`
+      INSERT INTO audit_log (event_type, level, category, actor_user_id, target_user_id, metadata)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      eventType,
+      opts.level || "info",
+      opts.category,
+      opts.actorUserId ?? null,
+      opts.targetUserId ?? null,
+      opts.metadata !== undefined ? JSON.stringify(opts.metadata) : null,
+    );
+  } catch (err) {
+    // Best-effort: a logging failure (SQLITE_BUSY, full disk, ...) must never
+    // become a reason the action it's logging fails.
+    console.error(`Failed to record ${eventType} audit event`, err);
+  }
+}
+
+const AUDIT_LOG_RETENTION_DAYS = 90;
+
+function pruneAuditLog() {
+  try {
+    db.prepare(`DELETE FROM audit_log WHERE created_at < datetime('now', '-${AUDIT_LOG_RETENTION_DAYS} days')`).run();
+  } catch (err) {
+    console.error("Failed to prune audit_log", err);
+  }
+}
+
 app.disable("x-powered-by");
 
 const allowedOrigins = new Set(
@@ -884,26 +944,16 @@ app.post("/api/auth/login", async (req, res) => {
   const user: any = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
 
   if (!user || !(await bcrypt.compare(password, user.password)) || !user.is_active) {
-    try {
-      db.prepare(
-        "INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('login_failure', ?, ?)"
-      ).run(user ? user.id : null, JSON.stringify({ username }));
-    } catch (err) {
-      // Best-effort auditing must never block authentication (or the lack
-      // of it, here) — log and continue.
-      console.error("Failed to record login_failure audit event", err);
-    }
+    logEvent("login_failure", { category: "auth", level: "warning", actorUserId: user ? user.id : null, metadata: { username } });
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
   try {
     db.prepare("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?").run(user.id);
-    db.prepare("INSERT INTO audit_log (event_type, actor_user_id) VALUES ('login_success', ?)").run(user.id);
   } catch (err) {
-    // Same as above: a write failure here (SQLITE_BUSY, full disk, ...) must
-    // not turn best-effort auditing into a hard dependency of authentication.
-    console.error("Failed to record login_success audit event", err);
+    console.error("Failed to update last_login_at", err);
   }
+  logEvent("login_success", { category: "auth", actorUserId: user.id });
 
   res.json(authResponse(user));
 });
@@ -946,10 +996,26 @@ app.get("/api/admin/overview", authenticateToken, requireAdmin, (req, res) => {
 });
 
 app.get("/api/admin/audit", authenticateToken, requireAdmin, (req, res) => {
+  const conditions: string[] = [];
+  const params: string[] = [];
+  const category = typeof req.query.category === "string" ? req.query.category : undefined;
+  const level = typeof req.query.level === "string" ? req.query.level : undefined;
+  if (category) {
+    conditions.push("a.category = ?");
+    params.push(category);
+  }
+  if (level) {
+    conditions.push("a.level = ?");
+    params.push(level);
+  }
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const rows = db.prepare(`
     SELECT
       a.id,
       a.event_type AS eventType,
+      a.level,
+      a.category,
       a.actor_user_id AS actorUserId,
       actor.username AS actorUsername,
       a.target_user_id AS targetUserId,
@@ -959,9 +1025,10 @@ app.get("/api/admin/audit", authenticateToken, requireAdmin, (req, res) => {
     FROM audit_log a
     LEFT JOIN users actor ON actor.id = a.actor_user_id
     LEFT JOIN users target ON target.id = a.target_user_id
+    ${whereClause}
     ORDER BY a.id DESC
     LIMIT 200
-  `).all() as any[];
+  `).all(...params) as any[];
 
   res.json({
     events: rows.map((r) => ({ ...r, metadata: r.metadata ? JSON.parse(r.metadata) : null })),
@@ -1001,7 +1068,7 @@ app.post("/api/admin/users", authenticateToken, requireAdmin, async (req: any, r
     const info = db.prepare("INSERT INTO users (username, password, company_id) VALUES (?, ?, ?)").run(username, hashedPassword, companyId);
     const userId = Number(info.lastInsertRowid);
 
-    db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_created', ?, ?)").run(req.user.id, userId);
+    logEvent("user_created", { category: "user_mgmt", actorUserId: req.user.id, targetUserId: userId });
 
     const created = db.prepare(`
       SELECT u.id, u.username, u.role, u.is_active AS isActive, u.company_id AS companyId, c.name AS companyName, strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS createdAt, strftime('%Y-%m-%dT%H:%M:%SZ', u.last_login_at) AS lastLoginAt
@@ -1037,9 +1104,7 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
       return res.status(400).json({ error: "Cannot disable your own account" });
     }
     db.prepare("UPDATE users SET is_active = ? WHERE id = ?").run(isActive, userId);
-    db.prepare(
-      "INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES (?, ?, ?)"
-    ).run(isActive ? "user_enabled" : "user_disabled", req.user.id, userId);
+    logEvent(isActive ? "user_enabled" : "user_disabled", { category: "user_mgmt", actorUserId: req.user.id, targetUserId: userId });
   }
 
   const updated = db.prepare(`
@@ -1059,7 +1124,7 @@ app.post("/api/admin/users/:id/reset-password", authenticateToken, requireAdmin,
 
   const hashedPassword = await bcrypt.hash(password, 10);
   db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashedPassword, userId);
-  db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_password_reset', ?, ?)").run(req.user.id, userId);
+  logEvent("user_password_reset", { category: "user_mgmt", actorUserId: req.user.id, targetUserId: userId });
 
   res.json({ success: true });
 });
@@ -1085,7 +1150,7 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, r
     db.prepare("DELETE FROM trip_agency_access WHERE user_id = ?").run(userId);
     db.prepare("DELETE FROM trip_share_invitations WHERE sender_user_id = ? OR receiver_user_id = ?").run(userId, userId);
     db.prepare("DELETE FROM users WHERE id = ?").run(userId);
-    db.prepare("INSERT INTO audit_log (event_type, actor_user_id, target_user_id) VALUES ('user_deleted', ?, ?)").run(req.user.id, userId);
+    logEvent("user_deleted", { category: "user_mgmt", actorUserId: req.user.id, targetUserId: userId });
   })();
 
   res.json({ success: true });
@@ -1109,7 +1174,7 @@ app.post("/api/admin/companies", authenticateToken, requireAdmin, (req: any, res
   try {
     const info = db.prepare("INSERT INTO companies (name) VALUES (?)").run(name);
     const companyId = Number(info.lastInsertRowid);
-    db.prepare("INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('company_created', ?, ?)").run(req.user.id, JSON.stringify({ companyId, name }));
+    logEvent("company_created", { category: "company_mgmt", actorUserId: req.user.id, metadata: { companyId, name } });
     res.status(201).json({ company: { id: companyId, name, userCount: 0, createdAt: new Date().toISOString() } });
   } catch (err: any) {
     if (err.code?.includes("SQLITE_CONSTRAINT")) {
@@ -1137,7 +1202,7 @@ app.patch("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any
     return res.status(500).json({ error: "Server error" });
   }
 
-  db.prepare("INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('company_renamed', ?, ?)").run(req.user.id, JSON.stringify({ companyId, name }));
+  logEvent("company_renamed", { category: "company_mgmt", actorUserId: req.user.id, metadata: { companyId, name } });
 
   const userCount = (db.prepare("SELECT COUNT(*) AS count FROM users WHERE company_id = ?").get(companyId) as { count: number }).count;
   const createdAt = (db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS createdAt FROM companies WHERE id = ?").get(companyId) as { createdAt: string }).createdAt;
@@ -1153,7 +1218,7 @@ app.delete("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: an
   if (hasUsers) return res.status(400).json({ error: "Cannot delete a company with assigned users" });
 
   db.prepare("DELETE FROM companies WHERE id = ?").run(companyId);
-  db.prepare("INSERT INTO audit_log (event_type, actor_user_id, metadata) VALUES ('company_deleted', ?, ?)").run(req.user.id, JSON.stringify({ companyId, name: existing.name }));
+  logEvent("company_deleted", { category: "company_mgmt", actorUserId: req.user.id, metadata: { companyId, name: existing.name } });
 
   res.json({ success: true });
 });
@@ -1349,6 +1414,9 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
   });
 
   sync(rows);
+  if (rows.length > 0) {
+    logEvent("data_synced", { category: "data", actorUserId: req.user.id, metadata: { rowCount: rows.length } });
+  }
   if (conflicts.length > 0) {
     sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
     return res.status(409).json({ success: false, code: "CONFLICT", conflicts });
@@ -1385,6 +1453,7 @@ app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
 
   const refreshed = getVisibleRowForUser(req.user.id, visible.id, false) as LogisticsRowRecord;
   sendLiveEvent(getVisibleUserIdsForRowRecord(refreshed), "rows_changed", req.user.id);
+  logEvent("row_updated", { category: "data", actorUserId: req.user.id, metadata: { rowId: visible.id } });
   res.json({ success: true, row: decorateRowForUser(refreshed, req.user.id) });
 });
 
@@ -1408,6 +1477,7 @@ app.post("/api/data/:id/delete", authenticateToken, (req: any, res) => {
   `).run(req.user.id, visible.id);
 
   sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed", req.user.id);
+  logEvent("row_deleted", { category: "data", actorUserId: req.user.id, metadata: { rowId: visible.id } });
   res.json({ success: true });
 });
 
@@ -1426,6 +1496,7 @@ app.post("/api/data/:id/restore", authenticateToken, (req: any, res) => {
   `).run(visible.id);
 
   sendLiveEvent(getVisibleUserIdsForRowId(visible.id), "rows_changed", req.user.id);
+  logEvent("row_restored", { category: "data", actorUserId: req.user.id, metadata: { rowId: visible.id } });
   res.json({ success: true });
 });
 
@@ -1455,6 +1526,7 @@ app.delete("/api/data/deleted", authenticateToken, (req: any, res) => {
 
   deleteRows(records);
   sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
+  logEvent("rows_purged_bulk", { category: "data", actorUserId: req.user.id, metadata: { count: records.length } });
   res.json({ success: true, deletedCount: records.length });
 });
 
@@ -1479,6 +1551,7 @@ app.delete("/api/data/:id", authenticateToken, (req: any, res) => {
   })();
 
   sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
+  logEvent("row_purged", { category: "data", actorUserId: req.user.id, metadata: { rowId: visible.id } });
   res.json({ success: true });
 });
 
@@ -1557,6 +1630,11 @@ app.post("/api/data/bulk", authenticateToken, (req: any, res) => {
   })();
 
   sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
+  logEvent("bulk_operation", {
+    category: "data",
+    actorUserId: req.user.id,
+    metadata: { action, processedCount: processed.length, failedCount: failed.length },
+  });
   res.json({ success: failed.length === 0, action, processed, failed });
 });
 
@@ -1652,6 +1730,12 @@ app.post("/api/shares/invitations", authenticateToken, (req: any, res) => {
   `).run(req.user.id, receiver.id, scopeType, normalizedRowId, normalizedGroupNo, normalizedAgency, role);
 
   sendLiveEvent([receiver.id], "invitations_changed", req.user.id);
+  logEvent("share_invitation_created", {
+    category: "sharing",
+    actorUserId: req.user.id,
+    targetUserId: receiver.id,
+    metadata: { scopeType, rowId: normalizedRowId, groupNo: normalizedGroupNo, agency: normalizedAgency, role },
+  });
 
   res.json({
     success: true,
@@ -1732,6 +1816,12 @@ app.post("/api/shares/invitations/:id/accept", authenticateToken, (req: any, res
   } else if (invitation.scope_type === "agency") {
     sendLiveEvent(getVisibleUserIdsForAgency(invitation.agency, invitation.sender_user_id), "rows_changed", req.user.id);
   }
+  logEvent("share_invitation_accepted", {
+    category: "sharing",
+    actorUserId: req.user.id,
+    targetUserId: invitation.sender_user_id,
+    metadata: { scopeType: invitation.scope_type },
+  });
   res.json({ success: true });
 });
 
@@ -1749,6 +1839,12 @@ app.post("/api/shares/invitations/:id/decline", authenticateToken, (req: any, re
   `).run(invitation.id);
 
   sendLiveEvent([invitation.sender_user_id, req.user.id], "invitations_changed", req.user.id);
+  logEvent("share_invitation_declined", {
+    category: "sharing",
+    actorUserId: req.user.id,
+    targetUserId: invitation.sender_user_id,
+    metadata: { scopeType: invitation.scope_type },
+  });
   res.json({ success: true });
 });
 
@@ -1850,6 +1946,7 @@ app.patch("/api/shares/access", authenticateToken, (req: any, res) => {
     `).run(role, String(rowId), Number(userId), req.user.id, Number(record.user_id), Number(req.user.id));
     if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
     sendLiveEvent(getVisibleUserIdsForRowId(String(rowId)), "rows_changed", req.user.id);
+    logEvent("share_access_updated", { category: "sharing", actorUserId: req.user.id, targetUserId: Number(userId), metadata: { scopeType, role } });
     return res.json({ success: true });
   }
 
@@ -1862,6 +1959,7 @@ app.patch("/api/shares/access", authenticateToken, (req: any, res) => {
     `).run(role, String(groupNo).trim(), Number(userId), req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
     sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+    logEvent("share_access_updated", { category: "sharing", actorUserId: req.user.id, targetUserId: Number(userId), metadata: { scopeType, role } });
     return res.json({ success: true });
   }
 
@@ -1874,6 +1972,7 @@ app.patch("/api/shares/access", authenticateToken, (req: any, res) => {
   `).run(role, normalizedAgency, Number(userId), req.user.id);
   if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
   sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+  logEvent("share_access_updated", { category: "sharing", actorUserId: req.user.id, targetUserId: Number(userId), metadata: { scopeType, role } });
   return res.json({ success: true });
 });
 
@@ -1894,6 +1993,7 @@ app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
     `).run(String(rowId), Number(userId), req.user.id, Number(record.user_id), Number(req.user.id));
     if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
     sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+    logEvent("share_access_revoked", { category: "sharing", actorUserId: req.user.id, targetUserId: Number(userId), metadata: { scopeType } });
     return res.json({ success: true });
   }
 
@@ -1905,6 +2005,7 @@ app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
     `).run(String(groupNo).trim(), Number(userId), req.user.id);
     if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
     sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+    logEvent("share_access_revoked", { category: "sharing", actorUserId: req.user.id, targetUserId: Number(userId), metadata: { scopeType } });
     return res.json({ success: true });
   }
 
@@ -1916,6 +2017,7 @@ app.delete("/api/shares/access", authenticateToken, (req: any, res) => {
   `).run(normalizedAgency, Number(userId), req.user.id);
   if (info.changes === 0) return res.status(404).json({ error: "Access not found" });
   sendLiveEvent([Number(userId), req.user.id], "rows_changed", req.user.id);
+  logEvent("share_access_revoked", { category: "sharing", actorUserId: req.user.id, targetUserId: Number(userId), metadata: { scopeType } });
   return res.json({ success: true });
 });
 
@@ -1977,6 +2079,10 @@ app.post("/api/settings", authenticateToken, (req: any, res) => {
     merged.font_size,
     merged.extra_settings
   );
+
+  if (tgConfig !== undefined) {
+    logEvent("telegram_config_updated", { category: "settings", actorUserId: req.user.id });
+  }
 
   res.json({ success: true });
 });
@@ -2053,6 +2159,14 @@ app.patch("/api/account", authenticateToken, async (req: any, res) => {
     }
     return res.status(500).json({ error: "Server error" });
   }
+
+  const changedFields = [
+    wantsUsernameChange && "username",
+    wantsPasswordChange && "password",
+    companyName !== undefined && "companyName",
+    avatar !== undefined && "avatar",
+  ].filter(Boolean);
+  logEvent("account_updated", { category: "settings", actorUserId: req.user.id, metadata: { fields: changedFields } });
 
   res.json(authResponse({
     id: req.user.id,
@@ -2276,12 +2390,21 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     sendLiveEvent(affectedUserIds, "rows_changed");
 
     const action = overwrite ? "استبدال" : "إضافة";
-    console.log(`[Ingest] ${action} ${newRows.length} rows for group ${groupNo} (user ${req.user.id})`);
+    logEvent("ingest_processed", {
+      category: "integration",
+      actorUserId: req.user.id,
+      metadata: { action: overwrite ? "overwrite" : "add", groupNo: groupNoValue, count: newRows.length },
+    });
 
     res.json({ success: true, rows: newRows, message: `تم ${action} ${newRows.length} رحلة` });
 
   } catch (err: any) {
-    console.error("[Ingest] Error:", err);
+    logEvent("ingest_failed", {
+      category: "integration",
+      level: "error",
+      actorUserId: req.user.id,
+      metadata: { groupNo: groupNoValue, message: err.message },
+    });
     res.status(500).json({ error: "خطأ في معالجة النص: " + err.message });
   }
 });
@@ -2316,6 +2439,11 @@ if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEn
   app.get("/", (_req, res) => {
     res.sendFile(path.join(APP_ROOT, "index.html"));
   });
+  // Test-only route to exercise the error-handling middleware below without
+  // relying on a real bug elsewhere in the app to throw on cue.
+  app.get("/api/__test/throw", authenticateToken, () => {
+    throw new Error("boom");
+  });
 } else if (!isTestEnv) {
   const distDir = path.join(APP_ROOT, "dist");
   app.use(express.static(distDir, {
@@ -2334,6 +2462,35 @@ if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEn
     res.sendFile("index.html", { root: distDir });
   });
 }
+
+// Catches anything an earlier route/middleware threw or forwarded via next(err)
+// instead of handling itself. Must be registered after every other app.use/
+// app.get/etc above. Logging here is best-effort (logEvent already guards its
+// own failure) and never changes the response the caller would otherwise get.
+app.use((err: any, req: any, res: any, _next: any) => {
+  logEvent("unhandled_error", {
+    category: "system",
+    level: "error",
+    actorUserId: req.user?.id ?? null,
+    metadata: { method: req.method, path: req.path, message: String(err?.message || err) },
+  });
+  if (res.headersSent) return;
+  // Errors with an explicit HTTP status (e.g. body-parser's 413 on an
+  // oversized payload) keep that status; anything unexpected is a 500.
+  const status = Number(err?.status || err?.statusCode) || 500;
+  res.status(status).json({ error: status === 500 ? "Server error" : String(err?.message || "Request error") });
+});
+
+process.on("uncaughtException", (err) => {
+  logEvent("process_error", { category: "system", level: "error", metadata: { kind: "uncaughtException", message: String(err?.message || err) } });
+  console.error("Uncaught exception:", err);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  logEvent("process_error", { category: "system", level: "error", metadata: { kind: "unhandledRejection", message: String((reason as any)?.message || reason) } });
+  console.error("Unhandled rejection:", reason);
+});
 
 // ─── Server-Side Telegram Alert Worker ───────────────────────────────────────
 // Runs every 60 seconds regardless of browser state. Mirrors the browser-side
@@ -2422,12 +2579,22 @@ async function checkAndSendAlerts() {
           });
           const tgData = await tgRes.json();
           if (!tgData.ok) {
-            console.error(`[Alerts] Telegram API error for user ${userId}: ${tgData.description}`);
+            logEvent("telegram_alert_failed", {
+              category: "integration",
+              level: "error",
+              targetUserId: userId,
+              metadata: { rowId: row.id, reason: tgData.description },
+            });
             continue; // Don't mark as notified — will retry next cycle
           }
-          console.log(`[Alerts] Sent notification for trip ${row.id} (user ${userId})`);
-        } catch (fetchErr) {
-          console.error(`[Alerts] Telegram send failed for user ${userId}:`, fetchErr);
+          logEvent("telegram_alert_sent", { category: "integration", targetUserId: userId, metadata: { rowId: row.id } });
+        } catch (fetchErr: any) {
+          logEvent("telegram_alert_failed", {
+            category: "integration",
+            level: "error",
+            targetUserId: userId,
+            metadata: { rowId: row.id, reason: String(fetchErr?.message || fetchErr) },
+          });
           continue;
         }
 
@@ -2448,7 +2615,7 @@ async function checkAndSendAlerts() {
   }
 }
 
-export { app, attachLiveUpdates };
+export { app, attachLiveUpdates, checkAndSendAlerts, pruneAuditLog, db };
 
 if (!isTestEnv) {
   const server = http.createServer(app);
@@ -2466,6 +2633,10 @@ if (!isTestEnv) {
   // Start alert worker immediately then every 60 s
   checkAndSendAlerts();
   setInterval(checkAndSendAlerts, 60_000);
+
+  // Prune old audit_log rows immediately then once every 24 h
+  pruneAuditLog();
+  setInterval(pruneAuditLog, 24 * 60 * 60_000);
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);

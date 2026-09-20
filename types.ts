@@ -30,6 +30,8 @@ export interface AdminCompany {
 export interface AdminAuditEvent {
   id: number;
   eventType: string;
+  level: 'info' | 'warning' | 'error';
+  category: string | null;
   actorUserId: number | null;
   actorUsername: string | null;
   targetUserId: number | null;

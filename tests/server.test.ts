@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { createServer, type Server } from 'http';
 import WebSocket from 'ws';
 import jwt from 'jsonwebtoken';
-import { app, attachLiveUpdates } from '../server';
+import { app, attachLiveUpdates, checkAndSendAlerts, pruneAuditLog, db } from '../server';
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -256,6 +256,29 @@ describe('Admin route protection, overview, and audit log', () => {
     expect(successEvent.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
     expect(new Date(successEvent.createdAt).toString()).not.toBe('Invalid Date');
   });
+
+  it('tags login events with an auth category and appropriate level, and supports category/level filtering', async () => {
+    await request(app).post('/api/auth/login').send({ username: TEST_USER.username, password: 'wrong-password' });
+    await request(app).post('/api/auth/login').send(TEST_USER);
+
+    const res = await request(app)
+      .get('/api/admin/audit')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const success = res.body.events.find((e: any) => e.eventType === 'login_success' && e.actorUsername === TEST_USER.username);
+    const failure = res.body.events.find((e: any) => e.eventType === 'login_failure' && e.metadata?.username === TEST_USER.username);
+    expect(success.category).toBe('auth');
+    expect(success.level).toBe('info');
+    expect(failure.category).toBe('auth');
+    expect(failure.level).toBe('warning');
+
+    const filtered = await request(app)
+      .get('/api/admin/audit?category=auth&level=warning')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body.events.length).toBeGreaterThan(0);
+    expect(filtered.body.events.every((e: any) => e.category === 'auth' && e.level === 'warning')).toBe(true);
+    expect(filtered.body.events.some((e: any) => e.eventType === 'login_failure')).toBe(true);
+  });
 });
 
 describe('Admin user management', () => {
@@ -460,6 +483,32 @@ describe('Admin user management', () => {
     const admin = check.body.users.find((u: any) => u.id === adminUserId);
     expect(admin.isActive).toBe(true);
   });
+
+  it('tags user admin actions with a user_mgmt category', async () => {
+    const username = `catcheck_${Date.now()}`;
+    const created = await request(app)
+      .post('/api/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ username, password: 'Password123!' });
+    const targetId = created.body.user.id;
+
+    await request(app)
+      .post(`/api/admin/users/${targetId}/reset-password`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ password: 'NewPassword123!' });
+    await request(app)
+      .patch(`/api/admin/users/${targetId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ isActive: false });
+
+    const audit = await request(app)
+      .get('/api/admin/audit?category=user_mgmt')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(audit.status).toBe(200);
+    const types = audit.body.events.filter((e: any) => e.targetUserId === targetId).map((e: any) => e.eventType);
+    expect(types).toEqual(expect.arrayContaining(['user_created', 'user_password_reset', 'user_disabled']));
+    expect(audit.body.events.every((e: any) => e.category === 'user_mgmt')).toBe(true);
+  });
 });
 
 describe('Admin company management', () => {
@@ -473,6 +522,32 @@ describe('Admin company management', () => {
     expect(res.status).toBe(201);
     expect(res.body.company.userCount).toBe(0);
     companyId = res.body.company.id;
+  });
+
+  it('tags company admin actions with a company_mgmt category', async () => {
+    const createRes = await request(app)
+      .post('/api/admin/companies')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `Cat Check Co ${Date.now()}` });
+    const catCompanyId = createRes.body.company.id;
+
+    await request(app)
+      .patch(`/api/admin/companies/${catCompanyId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: `Cat Check Co Renamed ${Date.now()}` });
+    await request(app)
+      .delete(`/api/admin/companies/${catCompanyId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const audit = await request(app)
+      .get('/api/admin/audit?category=company_mgmt')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(audit.status).toBe(200);
+    const relevant = audit.body.events.filter((e: any) => e.metadata?.companyId === catCompanyId);
+    expect(relevant.map((e: any) => e.eventType)).toEqual(
+      expect.arrayContaining(['company_created', 'company_renamed', 'company_deleted'])
+    );
+    expect(audit.body.events.every((e: any) => e.category === 'company_mgmt')).toBe(true);
   });
 
   it('rejects an empty company name', async () => {
@@ -932,6 +1007,33 @@ describe('POST /api/settings', () => {
     // notifiedIds from the client payload must be ignored — server starts fresh for this test user
     expect(res.body.notifiedIds).toEqual([]);
   });
+
+  it('logs telegram_config_updated when tgConfig is saved, but not for a routine autosave without it', async () => {
+    const fresh = { username: `settings_log_${Date.now()}`, password: 'Password123!' };
+    const reg = await registerTestUser(fresh);
+    const token = reg.body.token;
+    const freshUserId = reg.body.user.id;
+
+    // Routine autosave (no tgConfig) — must not be logged.
+    await request(app).post('/api/settings').set('Authorization', `Bearer ${token}`).send({ fontSize: 110 });
+
+    let audit = await request(app)
+      .get('/api/admin/audit?category=settings')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(audit.body.events.some((e: any) => e.actorUserId === freshUserId)).toBe(false);
+
+    // Saving a tgConfig is a logged, security-relevant change.
+    await request(app)
+      .post('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ tgConfig: { token: 'bot123', chatId: '456', enabled: true, botName: 'TestBot' } });
+
+    audit = await request(app)
+      .get('/api/admin/audit?category=settings')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const event = audit.body.events.find((e: any) => e.actorUserId === freshUserId && e.eventType === 'telegram_config_updated');
+    expect(event).toBeTruthy();
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -1059,6 +1161,18 @@ describe('PATCH /api/account', () => {
     expect(res.status).toBe(200);
     expect(res.body.user.companyName).toBe('Updated');
     expect(res.body.user.avatar).toBe(SAMPLE_AVATAR);
+  });
+
+  it('logs account_updated with the changed field names, never a password value', async () => {
+    const { token, userId } = await registerFresh();
+    await authPatchAs(token, '/api/account').send({ companyName: 'Logged Co' });
+
+    const audit = await request(app)
+      .get('/api/admin/audit?category=settings')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const event = audit.body.events.find((e: any) => e.actorUserId === userId && e.eventType === 'account_updated');
+    expect(event).toBeTruthy();
+    expect(event.metadata.fields).toEqual(['companyName']);
   });
 });
 
@@ -2104,5 +2218,338 @@ SV123
       socket?.close();
       await closeLiveTestServer(server);
     }
+  });
+});
+
+describe('System logging: data operations', () => {
+  const auditFor = async (userId: number) => {
+    const res = await request(app)
+      .get('/api/admin/audit?category=data')
+      .set('Authorization', `Bearer ${adminToken}`);
+    return res.body.events.filter((e: any) => e.actorUserId === userId);
+  };
+
+  it('logs a data_synced event with a row count for a non-empty sync', async () => {
+    const user = await registerSharedTestUser('sync_log');
+    const row = makeSharedTripRow(`synclog-row-${Date.now()}`, `SYNCLOG${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows: [row] });
+
+    const events = await auditFor(user.user.id);
+    const synced = events.find((e: any) => e.eventType === 'data_synced');
+    expect(synced).toBeTruthy();
+    expect(synced.metadata).toEqual(expect.objectContaining({ rowCount: 1 }));
+  });
+
+  it('does not log a data_synced event for an empty sync payload', async () => {
+    const user = await registerSharedTestUser('sync_empty');
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows: [] });
+
+    const events = await auditFor(user.user.id);
+    expect(events.find((e: any) => e.eventType === 'data_synced')).toBeUndefined();
+  });
+
+  it('logs row_updated, row_deleted, row_restored, and row_purged for the single-row lifecycle endpoints', async () => {
+    const user = await registerSharedTestUser('row_log');
+    const row = makeSharedTripRow(`rowlog-row-${Date.now()}`, `ROWLOG${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .patch(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ updates: { status: 'Confirmed' } });
+    await request(app)
+      .post(`/api/data/${row.id}/delete`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send();
+    await request(app)
+      .post(`/api/data/${row.id}/restore`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send();
+    await request(app)
+      .post(`/api/data/${row.id}/delete`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send();
+    await request(app)
+      .delete(`/api/data/${row.id}`)
+      .set('Authorization', `Bearer ${user.token}`);
+
+    const events = await auditFor(user.user.id);
+    const types = events.filter((e: any) => e.metadata?.rowId === row.id).map((e: any) => e.eventType);
+    expect(types).toEqual(expect.arrayContaining(['row_updated', 'row_deleted', 'row_restored', 'row_purged']));
+    expect(events.every((e: any) => e.category === 'data')).toBe(true);
+  });
+
+  it('logs rows_purged_bulk with a count for the empty-recycle-bin endpoint', async () => {
+    const user = await registerSharedTestUser('bin_log');
+    const row = makeSharedTripRow(`binlog-row-${Date.now()}`, `BINLOG${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post(`/api/data/${row.id}/delete`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send();
+    await request(app)
+      .delete('/api/data/deleted')
+      .set('Authorization', `Bearer ${user.token}`);
+
+    const events = await auditFor(user.user.id);
+    const purged = events.find((e: any) => e.eventType === 'rows_purged_bulk');
+    expect(purged).toBeTruthy();
+    expect(purged.metadata).toEqual(expect.objectContaining({ count: 1 }));
+  });
+
+  it('logs a bulk_operation event with the action and processed/failed counts', async () => {
+    const user = await registerSharedTestUser('bulk_log');
+    const row = makeSharedTripRow(`bulklog-row-${Date.now()}`, `BULKLOG${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/data/bulk')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ action: 'delete', ids: [row.id] });
+
+    const events = await auditFor(user.user.id);
+    const bulk = events.find((e: any) => e.eventType === 'bulk_operation');
+    expect(bulk).toBeTruthy();
+    expect(bulk.metadata).toEqual(expect.objectContaining({ action: 'delete', processedCount: 1, failedCount: 0 }));
+  });
+});
+
+describe('System logging: sharing operations', () => {
+  const auditByType = async (eventType: string) => {
+    const res = await request(app)
+      .get('/api/admin/audit?category=sharing')
+      .set('Authorization', `Bearer ${adminToken}`);
+    return res.body.events.filter((e: any) => e.eventType === eventType);
+  };
+
+  it('logs share_invitation_created, accepted, access updated, and access revoked', async () => {
+    const owner = await registerSharedTestUser('share_log_o');
+    const receiver = await registerSharedTestUser('share_log_r');
+    const row = makeSharedTripRow(`sharelog-row-${Date.now()}`, `SHARELOG${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id, role: 'viewer' });
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/accept`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    await request(app)
+      .patch('/api/shares/access')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ scopeType: 'row', rowId: row.id, userId: receiver.user.id, role: 'editor' });
+    await request(app)
+      .delete('/api/shares/access')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ scopeType: 'row', rowId: row.id, userId: receiver.user.id });
+
+    const created = await auditByType('share_invitation_created');
+    expect(created.some((e: any) => e.actorUserId === owner.user.id && e.targetUserId === receiver.user.id)).toBe(true);
+
+    const accepted = await auditByType('share_invitation_accepted');
+    expect(accepted.some((e: any) => e.actorUserId === receiver.user.id && e.targetUserId === owner.user.id)).toBe(true);
+
+    const updated = await auditByType('share_access_updated');
+    expect(updated.some((e: any) => e.actorUserId === owner.user.id && e.targetUserId === receiver.user.id)).toBe(true);
+
+    const revoked = await auditByType('share_access_revoked');
+    expect(revoked.some((e: any) => e.actorUserId === owner.user.id && e.targetUserId === receiver.user.id)).toBe(true);
+  });
+
+  it('logs share_invitation_declined', async () => {
+    const owner = await registerSharedTestUser('share_log_do');
+    const receiver = await registerSharedTestUser('share_log_dr');
+    const row = makeSharedTripRow(`sharelogdec-row-${Date.now()}`, `SHARELOGDEC${Date.now()}`);
+
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/shares/invitations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ receiverUsername: receiver.username, scopeType: 'row', rowId: row.id, role: 'viewer' });
+
+    const pending = await request(app)
+      .get('/api/shares/invitations')
+      .set('Authorization', `Bearer ${receiver.token}`);
+    await request(app)
+      .post(`/api/shares/invitations/${pending.body[0].id}/decline`)
+      .set('Authorization', `Bearer ${receiver.token}`)
+      .send();
+
+    const declined = await auditByType('share_invitation_declined');
+    expect(declined.some((e: any) => e.actorUserId === receiver.user.id && e.targetUserId === owner.user.id)).toBe(true);
+  });
+});
+
+describe('System logging: integrations', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('logs ingest_processed with the action, group, and row count on a successful capture', async () => {
+    const user = await registerSharedTestUser('ingest_log');
+    const groupNo = `INGESTLOG${Date.now()}`;
+    const ingestText = `
+رحلة الوصول
+تاريخ الوصول
+15/01/2026
+وقت الوصول
+14:30
+رقم الرحلة
+SV123
+المطار
+مطار الملك عبد العزيز
+`;
+
+    await request(app)
+      .post('/api/ingest/text')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ text: ingestText, groupNo, groupName: 'Ingest Log Group', count: '2' });
+
+    const audit = await request(app)
+      .get('/api/admin/audit?category=integration')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const event = audit.body.events.find((e: any) => e.actorUserId === user.user.id && e.eventType === 'ingest_processed');
+    expect(event).toBeTruthy();
+    expect(event.metadata).toEqual(expect.objectContaining({ action: 'add', groupNo }));
+    expect(typeof event.metadata.count).toBe('number');
+  });
+
+  const setUpTelegramReadyUser = async (prefix: string) => {
+    const user = await registerSharedTestUser(prefix);
+    const soon = new Date(Date.now() + 30 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const row = {
+      ...makeSharedTripRow(`${prefix}-row-${Date.now()}`, `${prefix.toUpperCase()}${Date.now()}`),
+      Column1: 'وصول',
+      date: `${pad(soon.getDate())}/${pad(soon.getMonth() + 1)}/${soon.getFullYear()}`,
+      time: `${pad(soon.getHours())}:${pad(soon.getMinutes())}`,
+    };
+    await request(app)
+      .post('/api/data/sync')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ rows: [row] });
+    await request(app)
+      .post('/api/settings')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({
+        tgConfig: { token: 'bot123', chatId: '456', enabled: true, botName: 'TestBot' },
+        alertSettings: { arrivalMinutes: 120, departureMinutes: 60, messageFields: { flight: true, carType: true, count: false, tafweej: false } },
+      });
+    return { user, row };
+  };
+
+  it('logs telegram_alert_sent when the Telegram API accepts the message', async () => {
+    const { user, row } = await setUpTelegramReadyUser('tg_sent');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ ok: true }) }));
+
+    await checkAndSendAlerts();
+
+    const audit = await request(app)
+      .get('/api/admin/audit?category=integration')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const event = audit.body.events.find((e: any) => e.eventType === 'telegram_alert_sent' && e.targetUserId === user.user.id);
+    expect(event).toBeTruthy();
+    expect(event.metadata).toEqual(expect.objectContaining({ rowId: row.id }));
+    expect(event.level).toBe('info');
+  });
+
+  it('logs telegram_alert_failed at error level when the Telegram API rejects the message', async () => {
+    const { user, row } = await setUpTelegramReadyUser('tg_failed');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ ok: false, description: 'bad token' }) }));
+
+    await checkAndSendAlerts();
+
+    const audit = await request(app)
+      .get('/api/admin/audit?category=integration')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const event = audit.body.events.find((e: any) => e.eventType === 'telegram_alert_failed' && e.targetUserId === user.user.id);
+    expect(event).toBeTruthy();
+    expect(event.metadata).toEqual(expect.objectContaining({ rowId: row.id }));
+    expect(event.level).toBe('error');
+  });
+});
+
+describe('System logging: unhandled errors', () => {
+  it('returns a 500 and logs an unhandled_error event when a route throws', async () => {
+    const res = await authGet('/api/__test/throw');
+    expect(res.status).toBe(500);
+
+    const audit = await request(app)
+      .get('/api/admin/audit?category=system&level=error')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const event = audit.body.events.find((e: any) => e.eventType === 'unhandled_error' && e.metadata?.path === '/api/__test/throw');
+    expect(event).toBeTruthy();
+    expect(event.actorUserId).toBe(userId);
+    expect(event.metadata.method).toBe('GET');
+  });
+});
+
+describe('System logging: retention', () => {
+  it('prunes audit_log rows older than 90 days but keeps recent ones', async () => {
+    const user = await registerSharedTestUser('retain_log');
+    await request(app).post('/api/auth/login').send({ username: user.username, password: 'wrong-password' });
+
+    const before = await request(app)
+      .get('/api/admin/audit?category=auth')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const recentEvent = before.body.events.find((e: any) => e.metadata?.username === user.username);
+    expect(recentEvent).toBeTruthy();
+
+    db.prepare("UPDATE audit_log SET created_at = datetime('now', '-91 days') WHERE id = ?").run(recentEvent.id);
+
+    pruneAuditLog();
+
+    const after = await request(app)
+      .get('/api/admin/audit?category=auth')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(after.body.events.some((e: any) => e.id === recentEvent.id)).toBe(false);
+  });
+
+  it('keeps audit_log rows newer than 90 days', async () => {
+    const user = await registerSharedTestUser('retain_keep');
+    await request(app).post('/api/auth/login').send({ username: user.username, password: 'wrong-password' });
+
+    const before = await request(app)
+      .get('/api/admin/audit?category=auth')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const recentEvent = before.body.events.find((e: any) => e.metadata?.username === user.username);
+    expect(recentEvent).toBeTruthy();
+
+    pruneAuditLog();
+
+    const after = await request(app)
+      .get('/api/admin/audit?category=auth')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(after.body.events.some((e: any) => e.id === recentEvent.id)).toBe(true);
   });
 });

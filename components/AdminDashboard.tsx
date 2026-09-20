@@ -20,6 +20,55 @@ const EVENT_LABELS: Record<string, string> = {
   company_created: 'إنشاء شركة',
   company_renamed: 'إعادة تسمية شركة',
   company_deleted: 'حذف شركة',
+  row_updated: 'تعديل رحلة',
+  row_deleted: 'حذف رحلة (سلة المحذوفات)',
+  row_restored: 'استعادة رحلة',
+  row_purged: 'حذف رحلة نهائياً',
+  rows_purged_bulk: 'إفراغ سلة المحذوفات',
+  bulk_operation: 'عملية جماعية على الرحلات',
+  data_synced: 'مزامنة بيانات',
+  share_invitation_created: 'إرسال دعوة مشاركة',
+  share_invitation_accepted: 'قبول دعوة مشاركة',
+  share_invitation_declined: 'رفض دعوة مشاركة',
+  share_access_updated: 'تعديل صلاحية مشاركة',
+  share_access_revoked: 'إلغاء صلاحية مشاركة',
+  telegram_config_updated: 'تحديث إعدادات تيليجرام',
+  account_updated: 'تعديل بيانات الحساب',
+  ingest_processed: 'استيراد نص من الإضافة',
+  ingest_failed: 'فشل استيراد نص من الإضافة',
+  telegram_alert_sent: 'إرسال تنبيه تيليجرام',
+  telegram_alert_failed: 'فشل إرسال تنبيه تيليجرام',
+  unhandled_error: 'خطأ غير متوقع في الخادم',
+  process_error: 'خطأ في عملية الخادم',
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  auth: 'الدخول',
+  user_mgmt: 'المستخدمون',
+  company_mgmt: 'الشركات',
+  data: 'البيانات',
+  sharing: 'المشاركة',
+  settings: 'الإعدادات',
+  integration: 'التكاملات',
+  system: 'النظام',
+};
+
+const LEVEL_LABELS: Record<string, string> = {
+  info: 'معلومة',
+  warning: 'تحذير',
+  error: 'خطأ',
+};
+
+const LEVEL_STYLES: Record<string, string> = {
+  info: 'border-gray-100',
+  warning: 'border-amber-400 bg-amber-50/50',
+  error: 'border-red-400 bg-red-50/50',
+};
+
+const LEVEL_TEXT_STYLES: Record<string, string> = {
+  info: 'text-gray-900',
+  warning: 'text-amber-700',
+  error: 'text-red-700',
 };
 
 const ModalShell: React.FC<{ title: string; onClose: () => void; children: React.ReactNode }> = ({ title, onClose, children }) => (
@@ -195,6 +244,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [companies, setCompanies] = useState<AdminCompany[]>([]);
   const [events, setEvents] = useState<AdminAuditEvent[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
 
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [showCreateCompany, setShowCreateCompany] = useState(false);
@@ -225,6 +276,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   useEffect(() => {
     loadAll();
   }, []);
+
+  const loadAudit = async (category: string, level: string) => {
+    try {
+      const auditRes = await api.admin.listAuditLog({ category: category || undefined, level: level || undefined });
+      setEvents(auditRes.events);
+    } catch (err: any) {
+      setError(err.message || 'تعذر تحميل سجل النشاط');
+    }
+  };
+
+  const handleCategoryFilterChange = (value: string) => {
+    setCategoryFilter(value);
+    loadAudit(value, levelFilter);
+  };
+
+  const handleLevelFilterChange = (value: string) => {
+    setLevelFilter(value);
+    loadAudit(categoryFilter, value);
+  };
 
   const handleChangeCompany = async (target: AdminUser, companyId: string) => {
     try {
@@ -418,16 +488,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           </section>
         ) : (
           <section className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-gray-100">
+            <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-wrap justify-between items-center gap-3">
               <h2 className="text-lg font-bold">آخر 200 حدث</h2>
+              <div className="flex gap-2">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => handleCategoryFilterChange(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50"
+                >
+                  <option value="">كل الأقسام</option>
+                  {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <select
+                  value={levelFilter}
+                  onChange={(e) => handleLevelFilterChange(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-gray-50"
+                >
+                  <option value="">كل المستويات</option>
+                  {Object.entries(LEVEL_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="divide-y divide-gray-100">
               {events.length === 0 ? (
                 <p className="p-6 text-gray-400 text-sm">لا يوجد نشاط بعد</p>
               ) : events.map((e) => (
-                <div key={e.id} className="p-4 flex justify-between items-center text-sm">
+                <div key={e.id} className={`p-4 flex justify-between items-center text-sm border-r-4 ${LEVEL_STYLES[e.level] || LEVEL_STYLES.info}`}>
                   <div>
-                    <p className="font-bold">{EVENT_LABELS[e.eventType] || e.eventType}</p>
+                    <p className={`font-bold ${LEVEL_TEXT_STYLES[e.level] || LEVEL_TEXT_STYLES.info}`}>{EVENT_LABELS[e.eventType] || e.eventType}</p>
                     <p className="text-gray-400 text-xs">
                       {e.actorUsername ? `بواسطة ${e.actorUsername}` : ''}
                       {e.targetUsername ? ` — المستهدف: ${e.targetUsername}` : ''}

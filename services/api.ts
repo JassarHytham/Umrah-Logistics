@@ -179,6 +179,9 @@ export const api = {
     async overview() {
       return api.request('/admin/overview');
     },
+    async health() {
+      return api.request('/admin/health');
+    },
     async listUsers() {
       return api.request('/admin/users');
     },

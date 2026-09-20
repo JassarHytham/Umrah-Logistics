@@ -281,6 +281,49 @@ describe('Admin route protection, overview, and audit log', () => {
   });
 });
 
+describe('GET /api/admin/health', () => {
+  it('rejects with no token', async () => {
+    const res = await request(app).get('/api/admin/health');
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects a non-admin user', async () => {
+    const res = await authGet('/api/admin/health');
+    expect(res.status).toBe(403);
+  });
+
+  it('returns app and system health metrics', async () => {
+    const res = await request(app)
+      .get('/api/admin/health')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+
+    expect(res.body.app.dbConnected).toBe(true);
+    expect(typeof res.body.app.uptimeSeconds).toBe('number');
+    expect(typeof res.body.app.memory.rssBytes).toBe('number');
+    expect(typeof res.body.app.websocket.connectedUsers).toBe('number');
+    expect(typeof res.body.app.websocket.totalSockets).toBe('number');
+    expect(typeof res.body.app.recentErrors.lastHour).toBe('number');
+    expect(typeof res.body.app.recentErrors.last24h).toBe('number');
+
+    expect(res.body.system.loadAvg).toHaveLength(3);
+    expect(typeof res.body.system.cpuCount).toBe('number');
+    expect(typeof res.body.system.memory.totalBytes).toBe('number');
+    expect(typeof res.body.system.memory.freeBytes).toBe('number');
+    expect(typeof res.body.system.uptimeSeconds).toBe('number');
+  });
+
+  it('counts a recently logged error in recentErrors', async () => {
+    await authGet('/api/__test/throw');
+
+    const res = await request(app)
+      .get('/api/admin/health')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.body.app.recentErrors.lastHour).toBeGreaterThan(0);
+    expect(res.body.app.recentErrors.last24h).toBeGreaterThan(0);
+  });
+});
+
 describe('Admin user management', () => {
   let createdUserId: number;
   let createdUsername: string;

@@ -27,6 +27,26 @@ export interface AdminCompany {
   createdAt: string;
 }
 
+export interface AdminHealth {
+  app: {
+    uptimeSeconds: number;
+    nodeVersion: string;
+    memory: { rssBytes: number; heapUsedBytes: number; heapTotalBytes: number };
+    dbConnected: boolean;
+    dbSizeBytes: number | null;
+    websocket: { connectedUsers: number; totalSockets: number };
+    recentErrors: { lastHour: number; last24h: number };
+  };
+  system: {
+    platform: string;
+    cpuCount: number;
+    loadAvg: [number, number, number];
+    memory: { totalBytes: number; freeBytes: number };
+    uptimeSeconds: number;
+    disk: { totalBytes: number; usedBytes: number; availableBytes: number; usedPercent: number } | null;
+  };
+}
+
 export interface AdminAuditEvent {
   id: number;
   eventType: string;

@@ -8,7 +8,9 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import helmet from "helmet";
 import http from "http";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import os from "node:os";
 import path from "path";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { fileURLToPath } from "url";
@@ -993,6 +995,71 @@ app.get("/api/admin/overview", authenticateToken, requireAdmin, (req, res) => {
   const totalCompanies = (db.prepare("SELECT COUNT(*) AS count FROM companies").get() as { count: number }).count;
   const totalRows = (db.prepare("SELECT COUNT(*) AS count FROM logistics_rows WHERE deleted_at IS NULL").get() as { count: number }).count;
   res.json({ totalUsers, activeUsers, totalCompanies, totalRows });
+});
+
+function getDiskUsage(): { totalBytes: number; usedBytes: number; availableBytes: number; usedPercent: number } | null {
+  try {
+    // `df -k /` is supported the same way on Linux (the VPS) and macOS (local
+    // dev); output is a header line then one data line of whitespace-separated
+    // columns: filesystem, 1K-blocks, used, available, use%, mounted-on.
+    const output = execFileSync("df", ["-k", "/"], { encoding: "utf8", timeout: 2000 });
+    const line = output.trim().split("\n").pop() || "";
+    const cols = line.trim().split(/\s+/);
+    const totalBytes = Number(cols[1]) * 1024;
+    const usedBytes = Number(cols[2]) * 1024;
+    const availableBytes = Number(cols[3]) * 1024;
+    if (!Number.isFinite(totalBytes) || totalBytes <= 0) return null;
+    return { totalBytes, usedBytes, availableBytes, usedPercent: Math.round((usedBytes / totalBytes) * 1000) / 10 };
+  } catch {
+    return null;
+  }
+}
+
+app.get("/api/admin/health", authenticateToken, requireAdmin, (req, res) => {
+  let dbConnected = false;
+  try {
+    db.prepare("SELECT 1").get();
+    dbConnected = true;
+  } catch {
+    dbConnected = false;
+  }
+
+  let dbSizeBytes: number | null = null;
+  try {
+    dbSizeBytes = statSync(DB_PATH).size;
+  } catch {
+    dbSizeBytes = null;
+  }
+
+  // audit_log.created_at is SQLite's naive-UTC CURRENT_TIMESTAMP ("YYYY-MM-DD
+  // HH:MM:SS"), not ISO-8601 — comparing it against a JS ISO string (with "T"
+  // and "Z") sorts wrong lexicographically. Use SQLite's own datetime() so
+  // the cutoff is in the same format as the stored value.
+  const errorCountSince = (window: string) =>
+    (db.prepare(`SELECT COUNT(*) AS count FROM audit_log WHERE level = 'error' AND created_at >= datetime('now', ?)`).get(window) as { count: number }).count;
+
+  const mem = process.memoryUsage();
+  const totalSockets = Array.from(liveClients.values()).reduce((sum, set) => sum + set.size, 0);
+
+  res.json({
+    app: {
+      uptimeSeconds: Math.round(process.uptime()),
+      nodeVersion: process.version,
+      memory: { rssBytes: mem.rss, heapUsedBytes: mem.heapUsed, heapTotalBytes: mem.heapTotal },
+      dbConnected,
+      dbSizeBytes,
+      websocket: { connectedUsers: liveClients.size, totalSockets },
+      recentErrors: { lastHour: errorCountSince("-1 hours"), last24h: errorCountSince("-24 hours") },
+    },
+    system: {
+      platform: os.platform(),
+      cpuCount: os.cpus().length,
+      loadAvg: os.loadavg(),
+      memory: { totalBytes: os.totalmem(), freeBytes: os.freemem() },
+      uptimeSeconds: Math.round(os.uptime()),
+      disk: getDiskUsage(),
+    },
+  });
 });
 
 app.get("/api/admin/audit", authenticateToken, requireAdmin, (req, res) => {

@@ -1078,6 +1078,7 @@ export default function App() {
                   onDelete={softDeleteRow}
                   onBulkDelete={deleteSelectedRows}
                   selectMode={selectMode}
+                  onToggleSelectMode={() => setSelectMode(m => !m)}
                   isPreview={false}
                   density={displaySettings.density}
                   requiredFields={previewSettings.requiredFields}

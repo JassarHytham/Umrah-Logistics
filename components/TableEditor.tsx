@@ -5,7 +5,7 @@ import {
   Plane, Info, Plus, Copy, Share2, Eye, MapPinned,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
   History as HistoryIcon, StickyNote, Users, ClipboardCopy, Check, AlertCircle,
-  MoreVertical, Pencil
+  MoreVertical, Pencil, Save
 } from 'lucide-react';
 import { LogisticsRow, TripStatus, DEFAULT_COLUMN_ORDER, COLUMN_LABELS, AlertSettings, DEFAULT_ALERT_SETTINGS } from '../types';
 import { parseDateTime } from '../utils/parser';
@@ -18,6 +18,7 @@ interface TableEditorProps {
   onDelete?: (id: string) => void;
   onBulkDelete?: (ids: string[]) => void;
   selectMode?: boolean;
+  onToggleSelectMode?: () => void;
   isPreview: boolean;
   enableFiltering?: boolean;
   readOnly?: boolean;
@@ -118,6 +119,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onDelete,
   onBulkDelete,
   selectMode = false,
+  onToggleSelectMode,
   isPreview,
   enableFiltering = false,
   readOnly = false,
@@ -214,12 +216,23 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         setTimeout(() => { setBulkCopyFailed(false); setBulkCopySucceeded(false); }, success ? 1500 : 2500);
     };
 
-    const focusRow = (id: string) => {
-        const el = rowRefs.current[id];
-        if (!el) return;
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const field = el.querySelector('input, textarea, select') as HTMLElement | null;
-        field?.focus();
+    const [pendingFocusRowId, setPendingFocusRowId] = useState<string | null>(null);
+    const [editingRowIds, setEditingRowIds] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!pendingFocusRowId) return;
+        const el = rowRefs.current[pendingFocusRowId];
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const field = el.querySelector('input, textarea, select') as HTMLElement | null;
+            field?.focus();
+        }
+        setPendingFocusRowId(null);
+    }, [pendingFocusRowId, editingRowIds]);
+
+    const editRow = (id: string) => {
+        unlockRowForEditing(id);
+        setPendingFocusRowId(id);
     };
 
     const toggleRowSelected = (id: string) => {
@@ -260,8 +273,57 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const [openActionMenuRowId, setOpenActionMenuRowId] = useState<string | null>(null);
     const [bulkCopyFailed, setBulkCopyFailed] = useState(false);
     const [bulkCopySucceeded, setBulkCopySucceeded] = useState(false);
+    const [drafts, setDrafts] = useState<Record<string, Partial<LogisticsRow>>>({});
     const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
     const actionMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const hasDrafts = Object.keys(drafts).length > 0;
+        if (!hasDrafts) return;
+        const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [drafts]);
+
+    const unlockRowForEditing = (id: string) => {
+        setEditingRowIds(prev => new Set(prev).add(id));
+    };
+
+    const updateDraftField = (id: string, field: keyof LogisticsRow, value: string) => {
+        setDrafts(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+    };
+
+    const saveRowEdits = (id: string) => {
+        const draft = drafts[id];
+        if (draft) {
+            (Object.entries(draft) as [keyof LogisticsRow, string][]).forEach(([field, value]) => {
+                onChange(id, field, value);
+            });
+        }
+        setDrafts(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+        setEditingRowIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
+    };
+
+    const cancelRowEdits = (id: string) => {
+        setDrafts(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+        setEditingRowIds(prev => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (externalFilters) {
@@ -573,7 +635,16 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     };
 
     const renderCellContent = (row: LogisticsRow, h: { key: keyof LogisticsRow | 'actions' }) => {
-        const rowReadOnly = readOnly || row._sharing?.role === 'viewer';
+        const isRowUnlocked = isPreview || editingRowIds.has(row.id);
+        const rowReadOnly = readOnly || !isRowUnlocked || row._sharing?.role === 'viewer';
+        const fieldValue = (field: keyof LogisticsRow) => isPreview ? row[field] : (drafts[row.id]?.[field] ?? row[field]);
+        const handleFieldChange = (field: keyof LogisticsRow, value: string) => {
+            if (isPreview) {
+                onChange(row.id, field, value);
+            } else {
+                updateDraftField(row.id, field, value);
+            }
+        };
         if (h.key === 'actions') {
             if (selectMode) {
                 return (
@@ -585,6 +656,26 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             className="w-4 h-4 rounded border-gray-300 text-gold-600 focus:ring-gold-500"
                             aria-label="تحديد الرحلة"
                         />
+                    </div>
+                );
+            }
+            if (!isPreview && editingRowIds.has(row.id)) {
+                return (
+                    <div className="flex items-center justify-center gap-1">
+                        <button
+                            onClick={() => saveRowEdits(row.id)}
+                            title="حفظ التعديلات"
+                            className="p-1.5 text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                        >
+                            <Save size={14} />
+                        </button>
+                        <button
+                            onClick={() => cancelRowEdits(row.id)}
+                            title="إلغاء التعديل"
+                            className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                            <X size={14} />
+                        </button>
                     </div>
                 );
             }
@@ -604,7 +695,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-50 w-40 py-1 text-right"
                         >
                             <button
-                                onClick={() => { focusRow(row.id); setOpenActionMenuRowId(null); }}
+                                onClick={() => { editRow(row.id); setOpenActionMenuRowId(null); }}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
                             >
                                 <Pencil size={13} /> تعديل
@@ -693,10 +784,10 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words ${wrapCells ? 'whitespace-normal' : 'whitespace-nowrap'} w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
             }
             return (
-                <textarea 
-                   value={String(row[h.key] || '')} 
-                   onChange={(e) => onChange(row.id, h.key, e.target.value)}
-                   rows={2} 
+                <textarea
+                   value={String(fieldValue(h.key) || '')}
+                   onChange={(e) => handleFieldChange(h.key, e.target.value)}
+                   rows={2}
                    className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all resize-y text-xs min-h-[3rem] focus:bg-white focus:ring-2 focus:ring-gold-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
                    placeholder="-"
                 />
@@ -707,10 +798,10 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             return <div className={`px-2 py-1.5 text-xs text-gray-800 break-words ${wrapCells ? 'whitespace-normal' : 'whitespace-nowrap'} w-full ${isEmpty ? 'bg-red-50 ring-1 ring-red-200 rounded' : ''}`}>{String(row[h.key] || '')}</div>;
         }
         return (
-            <input 
-                type="text" 
-                value={String(row[h.key] || '')} 
-                onChange={(e) => onChange(row.id, h.key as keyof LogisticsRow, e.target.value)}
+            <input
+                type="text"
+                value={String(fieldValue(h.key) || '')}
+                onChange={(e) => handleFieldChange(h.key as keyof LogisticsRow, e.target.value)}
                 className={`w-full bg-transparent px-2 py-1.5 rounded text-gray-800 placeholder-gray-300 transition-all text-xs focus:bg-white focus:ring-2 focus:ring-gold-500 focus:outline-none ${!row[h.key] && isPreview && (requiredFields ? requiredFields.includes(h.key as string) : true) ? 'bg-red-50 ring-1 ring-red-200' : ''}`}
                 placeholder="-"
             />
@@ -936,7 +1027,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     <div className="flex flex-wrap items-center gap-2 mr-auto">
                         {selectedRowIds.size === 1 && (
                             <button
-                                onClick={() => focusRow(Array.from(selectedRowIds)[0])}
+                                onClick={() => { onToggleSelectMode?.(); editRow(Array.from(selectedRowIds)[0]); }}
                                 className="flex items-center gap-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
                             >
                                 <Pencil size={13} /> تعديل
@@ -1094,7 +1185,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                     <React.Fragment key={row.id}>
                                         <tr
                                             ref={(el) => { rowRefs.current[row.id] = el; }}
-                                            className={`transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50 ${selectedRowIds.has(row.id) ? 'bg-gold-50/60' : ''}`}
+                                            className={`transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50 ${selectedRowIds.has(row.id) ? 'bg-gold-50/60' : ''} ${editingRowIds.has(row.id) ? 'ring-1 ring-inset ring-blue-300 bg-blue-50/50' : ''}`}
                                         >
                                             {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0 opacity-70`}>{renderCellContent(row, h)}</td>)}
                                         </tr>
@@ -1131,7 +1222,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 <React.Fragment key={row.id}>
                                     <tr
                                         ref={(el) => { rowRefs.current[row.id] = el; }}
-                                        className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-gold-50/50'} ${selectedRowIds.has(row.id) ? 'bg-gold-50/60' : ''} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}
+                                        className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-gold-50/50'} ${selectedRowIds.has(row.id) ? 'bg-gold-50/60' : ''} ${editingRowIds.has(row.id) ? 'ring-1 ring-inset ring-blue-300 bg-blue-50/50' : ''} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}
                                     >
                                         {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0`}>{renderCellContent(row, h)}</td>)}
                                     </tr>

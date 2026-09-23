@@ -12,7 +12,8 @@ import {
   Rows3,
   Table2,
   User as UserIcon,
-  LogOut
+  LogOut,
+  CheckSquare
 } from 'lucide-react';
 import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_ALERT_SETTINGS, DEFAULT_PREVIEW_SETTINGS, DEFAULT_DISPLAY_SETTINGS, DEFAULT_TELEGRAM_CONFIG, ShareInvitation, ShareAccessGrant, ShareRole, normalizeDisplaySettings } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
@@ -72,7 +73,7 @@ export default function App() {
   const [showInvitations, setShowInvitations] = useState(false);
   const [inputSectionOpen, setInputSectionOpen] = useState(false);
   const [notification, setNotification] = useState<NotificationState | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [filteredRows, setFilteredRows] = useState<LogisticsRow[]>([]);
   const [analyticsFilter, setAnalyticsFilter] = useState<Record<string, string[]> | undefined>(undefined);
@@ -594,6 +595,31 @@ export default function App() {
     }
   };
 
+  const deleteSelectedRows = async (ids: string[]) => {
+    const rowsToDelete = allRowsRef.current.filter(row => ids.includes(row.id));
+    if (rowsToDelete.length === 0) return;
+    if (!window.confirm(`هل أنت متأكد من حذف ${rowsToDelete.length} رحلة؟ سيتم نقلها لسلة المحذوفات.`)) return;
+    try {
+      rowsToDelete.forEach(row => rowUpdateQueueRef.current?.cancel(row.id));
+      const localOnlyRows = rowsToDelete.filter(row => !isPersistedRow(row));
+      if (localOnlyRows.length > 0) {
+        await api.data.syncRows(localOnlyRows);
+      }
+      const result = await api.data.bulkRows('delete', rowsToDelete.map(row => row.id));
+      const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, result.processed || [], user?.username);
+      setAllRows(next.activeRows);
+      setDeletedRows(next.deletedRows);
+      if (result.failed?.length) {
+        showNotification(`تم حذف ${result.processed.length} رحلة، وتعذّر حذف ${result.failed.length}`, "error");
+      } else {
+        showNotification(`تم نقل ${result.processed.length} رحلة لسلة المحذوفات`, "success");
+      }
+    } catch (err) {
+      console.error("Bulk delete failed", err);
+      showNotification("فشل حذف الرحلات المحددة", "error");
+    }
+  };
+
   const restoreAllRows = async () => {
     const rowsToRestore = applyDisplayFilters(deletedRowsRef.current, displaySettings);
     if (rowsToRestore.length === 0) return;
@@ -1039,8 +1065,9 @@ export default function App() {
                       مبسط
                     </button>
                   </div>
-                  <button onClick={() => setIsEditing(!isEditing)} className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 sm:py-2 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center justify-center ${isEditing ? 'bg-green-600 text-white' : 'bg-gold-50 text-gold-600 hover:bg-gold-100'}`}>
-                    {isEditing ? 'إنهاء التعديل وحفظ' : 'بدء تعديل الجدول'}
+                  <button onClick={() => setSelectMode(m => !m)} className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 sm:py-2 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 ${selectMode ? 'bg-green-600 text-white' : 'bg-gold-50 text-gold-600 hover:bg-gold-100'}`}>
+                    <CheckSquare size={16} />
+                    {selectMode ? 'إنهاء التحديد' : 'تحديد'}
                   </button>
                 </div>
               </div>
@@ -1049,8 +1076,9 @@ export default function App() {
                   rows={visibleAllRows}
                   onChange={updateRowField}
                   onDelete={softDeleteRow}
+                  onBulkDelete={deleteSelectedRows}
+                  selectMode={selectMode}
                   isPreview={false}
-                  readOnly={!isEditing}
                   density={displaySettings.density}
                   requiredFields={previewSettings.requiredFields}
                   tableFontSize={displaySettings.tableFontSize}

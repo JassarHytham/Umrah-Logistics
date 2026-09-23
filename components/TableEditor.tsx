@@ -4,7 +4,8 @@ import {
   Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar,
   Plane, Info, Plus, Copy, Share2, Eye, MapPinned,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
-  History as HistoryIcon, StickyNote, Users, ClipboardCopy, Check, AlertCircle
+  History as HistoryIcon, StickyNote, Users, ClipboardCopy, Check, AlertCircle,
+  MoreVertical, Pencil
 } from 'lucide-react';
 import { LogisticsRow, TripStatus, DEFAULT_COLUMN_ORDER, COLUMN_LABELS, AlertSettings, DEFAULT_ALERT_SETTINGS } from '../types';
 import { parseDateTime } from '../utils/parser';
@@ -15,6 +16,8 @@ interface TableEditorProps {
   rows: LogisticsRow[];
   onChange: (id: string, field: keyof LogisticsRow, value: string) => void;
   onDelete?: (id: string) => void;
+  onBulkDelete?: (ids: string[]) => void;
+  selectMode?: boolean;
   isPreview: boolean;
   enableFiltering?: boolean;
   readOnly?: boolean;
@@ -110,10 +113,12 @@ export function buildSimpleViewSummaries(rows: LogisticsRow[], filteredRows: Log
 }
 
 export const TableEditor: React.FC<TableEditorProps> = ({ 
-  rows, 
-  onChange, 
-  onDelete, 
-  isPreview, 
+  rows,
+  onChange,
+  onDelete,
+  onBulkDelete,
+  selectMode = false,
+  isPreview,
   enableFiltering = false,
   readOnly = false,
   externalFilters,
@@ -172,22 +177,21 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         }
     };
 
-    const handleCopyMessage = async (row: LogisticsRow) => {
-        const message = buildTripMessage(row, companyName, alertSettings);
-        let success = false;
-
+    const copyToClipboard = async (text: string): Promise<boolean> => {
         if (navigator.clipboard?.writeText && window.isSecureContext) {
             try {
-                await navigator.clipboard.writeText(message);
-                success = true;
+                await navigator.clipboard.writeText(text);
+                return true;
             } catch (e) {
                 console.error("Clipboard API copy failed, trying fallback", e);
             }
         }
+        return copyTextFallback(text);
+    };
 
-        if (!success) {
-            success = copyTextFallback(message);
-        }
+    const handleCopyMessage = async (row: LogisticsRow) => {
+        const message = buildTripMessage(row, companyName, alertSettings);
+        const success = await copyToClipboard(message);
 
         if (success) {
             setCopyFailedRowId(null);
@@ -198,6 +202,45 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             setCopyFailedRowId(row.id);
             setTimeout(() => setCopyFailedRowId(current => current === row.id ? null : current), 2500);
         }
+    };
+
+    const handleCopySelected = async () => {
+        const rowsToCopy = rows.filter(r => selectedRowIds.has(r.id));
+        if (rowsToCopy.length === 0) return;
+        const message = rowsToCopy.map(r => buildTripMessage(r, companyName, alertSettings)).join('\n\n———\n\n');
+        const success = await copyToClipboard(message);
+        setBulkCopyFailed(!success);
+        setBulkCopySucceeded(success);
+        setTimeout(() => { setBulkCopyFailed(false); setBulkCopySucceeded(false); }, success ? 1500 : 2500);
+    };
+
+    const focusRow = (id: string) => {
+        const el = rowRefs.current[id];
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const field = el.querySelector('input, textarea, select') as HTMLElement | null;
+        field?.focus();
+    };
+
+    const toggleRowSelected = (id: string) => {
+        setSelectedRowIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleSelectAllVisible = () => {
+        setSelectedRowIds(prev => {
+            const allSelected = activeRows.length > 0 && activeRows.every(r => prev.has(r.id));
+            return allSelected ? new Set() : new Set(activeRows.map(r => r.id));
+        });
+    };
+
+    const handleBulkDeleteClick = () => {
+        if (selectedRowIds.size === 0) return;
+        onBulkDelete?.(Array.from(selectedRowIds));
+        setSelectedRowIds(new Set());
     };
     const [viewMode, setViewMode] = useState<'detailed' | 'simple'>('detailed');
     const [selectedSimpleTrip, setSelectedSimpleTrip] = useState<SimpleTripSummary | null>(null);
@@ -212,6 +255,13 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     const dropdownRef = useRef<HTMLDivElement>(null);
     const tbodyId = useRef(`tbl-${Math.random().toString(36).slice(2)}`).current;
+
+    const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+    const [openActionMenuRowId, setOpenActionMenuRowId] = useState<string | null>(null);
+    const [bulkCopyFailed, setBulkCopyFailed] = useState(false);
+    const [bulkCopySucceeded, setBulkCopySucceeded] = useState(false);
+    const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
+    const actionMenuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (externalFilters) {
@@ -229,6 +279,22 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        const handleClickOutsideActionMenu = (event: MouseEvent) => {
+            if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+                setOpenActionMenuRowId(null);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutsideActionMenu);
+        return () => document.removeEventListener("mousedown", handleClickOutsideActionMenu);
+    }, []);
+
+    useEffect(() => {
+        if (!selectMode) {
+            setSelectedRowIds(new Set());
+        }
+    }, [selectMode]);
 
     const isLongField = (key: string) => ['groupName', 'from', 'to'].includes(key);
 
@@ -509,37 +575,70 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const renderCellContent = (row: LogisticsRow, h: { key: keyof LogisticsRow | 'actions' }) => {
         const rowReadOnly = readOnly || row._sharing?.role === 'viewer';
         if (h.key === 'actions') {
+            if (selectMode) {
+                return (
+                    <div className="flex items-center justify-center">
+                        <input
+                            type="checkbox"
+                            checked={selectedRowIds.has(row.id)}
+                            onChange={() => toggleRowSelected(row.id)}
+                            className="w-4 h-4 rounded border-gray-300 text-gold-600 focus:ring-gold-500"
+                            aria-label="تحديد الرحلة"
+                        />
+                    </div>
+                );
+            }
+            const menuOpen = openActionMenuRowId === row.id;
             return (
-                <div className="flex items-center justify-center gap-1">
+                <div className="flex items-center justify-center relative">
                     <button
-                        onClick={() => handleCopyMessage(row)}
-                        title={copyFailedRowId === row.id ? "تعذّر النسخ التلقائي — انقر مرة أخرى، أو انسخ يدويًا من المتصفح" : "نسخ رسالة الحركة"}
-                        className={`p-1.5 rounded-lg transition-colors ${copyFailedRowId === row.id ? 'text-red-500 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                        onClick={() => setOpenActionMenuRowId(menuOpen ? null : row.id)}
+                        title="إجراءات"
+                        className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                     >
-                        {copyFailedRowId === row.id ? <AlertCircle size={14} /> : copiedRowId === row.id ? <Check size={14} /> : <ClipboardCopy size={14} />}
+                        <MoreVertical size={16} />
                     </button>
-                    <button
-                        onClick={() => onDuplicateRow?.(row)}
-                        title="تكرار الرحلة"
-                        className="p-1.5 text-gold-500 hover:bg-gold-50 rounded-lg transition-colors"
-                    >
-                        <Copy size={14} />
-                    </button>
-                    {row._sharing?.role !== 'viewer' && <button
-                        onClick={() => onShareTrip?.(row)}
-                        title="مشاركة"
-                        className="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-                    >
-                        <Share2 size={14} />
-                    </button>}
-                    {onDelete && row._sharing?.role !== 'viewer' && (
-                        <button 
-                            onClick={() => onDelete(row.id)} 
-                            title="حذف"
-                            className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                    {menuOpen && (
+                        <div
+                            ref={actionMenuRef}
+                            className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-50 w-40 py-1 text-right"
                         >
-                            <Trash2 size={14} />
-                        </button>
+                            <button
+                                onClick={() => { focusRow(row.id); setOpenActionMenuRowId(null); }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                            >
+                                <Pencil size={13} /> تعديل
+                            </button>
+                            <button
+                                onClick={() => { handleCopyMessage(row); setOpenActionMenuRowId(null); }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-emerald-600 hover:bg-emerald-50"
+                            >
+                                {copyFailedRowId === row.id ? <AlertCircle size={13} /> : copiedRowId === row.id ? <Check size={13} /> : <ClipboardCopy size={13} />}
+                                نسخ التقرير
+                            </button>
+                            <button
+                                onClick={() => { onDuplicateRow?.(row); setOpenActionMenuRowId(null); }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gold-600 hover:bg-gold-50"
+                            >
+                                <Copy size={13} /> تكرار الرحلة
+                            </button>
+                            {row._sharing?.role !== 'viewer' && (
+                                <button
+                                    onClick={() => { onShareTrip?.(row); setOpenActionMenuRowId(null); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-teal-600 hover:bg-teal-50"
+                                >
+                                    <Share2 size={13} /> مشاركة
+                                </button>
+                            )}
+                            {onDelete && row._sharing?.role !== 'viewer' && (
+                                <button
+                                    onClick={() => { onDelete(row.id); setOpenActionMenuRowId(null); }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50"
+                                >
+                                    <Trash2 size={13} /> حذف
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
             );
@@ -830,6 +929,41 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     </table>
                 </div>
             ) : (
+            <>
+            {selectMode && selectedRowIds.size > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-3 bg-gold-50 border border-gold-200 rounded-xl px-4 py-2.5">
+                    <span className="text-sm font-bold text-gold-800">{selectedRowIds.size} رحلة محددة</span>
+                    <div className="flex flex-wrap items-center gap-2 mr-auto">
+                        {selectedRowIds.size === 1 && (
+                            <button
+                                onClick={() => focusRow(Array.from(selectedRowIds)[0])}
+                                className="flex items-center gap-1.5 text-xs font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                                <Pencil size={13} /> تعديل
+                            </button>
+                        )}
+                        <button
+                            onClick={handleCopySelected}
+                            className={`flex items-center gap-1.5 text-xs font-bold border px-3 py-1.5 rounded-lg transition-colors ${bulkCopyFailed ? 'text-red-600 bg-red-50 border-red-200' : 'text-emerald-700 bg-white border-emerald-200 hover:bg-emerald-50'}`}
+                        >
+                            {bulkCopyFailed ? <AlertCircle size={13} /> : bulkCopySucceeded ? <Check size={13} /> : <ClipboardCopy size={13} />}
+                            نسخ التقارير
+                        </button>
+                        <button
+                            onClick={handleBulkDeleteClick}
+                            className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-white border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                            <Trash2 size={13} /> حذف المحدد
+                        </button>
+                        <button
+                            onClick={() => setSelectedRowIds(new Set())}
+                            className="text-xs font-bold text-gray-500 hover:text-gray-700 px-2 py-1.5"
+                        >
+                            إلغاء التحديد
+                        </button>
+                    </div>
+                </div>
+            )}
             <div className="overflow-x-auto rounded-xl border border-gray-100 min-h-[450px]">
                 <table className="w-full text-sm text-right bg-white min-w-[1200px] border-collapse">
                     <thead className="bg-gray-100 text-gray-700 font-medium">
@@ -861,7 +995,18 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                                 className={`flex items-center gap-1 flex-wrap cursor-pointer hover:text-gold-600 transition-colors`}
                                                 onClick={() => h.key !== 'actions' && handleSort(h.key as keyof LogisticsRow)}
                                             >
-                                                <span>{h.label}</span>
+                                                {h.key === 'actions' && selectMode ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={activeRows.length > 0 && activeRows.every(r => selectedRowIds.has(r.id))}
+                                                        onChange={(e) => { e.stopPropagation(); toggleSelectAllVisible(); }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="w-4 h-4 rounded border-gray-300 text-gold-600 focus:ring-gold-500"
+                                                        aria-label="تحديد الكل"
+                                                    />
+                                                ) : (
+                                                    <span>{h.label}</span>
+                                                )}
                                                 {h.key === 'date' && <Calendar size={12} className="text-gray-400" />}
                                                 {h.key === 'flight' && <Plane size={12} className="text-gray-400" />}
                                                 {h.key === 'status' && <Info size={12} className="text-gray-400" />}
@@ -947,7 +1092,10 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 </tr>
                                 {showPastTrips && pastRows.map((row) => (
                                     <React.Fragment key={row.id}>
-                                        <tr className="transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50">
+                                        <tr
+                                            ref={(el) => { rowRefs.current[row.id] = el; }}
+                                            className={`transition-colors align-top bg-gray-50/30 grayscale-[0.3] hover:bg-gray-100/50 ${selectedRowIds.has(row.id) ? 'bg-gold-50/60' : ''}`}
+                                        >
                                             {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0 opacity-70`}>{renderCellContent(row, h)}</td>)}
                                         </tr>
                                         {expandedNoteRowId === row.id && (
@@ -981,7 +1129,10 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                             const upcoming = isUpcoming(row);
                             return (
                                 <React.Fragment key={row.id}>
-                                    <tr className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-gold-50/50'} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}>
+                                    <tr
+                                        ref={(el) => { rowRefs.current[row.id] = el; }}
+                                        className={`transition-colors align-top ${readOnly ? 'hover:bg-gray-50' : 'hover:bg-gold-50/50'} ${selectedRowIds.has(row.id) ? 'bg-gold-50/60' : ''} ${upcoming ? 'bg-amber-50 border-r-4 border-r-amber-500' : (noteHighlightEnabled && row.notes ? NOTE_ROW_BG[noteHighlightColor] : '')}`}
+                                    >
                                         {headers.map(h => <td key={h.key} className={`${cellPad} ${borderCellClass} last:border-l-0`}>{renderCellContent(row, h)}</td>)}
                                     </tr>
                                     {expandedNoteRowId === row.id && (
@@ -1003,6 +1154,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                     </tbody>
                 </table>
             </div>
+            </>
             )}
 
             {enableFiltering && Object.keys(filters).length > 0 && (

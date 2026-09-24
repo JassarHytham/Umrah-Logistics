@@ -521,7 +521,7 @@ app.get("/privacy.css", (_req, res) => {
 });
 
 // Root is the public marketing home page; the operational app (login and
-// dashboard) lives at /app. Kept separate from marketingPages above so this
+// dashboard) lives at /login. Kept separate from marketingPages above so this
 // doesn't also register a /home.html -> /home redirect.
 app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "home.html"));
@@ -2530,7 +2530,7 @@ if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEn
   });
   app.use(vite.middlewares);
 } else if (isTestEnv) {
-  app.get("/app", (_req, res) => {
+  app.get("/login", (_req, res) => {
     res.sendFile(path.join(APP_ROOT, "index.html"));
   });
   // Test-only route to exercise the error-handling middleware below without
@@ -2549,7 +2549,7 @@ if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEn
       }
     },
   }));
-  app.get("/app", (_req, res) => {
+  app.get("/login", (_req, res) => {
     res.sendFile("index.html", { root: distDir });
   });
   app.get("/{*splat}", (req, res) => {

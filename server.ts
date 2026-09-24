@@ -1626,14 +1626,23 @@ app.delete("/api/data/:id", authenticateToken, (req: any, res) => {
 // browser firing one HTTP call per row. The old client-side Promise.all was
 // all-or-nothing: a single 404 rejected the batch, the local state was never
 // updated, and every retry then failed on the rows that had actually succeeded.
+const BULK_ROW_STATUSES = [
+  "Planned", "Confirmed", "Driver Assigned", "In Progress",
+  "Completed", "Delayed", "Cancelled", "Uncompleted", "Hosting",
+];
+
 app.post("/api/data/bulk", authenticateToken, (req: any, res) => {
   const action = String(req.body?.action || "");
   const ids = req.body?.ids;
-  if (!["delete", "restore", "purge"].includes(action)) {
-    return res.status(400).json({ error: "action must be one of: delete, restore, purge" });
+  if (!["delete", "restore", "purge", "status"].includes(action)) {
+    return res.status(400).json({ error: "action must be one of: delete, restore, purge, status" });
   }
   if (!Array.isArray(ids) || ids.length > 5000 || !ids.every((id) => typeof id === "string" && id.length <= 128)) {
     return res.status(400).json({ error: "ids must be an array of at most 5000 row ids" });
+  }
+  const status = String(req.body?.status || "");
+  if (action === "status" && !BULK_ROW_STATUSES.includes(status)) {
+    return res.status(400).json({ error: "status must be one of: " + BULK_ROW_STATUSES.join(", ") });
   }
 
   const processed: string[] = [];
@@ -1649,6 +1658,9 @@ app.post("/api/data/bulk", authenticateToken, (req: any, res) => {
     UPDATE logistics_rows
     SET deleted_at = NULL, deleted_by_user_id = NULL, version = version + 1, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
+  `);
+  const updateData = db.prepare(`
+    UPDATE logistics_rows SET data = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?
   `);
   const dropRowAccess = db.prepare("DELETE FROM trip_row_access WHERE row_id = ?");
   const dropInvitations = db.prepare("DELETE FROM trip_share_invitations WHERE row_id = ?");
@@ -1685,7 +1697,15 @@ app.post("/api/data/bulk", authenticateToken, (req: any, res) => {
         failed.push({ id, error: "Insufficient permission" });
         continue;
       }
-      if (action === "delete") {
+      if (action === "status") {
+        if (record.deleted_at) {
+          failed.push({ id, error: "Cannot change status of a deleted trip" });
+          continue;
+        }
+        const current = parseRowData(record.data);
+        const updated = sanitizeRowForStorage({ ...current, status, id: current.id });
+        updateData.run(JSON.stringify(updated), id);
+      } else if (action === "delete") {
         if (!record.deleted_at) softDelete.run(req.user.id, id);
       } else {
         if (record.deleted_at) restore.run(id);

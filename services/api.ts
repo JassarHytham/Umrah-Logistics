@@ -94,10 +94,10 @@ export const api = {
     // One atomic call for whole-selection actions. Firing one request per row meant
     // hundreds of parallel fetches where a single failure aborted the batch and left
     // the screen disagreeing with the server.
-    async bulkRows(action: 'delete' | 'restore' | 'purge', ids: string[]) {
+    async bulkRows(action: 'delete' | 'restore' | 'purge' | 'status', ids: string[], status?: string) {
       return api.request('/data/bulk', {
         method: 'POST',
-        body: JSON.stringify({ action, ids }),
+        body: JSON.stringify({ action, ids, ...(status !== undefined ? { status } : {}) }),
       });
     }
   },

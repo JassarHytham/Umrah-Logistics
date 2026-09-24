@@ -17,6 +17,7 @@ interface TableEditorProps {
   onChange: (id: string, field: keyof LogisticsRow, value: string) => void;
   onDelete?: (id: string) => void;
   onBulkDelete?: (ids: string[]) => void;
+  onBulkUpdateStatus?: (ids: string[], status: TripStatus) => void;
   selectMode?: boolean;
   onToggleSelectMode?: () => void;
   isPreview: boolean;
@@ -118,6 +119,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   onChange,
   onDelete,
   onBulkDelete,
+  onBulkUpdateStatus,
   selectMode = false,
   onToggleSelectMode,
   isPreview,
@@ -254,6 +256,10 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         if (selectedRowIds.size === 0) return;
         onBulkDelete?.(Array.from(selectedRowIds));
         setSelectedRowIds(new Set());
+    };
+    const handleBulkStatusChange = (status: TripStatus) => {
+        if (selectedRowIds.size === 0) return;
+        onBulkUpdateStatus?.(Array.from(selectedRowIds), status);
     };
     const [viewMode, setViewMode] = useState<'detailed' | 'simple'>('detailed');
     const [selectedSimpleTrip, setSelectedSimpleTrip] = useState<SimpleTripSummary | null>(null);
@@ -1033,6 +1039,16 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                 <Pencil size={13} /> تعديل
                             </button>
                         )}
+                        <select
+                            value=""
+                            onChange={(e) => { if (e.target.value) handleBulkStatusChange(e.target.value as TripStatus); }}
+                            className="text-xs font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gold-500"
+                        >
+                            <option value="" disabled>تحديث الحالة...</option>
+                            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                                <option key={key} value={key}>{cfg.label}</option>
+                            ))}
+                        </select>
                         <button
                             onClick={handleCopySelected}
                             className={`flex items-center gap-1.5 text-xs font-bold border px-3 py-1.5 rounded-lg transition-colors ${bulkCopyFailed ? 'text-red-600 bg-red-50 border-red-200' : 'text-emerald-700 bg-white border-emerald-200 hover:bg-emerald-50'}`}

@@ -620,6 +620,29 @@ export default function App() {
     }
   };
 
+  const bulkUpdateStatus = async (ids: string[], status: TripStatus) => {
+    const rowsToUpdate = allRowsRef.current.filter(row => ids.includes(row.id));
+    if (rowsToUpdate.length === 0) return;
+    try {
+      rowsToUpdate.forEach(row => rowUpdateQueueRef.current?.cancel(row.id));
+      const localOnlyRows = rowsToUpdate.filter(row => !isPersistedRow(row));
+      if (localOnlyRows.length > 0) {
+        await api.data.syncRows(localOnlyRows);
+      }
+      const result = await api.data.bulkRows('status', rowsToUpdate.map(row => row.id), status);
+      const processedIds = new Set<string>(result.processed || []);
+      setAllRows(prev => prev.map(r => processedIds.has(r.id) ? { ...r, status } : r));
+      if (result.failed?.length) {
+        showNotification(`تم تحديث حالة ${result.processed.length} رحلة، وتعذّر تحديث ${result.failed.length}`, "error");
+      } else {
+        showNotification(`تم تحديث حالة ${result.processed.length} رحلة`, "success");
+      }
+    } catch (err) {
+      console.error("Bulk status update failed", err);
+      showNotification("فشل تحديث حالة الرحلات المحددة", "error");
+    }
+  };
+
   const restoreAllRows = async () => {
     const rowsToRestore = applyDisplayFilters(deletedRowsRef.current, displaySettings);
     if (rowsToRestore.length === 0) return;
@@ -1077,6 +1100,7 @@ export default function App() {
                   onChange={updateRowField}
                   onDelete={softDeleteRow}
                   onBulkDelete={deleteSelectedRows}
+                  onBulkUpdateStatus={bulkUpdateStatus}
                   selectMode={selectMode}
                   onToggleSelectMode={() => setSelectMode(m => !m)}
                   isPreview={false}

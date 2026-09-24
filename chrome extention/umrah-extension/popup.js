@@ -137,7 +137,7 @@ function showLoginView() {
 function showCaptureView() {
   loginView.classList.add('hidden');
   captureView.classList.remove('hidden');
-  openAppBtn.href = serverUrl;
+  openAppBtn.href = `${serverUrl}/app`;
   renderSettings();
   updateSendButton();
   tabbar.classList.remove('hidden');

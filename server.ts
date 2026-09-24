@@ -520,6 +520,13 @@ app.get("/privacy.css", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "privacy.css"));
 });
 
+// Root is the public marketing home page; the operational app (login and
+// dashboard) lives at /app. Kept separate from marketingPages above so this
+// doesn't also register a /home.html -> /home redirect.
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "home.html"));
+});
+
 // Middleware to verify JWT
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers["authorization"];
@@ -2523,7 +2530,7 @@ if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEn
   });
   app.use(vite.middlewares);
 } else if (isTestEnv) {
-  app.get("/", (_req, res) => {
+  app.get("/app", (_req, res) => {
     res.sendFile(path.join(APP_ROOT, "index.html"));
   });
   // Test-only route to exercise the error-handling middleware below without
@@ -2542,7 +2549,7 @@ if (!["production", "staging"].includes(process.env.NODE_ENV || "") && !isTestEn
       }
     },
   }));
-  app.get("/", (_req, res) => {
+  app.get("/app", (_req, res) => {
     res.sendFile("index.html", { root: distDir });
   });
   app.get("/{*splat}", (req, res) => {

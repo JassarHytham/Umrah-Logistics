@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Trash2, Filter, Search, X, ChevronLeft, ChevronRight, Calendar,
-  Plane, Info, Plus, Copy, Share2, Eye, MapPinned,
+  Trash2, Filter, Search, X, ChevronLeft, ChevronRight,
+  Info, Plus, Copy, Share2, Eye, MapPinned,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, ChevronUp,
   History as HistoryIcon, StickyNote, Users, ClipboardCopy, Check, AlertCircle,
   MoreVertical, Pencil, Save
@@ -24,7 +24,7 @@ interface TableEditorProps {
   enableFiltering?: boolean;
   readOnly?: boolean;
   externalFilters?: Record<string, string[]>;
-  onAddNewRow?: () => void;
+  onAddNewRow?: () => string | void;
   onDuplicateRow?: (row: LogisticsRow) => void;
   onShareTrip?: (row: LogisticsRow) => void;
   companyName?: string;
@@ -235,6 +235,14 @@ export const TableEditor: React.FC<TableEditorProps> = ({
     const editRow = (id: string) => {
         unlockRowForEditing(id);
         setPendingFocusRowId(id);
+    };
+
+    const handleAddNewRow = () => {
+        const newRowId = onAddNewRow?.();
+        if (newRowId) {
+            onToggleSelectMode?.();
+            editRow(newRowId);
+        }
     };
 
     const toggleRowSelected = (id: string) => {
@@ -870,7 +878,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                 <div className="flex justify-between items-center mb-4 gap-3 px-1">
                     <div className="flex items-center gap-2">
                          <button 
-                            onClick={onAddNewRow}
+                            onClick={handleAddNewRow}
                             className="flex items-center gap-2 px-4 py-2 bg-gold-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-gold-700 transition-all"
                         >
                             <Plus size={16} />
@@ -943,7 +951,6 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                             <div className="flex items-start justify-between gap-1">
                                                 <div className="flex items-center gap-1 flex-wrap">
                                                     <span>{column.label}</span>
-                                                    {column.isDate && <Calendar size={12} className="text-gray-400" />}
                                                     {column.key === 'status' && <Info size={12} className="text-gray-400" />}
                                                 </div>
                                                 {enableFiltering && column.key !== 'actions' && (
@@ -1114,8 +1121,6 @@ export const TableEditor: React.FC<TableEditorProps> = ({
                                                 ) : (
                                                     <span>{h.label}</span>
                                                 )}
-                                                {h.key === 'date' && <Calendar size={12} className="text-gray-400" />}
-                                                {h.key === 'flight' && <Plane size={12} className="text-gray-400" />}
                                                 {h.key === 'status' && <Info size={12} className="text-gray-400" />}
                                                 {sortConfig?.key === h.key && (
                                                     sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />

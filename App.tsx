@@ -693,7 +693,7 @@ export default function App() {
   };
 
   const addNewEmptyRow = () => {
-    setAllRows([{
+    const newRow: LogisticsRow = {
       id: uid(),
       groupNo: '',
       groupName: '',
@@ -708,7 +708,9 @@ export default function App() {
       carType: '',
       tafweej: '',
       status: previewSettings.defaultStatus
-    }, ...allRows]);
+    };
+    setAllRows(prev => [newRow, ...prev]);
+    return newRow.id;
   };
 
   const duplicateRow = (row: LogisticsRow) => {

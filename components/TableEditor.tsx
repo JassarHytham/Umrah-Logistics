@@ -874,6 +874,19 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     return (
         <div className="relative pb-10">
+            {!isPreview && !readOnly && selectMode && !showViewToggle && (
+                <div className="mb-4 flex justify-end px-1">
+                    <button
+                        type="button"
+                        onClick={handleAddNewRow}
+                        title="إضافة رحلة جديدة"
+                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-gold-600 bg-gold-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-gold-700"
+                    >
+                        <Plus size={18} />
+                        <span>إضافة صف جديد</span>
+                    </button>
+                </div>
+            )}
             {!isPreview && !readOnly && showViewToggle && (
                 <div className="flex justify-between items-center mb-4 gap-3 px-1">
                     <div className="flex items-center gap-2">

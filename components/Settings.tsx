@@ -625,7 +625,7 @@ export const Settings: React.FC<SettingsProps> = ({
             <div className="space-y-6 max-w-xl">
               <div>
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
-                  <Puzzle size={20} className="text-violet-600" /> إضافة المتصفح
+                  <Puzzle size={20} className="text-gold-600" /> إضافة المتصفح
                 </h2>
                 <p className="text-sm text-gray-400">أداة Chrome لاستيراد بيانات الرحلات تلقائياً</p>
               </div>
@@ -634,7 +634,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 href="https://chromewebstore.google.com/detail/umrah-logistics-capture/afjjibipimkanaakohbflhdppleehfmp"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-3 w-full p-4 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-violet-200"
+                className="flex items-center justify-center gap-3 w-full p-4 bg-gold-600 hover:bg-gold-700 text-white rounded-2xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-gold-200"
               >
                 <Store size={20} />
                 تثبيت من متجر Chrome
@@ -643,7 +643,7 @@ export const Settings: React.FC<SettingsProps> = ({
               <a
                 href="/api/download/extension"
                 download="umrah-extension.zip"
-                className="flex items-center justify-center gap-3 w-full p-4 bg-white hover:bg-gray-50 text-violet-700 rounded-2xl font-bold text-sm transition-all active:scale-95 border border-violet-100"
+                className="flex items-center justify-center gap-3 w-full p-4 bg-white hover:bg-gold-50 text-gold-700 rounded-2xl font-bold text-sm transition-all active:scale-95 border border-gold-100"
               >
                 <Download size={20} />
                 تنزيل نسخة ZIP (للمطورين)
@@ -664,7 +664,7 @@ export const Settings: React.FC<SettingsProps> = ({
                     { Icon: Package,    step: '٦', title: 'الإعدادات', desc: 'من داخل نافذة الإضافة اضغط زر الترس ⚙️ لعرض الإصدار ورابط الخادم وتسجيل الخروج.' },
                   ].map(({ Icon, step, title, desc }) => (
                     <div key={step} className="flex gap-4">
-                      <div className="shrink-0 w-8 h-8 bg-violet-100 text-violet-700 rounded-xl flex items-center justify-center font-black text-sm">
+                      <div className="shrink-0 w-8 h-8 bg-gold-100 text-gold-700 rounded-xl flex items-center justify-center font-black text-sm">
                         {step}
                       </div>
                       <div className="pt-0.5">

@@ -13,7 +13,8 @@ import {
   Table2,
   User as UserIcon,
   LogOut,
-  CheckSquare
+  CheckSquare,
+  Plus
 } from 'lucide-react';
 import { LogisticsRow, InputState, NotificationState, TripStatus, TelegramConfig, AlertSettings, PreviewSettings, DisplaySettings, DEFAULT_ALERT_SETTINGS, DEFAULT_PREVIEW_SETTINGS, DEFAULT_DISPLAY_SETTINGS, DEFAULT_TELEGRAM_CONFIG, ShareInvitation, ShareAccessGrant, ShareRole, normalizeDisplaySettings } from './types';
 import { parseItineraryText, parseDateTime } from './utils/parser';
@@ -74,6 +75,7 @@ export default function App() {
   const [inputSectionOpen, setInputSectionOpen] = useState(false);
   const [notification, setNotification] = useState<NotificationState | null>(null);
   const [selectMode, setSelectMode] = useState(false);
+  const [newRowToEditId, setNewRowToEditId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [filteredRows, setFilteredRows] = useState<LogisticsRow[]>([]);
   const [analyticsFilter, setAnalyticsFilter] = useState<Record<string, string[]> | undefined>(undefined);
@@ -709,6 +711,7 @@ export default function App() {
       status: previewSettings.defaultStatus
     };
     setAllRows(prev => [newRow, ...prev]);
+    setNewRowToEditId(newRow.id);
     return newRow.id;
   };
 
@@ -1068,6 +1071,12 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex gap-3 w-full sm:w-auto mt-2 sm:mt-0">
+                  {selectMode && (
+                    <button onClick={addNewEmptyRow} title="إضافة رحلة جديدة" className="inline-flex min-h-[44px] w-full sm:w-auto items-center justify-center gap-2 rounded-lg border border-gold-600 bg-gold-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-gold-700">
+                      <Plus size={18} />
+                      <span>إضافة صف جديد</span>
+                    </button>
+                  )}
                   <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
                     <button
                       type="button"
@@ -1121,6 +1130,7 @@ export default function App() {
                   enableFiltering={true}
                   externalFilters={analyticsFilter}
                   onAddNewRow={addNewEmptyRow}
+                  newRowToEditId={newRowToEditId}
                   onDuplicateRow={duplicateRow}
                   onShareTrip={openShareDialog}
                   companyName={user?.companyName || ''}

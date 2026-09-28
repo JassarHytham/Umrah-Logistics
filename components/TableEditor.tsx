@@ -25,6 +25,7 @@ interface TableEditorProps {
   readOnly?: boolean;
   externalFilters?: Record<string, string[]>;
   onAddNewRow?: () => string | void;
+  newRowToEditId?: string | null;
   onDuplicateRow?: (row: LogisticsRow) => void;
   onShareTrip?: (row: LogisticsRow) => void;
   companyName?: string;
@@ -127,6 +128,7 @@ export const TableEditor: React.FC<TableEditorProps> = ({
   readOnly = false,
   externalFilters,
   onAddNewRow,
+  newRowToEditId,
   onDuplicateRow,
   onShareTrip,
   companyName = '',
@@ -237,10 +239,13 @@ export const TableEditor: React.FC<TableEditorProps> = ({
         setPendingFocusRowId(id);
     };
 
+    useEffect(() => {
+        if (newRowToEditId) editRow(newRowToEditId);
+    }, [newRowToEditId]);
+
     const handleAddNewRow = () => {
         const newRowId = onAddNewRow?.();
         if (newRowId) {
-            onToggleSelectMode?.();
             editRow(newRowId);
         }
     };
@@ -660,36 +665,22 @@ export const TableEditor: React.FC<TableEditorProps> = ({
             }
         };
         if (h.key === 'actions') {
-            if (selectMode) {
-                return (
-                    <div className="flex items-center justify-center">
-                        <input
-                            type="checkbox"
-                            checked={selectedRowIds.has(row.id)}
-                            onChange={() => toggleRowSelected(row.id)}
-                            className="w-4 h-4 rounded border-gray-300 text-gold-600 focus:ring-gold-500"
-                            aria-label="تحديد الرحلة"
-                        />
-                    </div>
-                );
-            }
             if (!isPreview && editingRowIds.has(row.id)) {
                 return (
                     <div className="flex items-center justify-center gap-1">
-                        <button
-                            onClick={() => saveRowEdits(row.id)}
-                            title="حفظ التعديلات"
-                            className="p-1.5 text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                        >
+                        <button onClick={() => saveRowEdits(row.id)} title="حفظ التعديلات" className="p-1.5 text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
                             <Save size={14} />
                         </button>
-                        <button
-                            onClick={() => cancelRowEdits(row.id)}
-                            title="إلغاء التعديل"
-                            className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
+                        <button onClick={() => cancelRowEdits(row.id)} title="إلغاء التعديل" className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition-colors">
                             <X size={14} />
                         </button>
+                    </div>
+                );
+            }
+            if (selectMode) {
+                return (
+                    <div className="flex items-center justify-center">
+                        <input type="checkbox" checked={selectedRowIds.has(row.id)} onChange={() => toggleRowSelected(row.id)} className="w-4 h-4 rounded border-gray-300 text-gold-600 focus:ring-gold-500" aria-label="تحديد الرحلة" />
                     </div>
                 );
             }
@@ -874,19 +865,6 @@ export const TableEditor: React.FC<TableEditorProps> = ({
 
     return (
         <div className="relative pb-10">
-            {!isPreview && !readOnly && selectMode && !showViewToggle && (
-                <div className="mb-4 flex justify-end px-1">
-                    <button
-                        type="button"
-                        onClick={handleAddNewRow}
-                        title="إضافة رحلة جديدة"
-                        className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-gold-600 bg-gold-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-gold-700"
-                    >
-                        <Plus size={18} />
-                        <span>إضافة صف جديد</span>
-                    </button>
-                </div>
-            )}
             {!isPreview && !readOnly && showViewToggle && (
                 <div className="flex justify-between items-center mb-4 gap-3 px-1">
                     <div className="flex items-center gap-2">

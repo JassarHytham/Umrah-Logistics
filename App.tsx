@@ -1052,10 +1052,12 @@ export default function App() {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
                   <h3 className="font-bold text-gray-800 text-lg">سجل العمليات اللوجستية</h3>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={addNewEmptyRow} title="إضافة رحلة جديدة" className="inline-flex items-center justify-center gap-2 px-4 py-3 sm:py-2 text-white bg-gold-600 hover:bg-gold-700 rounded-lg border border-gold-600 transition-colors min-h-[44px] font-bold text-sm">
-                      <Plus size={18} />
-                      <span>إضافة صف جديد</span>
-                    </button>
+                    {selectMode && (
+                      <button onClick={addNewEmptyRow} title="إضافة رحلة جديدة" className="inline-flex items-center justify-center gap-2 px-4 py-3 sm:py-2 text-white bg-gold-600 hover:bg-gold-700 rounded-lg border border-gold-600 transition-colors min-h-[44px] font-bold text-sm">
+                        <Plus size={18} />
+                        <span>إضافة صف جديد</span>
+                      </button>
+                    )}
                     <button onClick={downloadExcel} title="تصدير إكسل" className="p-3 sm:p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg border border-emerald-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><Download size={18} /></button>
                     <button onClick={() => fileInputRef.current?.click()} title="استيراد إكسل / JSON" className="p-3 sm:p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg border border-indigo-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><Upload size={18} /></button>
                     <button onClick={() => setShowRecycleBin(true)} title="المحذوفات" className="p-3 sm:p-2 text-gray-400 hover:bg-gray-50 rounded-lg border border-gray-100 transition-colors flex items-center justify-center min-w-[44px] min-h-[44px]"><History size={18} /></button>
@@ -1095,7 +1097,7 @@ export default function App() {
                   </div>
                   <button onClick={() => setSelectMode(m => !m)} className={`w-full sm:w-auto min-h-[44px] px-5 py-2.5 sm:py-2 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 ${selectMode ? 'bg-green-600 text-white' : 'bg-gold-50 text-gold-600 hover:bg-gold-100'}`}>
                     <CheckSquare size={16} />
-                    {selectMode ? 'إنهاء التحديد' : 'تحديد'}
+                    {selectMode ? 'إنهاء التحديد والتعديل' : 'تحديد و تعديل'}
                   </button>
                 </div>
               </div>

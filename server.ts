@@ -19,6 +19,10 @@ import { parseDateTime, parseItineraryText } from "./utils/parser.js";
 import { parseItineraryTextEN } from "./utils/parserEN.js";
 import { detectCaptureLang } from "./utils/langDetect.js";
 import { DEFAULT_ALERT_SETTINGS } from "./types.js";
+import { hasWorkspaceSchema, migrateStagingWorkspaces, workspaceFeatureEnabled } from './server/migrations.js';
+import { provisionWorkspaceMember, workspaceForUser } from './server/workspaces.js';
+import { workspaceRows, workspaceRowAccess, workspaceEventRecipients, registerWorkspaceAccessFunctions } from './server/access.js';
+import { registerWorkspaceRoutes } from './server/workspaceRoutes.js';
 
 dotenv.config();
 
@@ -29,6 +33,7 @@ const APP_ROOT = process.cwd();
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const isTestEnv = process.env.VITEST === "true" || process.env.NODE_ENV === "test";
+const workspaceEnabled = workspaceFeatureEnabled(process.env);
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_ISSUER = process.env.JWT_ISSUER || "umrah-logistics";
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || "umrah-logistics-web";
@@ -556,6 +561,19 @@ const authenticateToken = (req: any, res: any, next: any) => {
       | undefined;
     if (!current || !current.is_active) return res.status(401).json({ error: "Unauthorized" });
     req.user = { ...user, role: current.role };
+    if (workspaceEnabled) {
+      const workspace = workspaceForUser(db,Number(user.id));
+      req.workspace = workspace;
+      const operational = /^\/api\/(data(?:\/|$)|check\/|ingest\/|telegram\/|alerts\/)/.test(req.path);
+      if (operational && current.role !== 'admin') {
+        if (!workspace) return res.status(403).json({code:'WORKSPACE_REQUIRED',error:'Active workspace membership required'});
+        if (req.method !== 'GET' && workspace.role==='viewer') return res.status(403).json({code:'WORKSPACE_READ_ONLY',error:'Viewer access is read only'});
+        const supplied = [req.body?.workspaceId,req.body?.workspace_id,...(Array.isArray(req.body?.rows) ? req.body.rows.flatMap((r:any)=>[r?.workspaceId,r?.workspace_id]) : [])];
+        if (supplied.some((id:any)=>id!==undefined && Number(id)!==workspace.workspaceId)) return res.status(403).json({code:'WORKSPACE_FORBIDDEN',error:'Workspace is not authorized'});
+      }
+      if (operational && current.role==='admin' && req.path!=='/api/alerts/trigger') return res.status(403).json({code:'WORKSPACE_REQUIRED',error:'Platform administration does not grant operational access'});
+      if (req.path==='/api/telegram/test' && !['owner','manager'].includes(workspace?.role??'')) return res.status(403).json({code:'WORKSPACE_FORBIDDEN',error:'Workspace integration administration required'});
+    }
     next();
   });
 };
@@ -582,7 +600,7 @@ type AccessScope = "owner" | "row" | "group" | "agency";
 const parseRowData = (data: string) => JSON.parse(data);
 
 const sanitizeRowForStorage = (row: any) => {
-  const { _sharing, _originalIndex, _version, ...stored } = row;
+  const { _sharing, _originalIndex, _version, _workspaceId, workspaceId, workspace_id, ...stored } = row;
   return stored;
 };
 
@@ -619,6 +637,7 @@ const getUserByUsername = (username: string) =>
   db.prepare("SELECT id, username FROM users WHERE username = ?").get(username) as { id: number; username: string } | undefined;
 
 const getRowAccessForUser = (userId: number, record: LogisticsRowRecord): { scope: AccessScope; role: AccessRole } | null => {
+  if (workspaceEnabled) return workspaceRowAccess(db,userId,record.id);
   if (Number(record.user_id) === Number(userId)) return { scope: "owner", role: "owner" };
 
   const accessCandidates: { scope: AccessScope; role: ShareRole }[] = [];
@@ -658,6 +677,13 @@ const getRowRecordById = (rowId: string) =>
   db
     .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE id = ?")
     .get(rowId) as LogisticsRowRecord | undefined;
+
+const canPurgeRow = (userId: number, record: LogisticsRowRecord) => {
+  if (!workspaceEnabled) return Number(record.user_id) === Number(userId);
+  const member = workspaceForUser(db, userId);
+  const stored = db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(record.id) as any;
+  return Boolean(member && ['owner','manager'].includes(member.role) && stored?.workspace_id === member.workspaceId);
+};
 
 const getVisibleRowForUser = (userId: number, rowId: string, includeDeleted = false) => {
   const record = getRowRecordById(rowId);
@@ -699,6 +725,7 @@ const decorateRowForUser = (
 ) => {
   const row = parseRowData(record.data);
   row._version = Number(record.version || 1);
+  if (workspaceEnabled) row._workspaceId = (record as any).workspace_id ?? (db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(record.id) as any)?.workspace_id;
   const access = precomputedAccess !== undefined ? precomputedAccess : getRowAccessForUser(userId, record);
   const scope = access?.scope;
   const isShared = Boolean(scope && scope !== "owner");
@@ -720,6 +747,7 @@ const decorateRowForUser = (
 // trips on a large table. Batch-fetch this user's shares once (3 queries total,
 // not 3 per row) and resolve each row's access from those in-memory maps instead.
 const listVisibleRowsForUser = (userId: number, includeDeleted = false) => {
+  if (workspaceEnabled) return workspaceRows(db,userId,includeDeleted).map(record=>decorateRowForUser(record,userId));
   const records = db
     .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows")
     .all() as LogisticsRowRecord[];
@@ -771,6 +799,10 @@ type LiveEventType = "rows_changed" | "invitations_changed";
 const sendLiveEvent = (userIds: Iterable<number>, type: LiveEventType, actorUserId?: number) => {
   const payload = JSON.stringify({ type, at: new Date().toISOString(), ...(actorUserId ? { actorUserId: Number(actorUserId) } : {}) });
   for (const id of new Set(Array.from(userIds).map(Number))) {
+    if (workspaceEnabled && !workspaceForUser(db,id)) {
+      for (const ws of liveClients.get(id) ?? []) ws.close(1008,'Membership revoked');
+      continue;
+    }
     const clients = liveClients.get(id);
     if (!clients) continue;
     for (const ws of clients) {
@@ -792,6 +824,7 @@ const parseExtraSettings = (value: string | null | undefined) =>
   parseStoredJson<Record<string, any>>(value, {});
 
 const getVisibleUserIdsForRowRecord = (record: LogisticsRowRecord) => {
+  if (workspaceEnabled) return workspaceEventRecipients(db,record.id);
   const userIds = new Set<number>([Number(record.user_id)]);
   const rowAccess = db.prepare("SELECT user_id FROM trip_row_access WHERE row_id = ?").all(record.id) as { user_id: number }[];
   rowAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
@@ -818,6 +851,15 @@ const getVisibleUserIdsForRowId = (rowId: string) => {
 };
 
 const getVisibleUserIdsForGroupNo = (groupNo: string, ownerUserId: number) => {
+  if (workspaceEnabled) {
+    const member=workspaceForUser(db,ownerUserId);
+    const recipients=new Set<number>();
+    if (!member) return recipients;
+    for (const record of workspaceRows(db,ownerUserId)) {
+      if (record.workspace_id===member.workspaceId && String(parseRowData(record.data).groupNo || '')===groupNo) workspaceEventRecipients(db,record.id).forEach(id=>recipients.add(id));
+    }
+    return recipients;
+  }
   const userIds = new Set<number>([Number(ownerUserId)]);
   const groupAccess = db.prepare("SELECT user_id FROM trip_group_access WHERE group_no = ?").all(groupNo) as { user_id: number }[];
   groupAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
@@ -825,6 +867,15 @@ const getVisibleUserIdsForGroupNo = (groupNo: string, ownerUserId: number) => {
 };
 
 const getVisibleUserIdsForAgency = (agency: string, ownerUserId: number) => {
+  if (workspaceEnabled) {
+    const member=workspaceForUser(db,ownerUserId);
+    const recipients=new Set<number>();
+    if (!member) return recipients;
+    for (const record of workspaceRows(db,ownerUserId)) {
+      if (record.workspace_id===member.workspaceId && normalizeAgency(parseRowData(record.data).agency)===normalizeAgency(agency)) workspaceEventRecipients(db,record.id).forEach(id=>recipients.add(id));
+    }
+    return recipients;
+  }
   const userIds = new Set<number>([Number(ownerUserId)]);
   const agencyAccess = db.prepare("SELECT user_id FROM trip_agency_access WHERE agency = ?").all(normalizeAgency(agency)) as { user_id: number }[];
   agencyAccess.forEach(({ user_id }) => userIds.add(Number(user_id)));
@@ -863,6 +914,7 @@ const attachLiveUpdates = (server: http.Server) => {
         socket.destroy();
         return;
       }
+      if (workspaceEnabled && !workspaceForUser(db,Number(user.id))) { socket.destroy(); return; }
 
       wss.handleUpgrade(req, socket, head, (ws) => {
         (ws as any).userId = Number(user.id);
@@ -907,6 +959,22 @@ try {
   }
 } catch (err) {
   console.error("Admin bootstrap failed", err);
+}
+
+if (workspaceEnabled) {
+  if (!isTestEnv && !hasWorkspaceSchema(db)) {
+    const backupDir=path.join(path.dirname(path.resolve(DB_PATH)),'workspace-migration-backups');
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(backupDir,{recursive:true,mode:0o700});
+    const backupPath=path.join(backupDir,`before-workspaces-${Date.now()}.db`);
+    await db.backup(backupPath);
+    const verified=new Database(backupPath,{readonly:true});
+    try { if (verified.pragma('integrity_check',{simple:true})!=='ok') throw new Error('Pre-migration backup failed integrity check'); }
+    finally { verified.close(); }
+  }
+  migrateStagingWorkspaces(db);
+  registerWorkspaceAccessFunctions(db);
+  registerWorkspaceRoutes(app,{db,authenticateToken,requireAdmin,encryptJson,decryptJson,sendLiveEvent,logEvent,checkAndSendAlerts});
 }
 
 // Auth Routes
@@ -1141,6 +1209,7 @@ app.post("/api/admin/users", authenticateToken, requireAdmin, async (req: any, r
     const hashedPassword = await bcrypt.hash(password, 10);
     const info = db.prepare("INSERT INTO users (username, password, company_id) VALUES (?, ?, ?)").run(username, hashedPassword, companyId);
     const userId = Number(info.lastInsertRowid);
+    if (workspaceEnabled) provisionWorkspaceMember(db,userId,companyId);
 
     logEvent("user_created", { category: "user_mgmt", actorUserId: req.user.id, targetUserId: userId });
 
@@ -1178,6 +1247,10 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
       return res.status(400).json({ error: "Cannot disable your own account" });
     }
     db.prepare("UPDATE users SET is_active = ? WHERE id = ?").run(isActive, userId);
+    if (workspaceEnabled) {
+      db.prepare('UPDATE workspace_memberships SET is_active=? WHERE user_id=?').run(isActive,userId);
+      if (!isActive) for (const ws of liveClients.get(userId) ?? []) ws.close(1008,'Account disabled');
+    }
     logEvent(isActive ? "user_enabled" : "user_disabled", { category: "user_mgmt", actorUserId: req.user.id, targetUserId: userId });
   }
 
@@ -1209,6 +1282,7 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, r
 
   const target = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!target) return res.status(404).json({ error: "User not found" });
+  if (workspaceEnabled && db.prepare('SELECT 1 FROM workspace_memberships WHERE user_id=?').get(userId)) return res.status(400).json({error:'Disable the membership to preserve workspace history'});
 
   const ownsRows = db.prepare("SELECT 1 FROM logistics_rows WHERE user_id = ? LIMIT 1").get(userId);
   if (ownsRows) return res.status(400).json({ error: "Cannot delete a user that still owns trip rows" });
@@ -1285,6 +1359,7 @@ app.patch("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any
 
 app.delete("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any, res) => {
   const companyId = Number(req.params.id);
+  if (workspaceEnabled && db.prepare('SELECT 1 FROM workspace_memberships WHERE workspace_id=?').get(companyId)) return res.status(400).json({error:'Workspace memberships must be preserved; use the workspace lifecycle workflow'});
   const existing = db.prepare("SELECT id, name FROM companies WHERE id = ?").get(companyId) as { id: number; name: string } | undefined;
   if (!existing) return res.status(404).json({ error: "Company not found" });
 
@@ -1343,6 +1418,7 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
       .map((r) => [r.agency, normalizeShareRole(r.role)]),
   );
   const resolveAccess = (record: LogisticsRowRecord): { scope: AccessScope; role: AccessRole } | null => {
+    if (workspaceEnabled) return workspaceRowAccess(db,userId,record.id);
     if (Number(record.user_id) === Number(userId)) return { scope: "owner", role: "owner" };
     const candidates: { scope: AccessScope; role: ShareRole }[] = [];
     const rowRole = rowRoles.get(record.id);
@@ -1410,6 +1486,7 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
       });
   }
   const visibleUserIdsForRowRecord = (record: LogisticsRowRecord): Set<number> => {
+    if (workspaceEnabled) return workspaceEventRecipients(db,record.id);
     const userIds = new Set<number>([Number(record.user_id)]);
     (rowIdToUserIds.get(record.id) ?? new Set()).forEach((id) => userIds.add(id));
     const parsed = parseRowData(record.data);
@@ -1419,11 +1496,13 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
     return userIds;
   };
   const visibleUserIdsForGroupNo = (groupNo: string, ownerUserId: number): Set<number> => {
+    if (workspaceEnabled) return getVisibleUserIdsForGroupNo(groupNo,ownerUserId);
     const userIds = new Set<number>([Number(ownerUserId)]);
     (groupNoToUserIds.get(groupNo) ?? new Set()).forEach((id) => userIds.add(id));
     return userIds;
   };
   const visibleUserIdsForAgency = (agency: string, ownerUserId: number): Set<number> => {
+    if (workspaceEnabled) return getVisibleUserIdsForAgency(agency,ownerUserId);
     const userIds = new Set<number>([Number(ownerUserId)]);
     (agencyToUserIds.get(normalizeAgency(agency)) ?? new Set()).forEach((id) => userIds.add(id));
     return userIds;
@@ -1454,6 +1533,7 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
             }
             continue;
           }
+          if (workspaceEnabled) visibleUserIdsForRowRecord(existing).forEach((id) => affectedUserIds.add(id));
           updateStmt.run(JSON.stringify(next), existing.id);
           visibleUserIdsForRowRecord(existing).forEach((id) => affectedUserIds.add(id));
           existingById.set(existing.id, { ...existing, data: JSON.stringify(next), version: Number(existing.version || 1) + 1 });
@@ -1467,18 +1547,18 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
 
         const groupNo = String(storedRow.groupNo || "").trim();
         const agency = normalizeAgency(storedRow.agency);
-        if (groupNo) {
+        if (!workspaceEnabled && groupNo) {
           const groupRole = groupRoles.get(groupNo);
           const agencyRole = agency ? agencyRoles.get(agency) : undefined;
           const hasReadonlySharedScope = [groupRole, agencyRole].some((role) => role && !canEditAccessRole(role));
           const hasEditableSharedScope = [groupRole, agencyRole].some((role) => role && canEditAccessRole(role));
           if (hasReadonlySharedScope && !hasEditableSharedScope) continue;
-        } else if (agency) {
+        } else if (!workspaceEnabled && agency) {
           const agencyRole = agencyRoles.get(agency);
           if (agencyRole && !canEditAccessRole(agencyRole)) continue;
         }
         insertStmt.run(row.id, userId, JSON.stringify(storedRow));
-        const recipients = new Set<number>([userId]);
+        const recipients = workspaceEnabled ? workspaceEventRecipients(db,row.id) : new Set<number>([userId]);
         if (groupNo) visibleUserIdsForGroupNo(groupNo, userId).forEach((id) => recipients.add(id));
         if (agency) visibleUserIdsForAgency(agency, userId).forEach((id) => recipients.add(id));
         recipients.forEach((id) => affectedUserIds.add(id));
@@ -1521,14 +1601,17 @@ app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
   }
 
   const current = parseRowData(visible.data);
+  const recipients = workspaceEnabled ? getVisibleUserIdsForRowRecord(visible) : new Set<number>();
   const updated = sanitizeRowForStorage({ ...current, ...updates, id: current.id });
   db.prepare("UPDATE logistics_rows SET data = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
     .run(JSON.stringify(updated), visible.id);
 
-  const refreshed = getVisibleRowForUser(req.user.id, visible.id, false) as LogisticsRowRecord;
-  sendLiveEvent(getVisibleUserIdsForRowRecord(refreshed), "rows_changed", req.user.id);
+  const refreshed = getVisibleRowForUser(req.user.id, visible.id, false);
+  const stored = getRowRecordById(visible.id)!;
+  getVisibleUserIdsForRowRecord(stored).forEach(id => recipients.add(id));
+  sendLiveEvent(recipients, "rows_changed", req.user.id);
   logEvent("row_updated", { category: "data", actorUserId: req.user.id, metadata: { rowId: visible.id } });
-  res.json({ success: true, row: decorateRowForUser(refreshed, req.user.id) });
+  res.json({ success: true, row: refreshed ? decorateRowForUser(refreshed, req.user.id) : null });
 });
 
 // Deleting is idempotent. The browser's copy of a row goes stale constantly — a
@@ -1575,7 +1658,8 @@ app.post("/api/data/:id/restore", authenticateToken, (req: any, res) => {
 });
 
 app.delete("/api/data/deleted", authenticateToken, (req: any, res) => {
-  const records = db
+  if (workspaceEnabled && !['owner','manager'].includes(req.workspace?.role)) return res.status(403).json({error:'Workspace owner or manager required'});
+  const records = workspaceEnabled ? workspaceRows(db,req.user.id,true).filter(record => canPurgeRow(req.user.id,record)) : db
     .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE user_id = ? AND deleted_at IS NOT NULL")
     .all(req.user.id) as LogisticsRowRecord[];
 
@@ -1590,9 +1674,10 @@ app.delete("/api/data/deleted", authenticateToken, (req: any, res) => {
     const deleteRow = db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL");
 
     for (const row of rows) {
+      if (workspaceEnabled) db.prepare("DELETE FROM workspace_grants WHERE scope_type='row' AND row_id=?").run(row.id);
       deleteRowAccess.run(row.id);
       deleteInvitations.run(row.id);
-      deleteRow.run(row.id, req.user.id);
+      deleteRow.run(row.id, row.user_id);
     }
 
     removeRowsFromDeletedMirror(req.user.id, rows.map((row) => row.id));
@@ -1612,15 +1697,16 @@ app.delete("/api/data/:id", authenticateToken, (req: any, res) => {
     removeRowsFromDeletedMirror(req.user.id, [req.params.id]);
     return res.json({ success: true, alreadyDeleted: true });
   }
-  if (Number(record.user_id) !== Number(req.user.id)) return res.status(403).json({ error: "Only the owner can permanently delete a trip" });
+  if (!canPurgeRow(req.user.id,record)) return res.status(403).json({ error: "Only the workspace owner or manager can permanently delete a trip" });
   if (!record.deleted_at) return res.status(409).json({ error: "Move the trip to the recycle bin before deleting it permanently" });
   const visible = record;
 
   const affectedUserIds = getVisibleUserIdsForRowRecord(visible);
   db.transaction(() => {
+    if (workspaceEnabled) db.prepare("DELETE FROM workspace_grants WHERE scope_type='row' AND row_id=?").run(visible.id);
     db.prepare("DELETE FROM trip_row_access WHERE row_id = ?").run(visible.id);
     db.prepare("DELETE FROM trip_share_invitations WHERE row_id = ?").run(visible.id);
-    db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL").run(visible.id, req.user.id);
+    db.prepare("DELETE FROM logistics_rows WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL").run(visible.id, visible.user_id);
     removeRowsFromDeletedMirror(req.user.id, [visible.id]);
   })();
 
@@ -1685,7 +1771,7 @@ app.post("/api/data/bulk", authenticateToken, (req: any, res) => {
       getVisibleUserIdsForRowRecord(record).forEach((userId) => affectedUserIds.add(userId));
 
       if (action === "purge") {
-        if (Number(record.user_id) !== Number(req.user.id)) {
+        if (!canPurgeRow(req.user.id,record)) {
           failed.push({ id, error: "Only the owner can permanently delete a trip" });
           continue;
         }
@@ -1695,7 +1781,8 @@ app.post("/api/data/bulk", authenticateToken, (req: any, res) => {
         }
         dropRowAccess.run(id);
         dropInvitations.run(id);
-        dropRow.run(id, req.user.id);
+        if (workspaceEnabled) db.prepare("DELETE FROM workspace_grants WHERE scope_type='row' AND row_id=?").run(id);
+        dropRow.run(id, record.user_id);
         processed.push(id);
         continue;
       }
@@ -2290,7 +2377,10 @@ app.post("/api/telegram/test", authenticateToken, async (req: any, res) => {
 // Debug endpoint — shows what the alert worker sees for the logged-in user
 app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
   const now = new Date();
-  const settings: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
+  const settings: any = workspaceEnabled ? (()=>{
+    const stored:any=db.prepare('SELECT * FROM workspace_settings WHERE workspace_id=?').get(req.workspace.workspaceId);
+    return {...stored,extra_settings:JSON.stringify({alertSettings:parseStoredJson(stored?.alert_settings,null)})};
+  })() : db.prepare("SELECT * FROM settings WHERE user_id = ?").get(req.user.id);
 
   const tgConfig = decryptJson<StoredTelegramConfig | null>(settings?.tg_config, null);
   const extraSettings = parseExtraSettings(settings?.extra_settings);
@@ -2298,7 +2388,7 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
   const notifiedIds: string[] = parseStoredJson(settings?.notified_ids, []);
   const notifiedSet = new Set(notifiedIds);
 
-  const rawRows = db
+  const rawRows = workspaceEnabled ? db.prepare('SELECT data FROM logistics_rows WHERE workspace_id=? AND deleted_at IS NULL').all(req.workspace.workspaceId) as {data:string}[] : db
     .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
     .all(req.user.id) as { data: string }[];
 
@@ -2373,7 +2463,7 @@ app.get("/api/check/group/:groupNo", authenticateToken, (req: any, res) => {
   //
   // Narrow by group number first and only then run the per-row access check, which
   // costs several queries each — the group is a handful of rows, the table is not.
-  const candidates = db
+  const candidates = workspaceEnabled ? workspaceRows(db,req.user.id) : db
     .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE deleted_at IS NULL")
     .all() as LogisticsRowRecord[];
 
@@ -2436,10 +2526,11 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     // written at all.
     const replaced: LogisticsRowRecord[] = [];
     if (overwrite) {
-      const activeRecords = db
+      const activeRecords = workspaceEnabled ? workspaceRows(db,req.user.id) : db
         .prepare("SELECT id, user_id, data, version, updated_at, deleted_at, deleted_by_user_id FROM logistics_rows WHERE deleted_at IS NULL")
         .all() as LogisticsRowRecord[];
       for (const record of activeRecords) {
+        if (workspaceEnabled && (record as any).workspace_id !== req.workspace.workspaceId) continue;
         let stored: any;
         try { stored = parseRowData(record.data); } catch { continue; }
         if (!sameGroupNo(stored.groupNo, groupNoValue)) continue;
@@ -2602,13 +2693,20 @@ const escapeHTML = (str: string) => {
   );
 };
 
+let workspaceAlertRunning=false;
 async function checkAndSendAlerts() {
+  if(workspaceEnabled && ((!isTestEnv && process.env.STAGING_OUTBOUND_ALERTS!=='true') || workspaceAlertRunning))return;
+  if(workspaceEnabled)workspaceAlertRunning=true;
   try {
-    const users = db.prepare("SELECT id FROM users").all() as { id: number }[];
+    const users = workspaceEnabled ? db.prepare(`SELECT MIN(m.user_id) AS id,m.workspace_id AS workspaceId FROM workspace_memberships m
+      JOIN users u ON u.id=m.user_id WHERE m.is_active=1 AND u.is_active=1 AND u.role!='admin' GROUP BY m.workspace_id`).all() as {id:number;workspaceId:number}[] : db.prepare("SELECT id FROM users").all() as { id: number;workspaceId?:number }[];
     const now = new Date();
 
-    for (const { id: userId } of users) {
-      const settings: any = db.prepare("SELECT * FROM settings WHERE user_id = ?").get(userId);
+    for (const { id: userId,workspaceId } of users) {
+      const settings: any = workspaceEnabled ? (()=>{
+        const stored:any=db.prepare('SELECT * FROM workspace_settings WHERE workspace_id=?').get(workspaceId);
+        return stored ? {...stored,extra_settings:JSON.stringify({alertSettings:parseStoredJson(stored.alert_settings,null)})} : null;
+      })() : db.prepare("SELECT * FROM settings WHERE user_id = ?").get(userId);
       if (!settings) continue;
 
       const tgConfig = decryptJson<StoredTelegramConfig | null>(settings.tg_config, null);
@@ -2619,7 +2717,7 @@ async function checkAndSendAlerts() {
 
       const notifiedSet = new Set<string>(parseStoredJson(settings.notified_ids, []));
 
-      const rows = db
+      const rows = workspaceEnabled ? db.prepare('SELECT data FROM logistics_rows WHERE workspace_id=? AND deleted_at IS NULL').all(workspaceId) as {data:string}[] : db
         .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
         .all(userId) as { data: string }[];
 
@@ -2697,7 +2795,8 @@ async function checkAndSendAlerts() {
       }
 
       if (changed) {
-        db.prepare(`
+        if(workspaceEnabled)db.prepare('UPDATE workspace_settings SET notified_ids=? WHERE workspace_id=?').run(JSON.stringify(Array.from(notifiedSet)),workspaceId);
+        else db.prepare(`
           INSERT INTO settings (user_id, notified_ids)
           VALUES (?, ?)
           ON CONFLICT(user_id) DO UPDATE SET notified_ids = excluded.notified_ids
@@ -2706,7 +2805,7 @@ async function checkAndSendAlerts() {
     }
   } catch (err) {
     console.error('[Alerts] Worker error:', err);
-  }
+  } finally { if(workspaceEnabled)workspaceAlertRunning=false; }
 }
 
 export { app, attachLiveUpdates, checkAndSendAlerts, pruneAuditLog, db };

@@ -7,7 +7,11 @@ export interface UserAccount {
   companyName: string | null;
   avatar: string | null;
   role?: 'user' | 'admin';
+  workspace?: WorkspaceContext;
 }
+
+export type WorkspaceRole='owner'|'manager'|'editor'|'viewer';
+export interface WorkspaceContext { workspaceId:number; userId:number; role:WorkspaceRole; name:string; }
 
 export interface AdminUser {
   id: number;
@@ -74,6 +78,7 @@ export interface SharedMetadata {
 export type ShareRole = 'viewer' | 'editor';
 
 export interface ShareAccessGrant {
+  sourceWorkspaceId?: number;
   scopeType: 'row' | 'group' | 'agency';
   rowId?: string;
   groupNo?: string;
@@ -105,6 +110,7 @@ export interface LogisticsRow {
   [key: string]: string | number | SharedMetadata | undefined; // Index signature for dynamic access
   _originalIndex?: number;
   _version?: number;
+  _workspaceId?: number;
 }
 
 export interface TelegramConfig {

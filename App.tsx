@@ -66,6 +66,7 @@ export default function App() {
   const [shareInvitations, setShareInvitations] = useState<ShareInvitation[]>([]);
   const [shareAccessGrants, setShareAccessGrants] = useState<ShareAccessGrant[]>([]);
   const [tgConfig, setTgConfig] = useState<TelegramConfig>(DEFAULT_TELEGRAM_CONFIG);
+  const [integrationReviewRequired, setIntegrationReviewRequired] = useState(false);
 
   const [inputs, setInputs] = useState<InputState>({ groupNo: '', groupName: '', agency: '', count: '', text: '' });
   const [previewRows, setPreviewRows] = useState<LogisticsRow[]>([]);
@@ -138,11 +139,13 @@ export default function App() {
         api.shares.fetchAccess()
       ]);
       setAllRows(rows);
+      if(settings.workspace)setUser((previous:any)=>({...previous,workspace:settings.workspace}));
       setDeletedRows(deleted || []);
       setShareInvitations(invitations || []);
       setShareAccessGrants(accessGrants || []);
       setNotifiedIds(settings.notifiedIds || []);
       setTgConfig(settings.tgConfig || DEFAULT_TELEGRAM_CONFIG);
+      setIntegrationReviewRequired(Boolean(settings.integrationReviewRequired));
       setFontSize(settings.fontSize || 100);
       setAlertSettings(settings.alertSettings || DEFAULT_ALERT_SETTINGS);
       setPreviewSettings(settings.previewSettings || DEFAULT_PREVIEW_SETTINGS);
@@ -175,8 +178,11 @@ export default function App() {
     try {
       const shouldSyncRows = !rowUpdateQueueRef.current?.hasPending();
       await Promise.all([
-        shouldSyncRows ? api.data.syncRows(allRows) : Promise.resolve(),
-        api.settings.save({ tgConfig, deletedRows, notifiedIds, fontSize, alertSettings, previewSettings, displaySettings })
+        shouldSyncRows && user?.workspace?.role!=='viewer' ? api.data.syncRows(allRows) : Promise.resolve(),
+        api.settings.save({
+          ...(user?.workspace ? (['owner','manager'].includes(user.workspace.role)?{tgConfig,alertSettings}: {}) : {tgConfig,alertSettings}),
+          ...(user?.workspace?.role==='viewer'?{}:{deletedRows}),notifiedIds,fontSize,previewSettings,displaySettings,
+        })
       ]);
     } catch (err: any) {
       // A 409 means someone got there first — another tab, a teammate, or an
@@ -219,6 +225,12 @@ export default function App() {
       getRow: (id) => allRowsRef.current.find(r => r.id === id),
       save: async (id, updates, baseVersion) => {
         const result = await api.data.updateRow(id, updates, baseVersion);
+        if (!result.row) {
+          // A scope edit can legitimately remove this editor's access.
+          rowUpdateQueueRef.current?.cancel(id);
+          setAllRows(previous => previous.filter(row => row.id !== id));
+          return { id } as LogisticsRow;
+        }
         return result.row;
       },
       onSaved: (id, savedRow, pendingUpdates) => {
@@ -733,6 +745,7 @@ export default function App() {
       await api.shares.createInvitation({
         receiverUsername: shareReceiverUsername.trim(),
         scopeType: shareTarget.scope,
+        sourceWorkspaceId: shareTarget.row._workspaceId,
         rowId: shareTarget.scope === 'row' ? shareTarget.row.id : undefined,
         groupNo: shareTarget.scope === 'group' ? shareTarget.row.groupNo : undefined,
         agency: shareTarget.scope === 'agency' ? shareTarget.row.agency : undefined,
@@ -776,6 +789,7 @@ export default function App() {
     try {
       await api.shares.updateAccessRole({
         scopeType: grant.scopeType,
+        sourceWorkspaceId: grant.sourceWorkspaceId,
         rowId: grant.rowId,
         groupNo: grant.groupNo,
         agency: grant.agency,
@@ -803,6 +817,7 @@ export default function App() {
     try {
       await api.shares.revokeAccess({
         scopeType: grant.scopeType,
+        sourceWorkspaceId: grant.sourceWorkspaceId,
         rowId: grant.rowId,
         groupNo: grant.groupNo,
         agency: grant.agency,
@@ -905,7 +920,7 @@ export default function App() {
                   )}
                   <span className="flex flex-col items-start leading-tight">
                     <span className="text-sm font-bold">{user?.username || 'مستخدم'}</span>
-                    {user?.companyName && <span className="text-[10px] text-gold-200 font-normal">{user.companyName}</span>}
+                    {(user?.workspace?.name || user?.companyName) && <span className="text-[10px] text-gold-200 font-normal">{user?.workspace?.name || user.companyName}</span>}
                   </span>
                   <ChevronDown size={14} className={`text-gold-200 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -958,7 +973,7 @@ export default function App() {
                   )}
                   <span className="flex flex-col items-start leading-tight min-w-0">
                     <span className="font-bold truncate">{user?.username || 'مستخدم'}</span>
-                    {user?.companyName && <span className="text-[10px] text-gold-200 font-normal truncate">{user.companyName}</span>}
+                    {(user?.workspace?.name || user?.companyName) && <span className="text-[10px] text-gold-200 font-normal truncate">{user?.workspace?.name || user.companyName}</span>}
                   </span>
                 </button>
 
@@ -980,6 +995,16 @@ export default function App() {
       <main className="max-w-[1600px] mx-auto px-6 mt-8 space-y-8">
         {view === 'settings' ? (
           <Settings
+            workspaceRole={user?.workspace?.role}
+            integrationReviewRequired={integrationReviewRequired}
+            onResolveIntegrationReview={async () => {
+              try {
+                await api.settings.save({tgConfig,alertSettings,resolveIntegrationReview:true});
+                setIntegrationReviewRequired(false);
+              } catch {
+                showNotification('فشل حفظ إعدادات الشركة', 'error');
+              }
+            }}
             tgConfig={tgConfig}
             onTgConfigChange={setTgConfig}
             onTestTelegram={handleTestTelegram}
@@ -1107,6 +1132,7 @@ export default function App() {
               </div>
               <div className="mt-2">
                 <TableEditor
+                  readOnly={user?.workspace?.role==='viewer'}
                   rows={visibleAllRows}
                   onChange={updateRowField}
                   onDelete={softDeleteRow}
@@ -1133,7 +1159,7 @@ export default function App() {
                   newRowToEditId={newRowToEditId}
                   onDuplicateRow={duplicateRow}
                   onShareTrip={openShareDialog}
-                  companyName={user?.companyName || ''}
+                  companyName={user?.workspace?.name || user?.companyName || ''}
                   alertSettings={alertSettings}
                   onFilteredRowsChange={setFilteredRows}
                 />

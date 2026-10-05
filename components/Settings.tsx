@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { WorkspaceMembers } from './WorkspaceMembers';
 import {
   Send, Zap, Bell, Smartphone, CheckCircle2, Info,
   Loader2, SlidersHorizontal, Eye, EyeOff, GripVertical,
@@ -10,6 +11,9 @@ import { TelegramConfig, TripStatus, AlertSettings, PreviewSettings, DisplaySett
 type SettingsPage = 'telegram' | 'display' | 'extension' | 'access';
 
 interface SettingsProps {
+  workspaceRole?: 'owner'|'manager'|'editor'|'viewer';
+  integrationReviewRequired?: boolean;
+  onResolveIntegrationReview?: () => Promise<void>;
   tgConfig: TelegramConfig;
   onTgConfigChange: (c: TelegramConfig) => void;
   onTestTelegram: () => void;
@@ -92,6 +96,8 @@ const NAV_ITEMS: { id: SettingsPage; label: string; sublabel: string; Icon: Reac
 ];
 
 export const Settings: React.FC<SettingsProps> = ({
+  workspaceRole,
+  integrationReviewRequired, onResolveIntegrationReview,
   tgConfig, onTgConfigChange, onTestTelegram, isTestingTg,
   alertSettings, onAlertSettingsChange,
   previewSettings, onPreviewSettingsChange,
@@ -128,6 +134,7 @@ export const Settings: React.FC<SettingsProps> = ({
         <div className="w-full sm:w-56 sm:shrink-0 bg-gray-50 border-b sm:border-b-0 sm:border-l border-gray-100 flex flex-row sm:flex-col py-0 sm:py-3">
           <p className="hidden sm:block text-[10px] font-black text-gray-400 uppercase tracking-widest px-4 py-3">الإعدادات</p>
           {NAV_ITEMS.map(({ id, label, sublabel, Icon }) => {
+            if(id==='telegram'&&workspaceRole&&!['owner','manager'].includes(workspaceRole))return null;
             const active = activePage === id;
             return (
               <button
@@ -155,6 +162,12 @@ export const Settings: React.FC<SettingsProps> = ({
           {/* ── Telegram page ── */}
           {activePage === 'telegram' && (
             <div className="space-y-6 max-w-xl">
+              {integrationReviewRequired && (
+                <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <p>توجد إعدادات تكامل سابقة متعارضة. راجع إعدادات الشركة أدناه قبل اعتمادها.</p>
+                  <button type="button" onClick={() => void onResolveIntegrationReview?.()} className="mt-3 rounded-lg border border-amber-300 px-3 py-2 font-bold">اعتماد الإعدادات الحالية للشركة</button>
+                </div>
+              )}
               <div>
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
                   <Send size={20} className="text-gold-600" /> ربط بوت تيليجرام
@@ -541,6 +554,7 @@ export const Settings: React.FC<SettingsProps> = ({
           {/* ── Access management page ── */}
           {activePage === 'access' && (
             <div className="space-y-6 max-w-3xl">
+              {workspaceRole && ['owner','manager'].includes(workspaceRole) && <WorkspaceMembers role={workspaceRole} />}
               <div>
                 <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
                   <ShieldCheck size={20} className="text-teal-600" /> المشاركة والصلاحيات

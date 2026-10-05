@@ -154,6 +154,14 @@ export const api = {
     }
   },
 
+  workspace: {
+    async fetch() { return api.request('/workspace'); },
+    async members() { return api.request('/workspace/members'); },
+    async updateMember(id:number,payload:{role?:'manager'|'editor'|'viewer';isActive?:boolean}) {
+      return api.request(`/workspace/members/${id}`,{method:'PATCH',body:JSON.stringify(payload)});
+    },
+  },
+
   settings: {
     async fetch() {
       return api.request('/settings');

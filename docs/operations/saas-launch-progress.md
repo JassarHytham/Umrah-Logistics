@@ -163,3 +163,10 @@ edits. Exact committed-source verification and live staging deployment are the
 next checks; no production migration, messages or launch claim is authorized.
 Subscription-aware sharing and production mapping/conflict approvals remain
 unchecked in the source plan. Next engineering phase is annual subscriptions.
+
+Committed-source verification of `347185050ec55877cbd0fce92fd06fba7d27250d`
+used a new temporary git-archive snapshot without the dirty parser/extension
+changes or local .env: 391/391 application tests, 41/41 extension tests,
+TypeScript check, build and extension packaging passed. Different working-tree
+counts above include the user's additional uncommitted tests. The published
+extension version remains 2.0.1. No unrelated changes are in this release.

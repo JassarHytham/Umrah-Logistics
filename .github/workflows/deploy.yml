@@ -40,8 +40,11 @@ jobs:
               APP_DB_PATH="$4"
               APP_DB_DIR="$(dirname "$APP_DB_PATH")"
               APP_DEPLOYMENT_ENV="production"
+              APP_WORKSPACES_ENABLED="false"
               if [ "$BRANCH" = "staging" ]; then
                 APP_DEPLOYMENT_ENV="staging"
+                # Staging has orphan trips; enable only after reviewed ownership mapping.
+                APP_WORKSPACES_ENABLED="false"
               fi
 
               cd "$APP_DIR"
@@ -54,14 +57,30 @@ jobs:
               npm ci
               npm run build
               node scripts/package-extension.mjs
-              UMRAH_DEPLOYMENT_ENV="$APP_DEPLOYMENT_ENV" DB_PATH="$APP_DB_PATH" pm2 restart "$APP_NAME" --update-env || UMRAH_DEPLOYMENT_ENV="$APP_DEPLOYMENT_ENV" DB_PATH="$APP_DB_PATH" pm2 start npm --name "$APP_NAME" -- start
+              STAGING_WORKSPACES_ENABLED="$APP_WORKSPACES_ENABLED" UMRAH_DEPLOYMENT_ENV="$APP_DEPLOYMENT_ENV" DB_PATH="$APP_DB_PATH" pm2 restart "$APP_NAME" --update-env || STAGING_WORKSPACES_ENABLED="$APP_WORKSPACES_ENABLED" UMRAH_DEPLOYMENT_ENV="$APP_DEPLOYMENT_ENV" DB_PATH="$APP_DB_PATH" pm2 start npm --name "$APP_NAME" -- start
               if [ "$BRANCH" = "staging" ]; then
                 # Print only safe staging runtime fields, never PM2's complete secret environment.
                 pm2 jlist | node -e 'let input="";process.stdin.on("data",chunk=>input+=chunk);process.stdin.on("end",()=>{const processInfo=JSON.parse(input).find(item=>item.name==="umrah-staging");const env=processInfo?.pm2_env;console.log("Staging runtime:",JSON.stringify({status:env?.status,cwd:env?.pm_cwd,script:env?.pm_exec_path,deploymentEnvironment:env?.UMRAH_DEPLOYMENT_ENV,databasePath:env?.DB_PATH}));});'
-                if ! UMRAH_DEPLOYMENT_ENV=staging ./node_modules/.bin/tsx scripts/verify-workspaces.ts --db "$APP_DB_PATH"; then
+                if [ "$APP_WORKSPACES_ENABLED" = "true" ] && ! UMRAH_DEPLOYMENT_ENV=staging ./node_modules/.bin/tsx scripts/verify-workspaces.ts --db "$APP_DB_PATH"; then
                   pm2 logs "$APP_NAME" --lines 30 --nostream --err | grep -E 'Error:|SQLITE_|server.ts|server/migrations' || true
                   return 1
                 fi
+                if [ "$APP_WORKSPACES_ENABLED" != "true" ]; then
+                  echo "Staging workspace migration disabled: orphan trip ownership requires review."
+                  node --input-type=module -e 'import {inspectWorkspaceReadiness} from "./scripts/workspace-readiness.mjs";const report=inspectWorkspaceReadiness({dbPath:process.argv[1]});console.log("Staging migration review:",JSON.stringify({totals:report.totals,orphanTripCount:report.orphanTripCount,invalidTripJsonCount:report.invalidTripJsonCount}));' "$APP_DB_PATH"
+                fi
+                STAGING_PORT="$(pm2 jlist | node -e 'let input="";process.stdin.on("data",chunk=>input+=chunk);process.stdin.on("end",()=>{const item=JSON.parse(input).find(item=>item.name==="umrah-staging");console.log(Number.parseInt(item?.pm2_env?.PORT,10)||3000);});')"
+                STAGING_HTTP_STATUS=""
+                for attempt in $(seq 1 30); do
+                  STAGING_HTTP_STATUS="$(curl --max-time 2 -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STAGING_PORT}/api/account" || true)"
+                  if [ "$STAGING_HTTP_STATUS" = "401" ]; then break; fi
+                  sleep 1
+                done
+                if [ "$STAGING_HTTP_STATUS" != "401" ]; then
+                  echo "Staging HTTP auth health check failed."
+                  return 1
+                fi
+                echo "Staging HTTP auth health verified."
               fi
             }
 

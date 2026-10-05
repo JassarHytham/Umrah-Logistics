@@ -1,7 +1,7 @@
 import type { Database } from 'better-sqlite3';
 
 export const workspaceFeatureEnabled = (env: NodeJS.ProcessEnv) =>
-  env.UMRAH_DEPLOYMENT_ENV === 'staging' || env.NODE_ENV === 'staging'
+  ((env.UMRAH_DEPLOYMENT_ENV === 'staging' || env.NODE_ENV === 'staging') && env.STAGING_WORKSPACES_ENABLED !== 'false')
   || (env.NODE_ENV === 'test' && env.WORKSPACE_TEST_MODE === 'true');
 
 export const hasWorkspaceSchema = (db: Database) => Boolean(db.prepare(

@@ -170,3 +170,18 @@ changes or local .env: 391/391 application tests, 41/41 extension tests,
 TypeScript check, build and extension packaging passed. Different working-tree
 counts above include the user's additional uncommitted tests. The published
 extension version remains 2.0.1. No unrelated changes are in this release.
+
+Live deployment attempt `37278922208` built successfully, but the new verifier
+failed because startup did not commit schema version 1. Diagnostic retry
+`37279306665` confirmed correct staging cwd, database and deployment flag and
+the error `Workspace migration requires reviewed orphan trip ownership`.
+Production's PM2 process was not restarted. No orphan ownership was guessed;
+the migration transaction rolled back.
+
+Recovery: keep implementation on staging, set its workspace enable flag false
+and restore compatible legacy operation on the unmigrated database. Outbound
+staging alerts are suppressed independently of that feature flag. The release
+adds an HTTP auth health check and aggregate-only orphan report. Ownership
+mapping/quarantine approval is required before live activation; stop SaaS
+phase progression at this gate rather than proceeding to subscriptions on an
+unverified live ownership model.

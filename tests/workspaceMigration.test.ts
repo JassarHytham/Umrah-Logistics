@@ -24,6 +24,7 @@ describe('staging workspace migration',()=>{
   it('enables workspace behavior only in staging or its explicit test mode',()=>{
     expect(workspaceFeatureEnabled({NODE_ENV:'production'})).toBe(false);
     expect(workspaceFeatureEnabled({NODE_ENV:'production',UMRAH_DEPLOYMENT_ENV:'staging'})).toBe(true);
+    expect(workspaceFeatureEnabled({NODE_ENV:'production',UMRAH_DEPLOYMENT_ENV:'staging',STAGING_WORKSPACES_ENABLED:'false'})).toBe(false);
     expect(workspaceFeatureEnabled({NODE_ENV:'test'})).toBe(false);
     expect(workspaceFeatureEnabled({NODE_ENV:'test',WORKSPACE_TEST_MODE:'true'})).toBe(true);
   });

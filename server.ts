@@ -23,6 +23,7 @@ import { hasWorkspaceSchema, migrateStagingWorkspaces, workspaceFeatureEnabled }
 import { provisionWorkspaceMember, workspaceForUser } from './server/workspaces.js';
 import { workspaceRows, workspaceRowAccess, workspaceEventRecipients, registerWorkspaceAccessFunctions } from './server/access.js';
 import { registerWorkspaceRoutes } from './server/workspaceRoutes.js';
+import { outboundAlertsAllowed } from './server/deployment.js';
 
 dotenv.config();
 
@@ -2695,7 +2696,7 @@ const escapeHTML = (str: string) => {
 
 let workspaceAlertRunning=false;
 async function checkAndSendAlerts() {
-  if(workspaceEnabled && ((!isTestEnv && process.env.STAGING_OUTBOUND_ALERTS!=='true') || workspaceAlertRunning))return;
+  if(!outboundAlertsAllowed(process.env) || (workspaceEnabled && workspaceAlertRunning))return;
   if(workspaceEnabled)workspaceAlertRunning=true;
   try {
     const users = workspaceEnabled ? db.prepare(`SELECT MIN(m.user_id) AS id,m.workspace_id AS workspaceId FROM workspace_memberships m

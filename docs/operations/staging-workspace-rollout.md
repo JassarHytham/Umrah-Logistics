@@ -4,6 +4,15 @@ This batch applies only to the `staging` branch and staging deployment. Do not
 merge into `main`, set the staging flag on production, or restore a staging
 database into production.
 
+**Live rollout blocker:** October 5 staging startup found trips whose creator
+accounts no longer exist. Migration version 1 rolled back without assigning
+them guessed owners. Deployment now sets `STAGING_WORKSPACES_ENABLED=false`
+to restore pre-migration staging behavior until ownership is reviewed. The
+workspace code is implemented, but not active on the live staging database.
+Outbound scheduled alerts remain suppressed in this compatibility mode.
+This flag is for an unmigrated database only; do not disable workspace behavior
+on an already migrated database without a matching snapshot/code rollback.
+
 ## Trial decisions
 
 - Existing company IDs remain authoritative; unassigned accounts receive
@@ -26,7 +35,10 @@ database into production.
 The existing GitHub Actions staging deployment uses `/var/www/umrah-staging`,
 PM2 `umrah-staging` and `/var/lib/umrah/staging/umrah.db`. It sets
 `UMRAH_DEPLOYMENT_ENV=staging`; `NODE_ENV=production` still controls static serving.
-Only staging runs the workspace migration and its post-deployment verifier.
+Only staging can run the workspace migration and its post-deployment verifier,
+after the blocked enable flag is changed following approved ownership review.
+While blocked, deployment reports aggregate orphan counts and verifies an
+unauthenticated HTTP request is rejected with 401 by the running staging API.
 Staging no longer rewrites the shared production backup cron configuration.
 
 Startup makes an online snapshot in the database directory's

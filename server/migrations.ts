@@ -1,4 +1,16 @@
 import type { Database } from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
+
+type MigrationOptions = { orphanTripAssignment?: { companyName:string; expectedTripCount:number } };
+
+const archiveMarkerMigration = (db:Database) => {
+  const columns=db.pragma('table_info(users)') as {name:string}[];
+  if(!columns.some(column=>column.name==='is_archived_creator')) {
+    db.exec('ALTER TABLE users ADD COLUMN is_archived_creator INTEGER NOT NULL DEFAULT 0 CHECK(is_archived_creator IN (0,1))');
+  }
+  db.prepare('INSERT OR IGNORE INTO schema_migrations(version) VALUES (2)').run();
+};
 
 export const workspaceFeatureEnabled = (env: NodeJS.ProcessEnv) =>
   ((env.UMRAH_DEPLOYMENT_ENV === 'staging' || env.NODE_ENV === 'staging') && env.STAGING_WORKSPACES_ENABLED !== 'false')
@@ -10,14 +22,22 @@ export const hasWorkspaceSchema = (db: Database) => Boolean(db.prepare(
 
 // Staging rehearsal only. Existing authoritative company IDs are preserved;
 // unassigned accounts receive individual workspaces, never name-based grouping.
-export function migrateStagingWorkspaces(db: Database) {
+export function migrateStagingWorkspaces(db: Database, options:MigrationOptions={}) {
   if (hasWorkspaceSchema(db)) {
     db.pragma('foreign_keys = ON');
+    db.transaction(()=>archiveMarkerMigration(db))();
     return;
   }
   db.pragma('foreign_keys = OFF');
   try {
     db.transaction(() => {
+      const preservedColumns=(db.pragma('table_info(logistics_rows)') as {name:string}[])
+        .filter(column=>column.name!=='workspace_id').map(column=>`"${column.name.replace(/"/g,'""')}"`).join(',');
+      const historicTripsQuery=`SELECT ${preservedColumns} FROM logistics_rows ORDER BY id`;
+      const historicTrips=JSON.stringify(db.prepare(historicTripsQuery).all());
+      // Only company references valid before allocation are authoritative.
+      const originalCompanyIds=new Set((db.prepare('SELECT id FROM companies').all() as {id:number}[]).map(company=>company.id));
+      const recoveredCreatorWorkspaces=new Map<number,number>();
       db.exec(`
         CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE workspace_memberships (
@@ -67,13 +87,36 @@ export function migrateStagingWorkspaces(db: Database) {
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, responded_at TEXT
         );
       `);
-      const users = db.prepare("SELECT id,role,is_active,company_id FROM users ORDER BY is_active DESC,id").all() as any[];
+      archiveMarkerMigration(db);
+      const orphanTrips=db.prepare(`SELECT r.id,r.user_id FROM logistics_rows r LEFT JOIN users u ON u.id=r.user_id WHERE u.id IS NULL ORDER BY r.id`).all() as {id:string;user_id:number}[];
+      if(options.orphanTripAssignment) {
+        const assignment=options.orphanTripAssignment;
+        const companyName=assignment.companyName.trim();
+        if(!companyName||companyName.length>100||!Number.isSafeInteger(assignment.expectedTripCount)||assignment.expectedTripCount<1)throw new Error('Invalid staging orphan assignment configuration');
+        if(orphanTrips.length!==assignment.expectedTripCount)throw new Error('Staging orphan trips no longer match the approved count');
+        if(orphanTrips.some(trip=>!Number.isSafeInteger(trip.user_id)||trip.user_id<1))throw new Error('Orphan recovery requires valid historic creator IDs');
+        if(db.prepare('SELECT 1 FROM companies WHERE name=?').get(companyName))throw new Error('Orphan recovery requires a new testing company');
+        const workspaceId=Number(db.prepare('INSERT INTO companies(name) VALUES (?)').run(companyName).lastInsertRowid);
+        for(const creatorId of new Set(orphanTrips.map(trip=>trip.user_id))) {
+          let username=`archived_creator_${creatorId}`;
+          while(db.prepare('SELECT 1 FROM users WHERE username=?').get(username))username=`archived_${randomBytes(10).toString('hex')}`;
+          // This is a locked historical reference, not a revived customer identity.
+          const password=bcrypt.hashSync(randomBytes(48).toString('hex'),10);
+          db.prepare(`INSERT INTO users(id,username,password,role,is_active,company_id,is_archived_creator) VALUES (?,?,?,'user',0,?,1)`)
+            .run(creatorId,username,password,workspaceId);
+          recoveredCreatorWorkspaces.set(creatorId,workspaceId);
+          db.prepare('INSERT INTO workspace_migration_quarantine(kind,payload) VALUES (?,?)').run('staging_orphan_trip_assignment',JSON.stringify({
+            sourceCreatorUserId:creatorId,workspaceId,tripIds:orphanTrips.filter(trip=>trip.user_id===creatorId).map(trip=>trip.id),
+          }));
+        }
+      }
+      const users = db.prepare("SELECT id,role,is_active,company_id,is_archived_creator FROM users ORDER BY is_active DESC,id").all() as any[];
       for (const user of users) {
-        let workspaceId = user.company_id;
-        if (!workspaceId || !db.prepare('SELECT id FROM companies WHERE id=?').get(workspaceId)) {
+        let workspaceId = recoveredCreatorWorkspaces.get(user.id) ?? (originalCompanyIds.has(user.company_id) ? user.company_id : null);
+        if (!workspaceId) {
           workspaceId = Number(db.prepare('INSERT INTO companies(name) VALUES (?)').run(`Staging workspace — account ${user.id}`).lastInsertRowid);
         }
-        if (user.role !== 'admin') {
+        if (user.role !== 'admin' && !user.is_archived_creator) {
           const owner = db.prepare("SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(workspaceId);
           db.prepare('INSERT INTO workspace_memberships(workspace_id,user_id,role,is_active) VALUES (?,?,?,?)')
             .run(workspaceId,user.id,owner ? 'editor' : 'owner',user.is_active ? 1 : 0);
@@ -91,7 +134,7 @@ export function migrateStagingWorkspaces(db: Database) {
         }
         db.exec(`DELETE FROM ${table}`);
       }
-      for (const setting of db.prepare('SELECT * FROM settings WHERE user_id NOT IN (SELECT id FROM users)').all() as any[]) {
+      for (const setting of db.prepare('SELECT * FROM settings WHERE user_id NOT IN (SELECT id FROM users WHERE is_archived_creator=0)').all() as any[]) {
         db.prepare('INSERT INTO workspace_migration_quarantine(kind,payload) VALUES (?,?)').run('orphan_settings',JSON.stringify(setting));
         db.prepare('DELETE FROM settings WHERE user_id=?').run(setting.user_id);
       }
@@ -107,7 +150,7 @@ export function migrateStagingWorkspaces(db: Database) {
       db.exec(`
         CREATE TRIGGER logistics_workspace_insert BEFORE INSERT ON logistics_rows BEGIN
           SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM workspace_memberships m JOIN users u ON u.id=m.user_id
-            WHERE m.user_id=NEW.user_id AND m.is_active=1 AND u.is_active=1 AND m.role!='viewer'
+            WHERE m.user_id=NEW.user_id AND m.is_active=1 AND u.is_active=1 AND u.is_archived_creator=0 AND m.role!='viewer'
             AND (NEW.workspace_id IS NULL OR NEW.workspace_id=m.workspace_id))
             THEN RAISE(ABORT,'Invalid workspace membership') END;
         END;
@@ -119,6 +162,7 @@ export function migrateStagingWorkspaces(db: Database) {
           BEGIN SELECT RAISE(ABORT,'Trip ownership is immutable'); END;
         INSERT INTO schema_migrations(version) VALUES (1);
       `);
+      if(JSON.stringify(db.prepare(historicTripsQuery).all())!==historicTrips)throw new Error('Workspace migration changed historic trip records');
       if ((db.pragma('foreign_key_check') as unknown[]).length) throw new Error('Workspace migration foreign-key validation failed');
     })();
   } finally { db.pragma('foreign_keys = ON'); }

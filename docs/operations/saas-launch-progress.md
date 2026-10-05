@@ -185,3 +185,46 @@ adds an HTTP auth health check and aggregate-only orphan report. Ownership
 mapping/quarantine approval is required before live activation; stop SaaS
 phase progression at this gate rather than proceeding to subscriptions on an
 unverified live ownership model.
+
+## Approved orphan recovery and staging activation
+
+User instruction: "assigne it to a new testing company, and proced". This
+approves the five previously reported staging orphan trips being assigned to a
+new testing company; production remains explicitly out of scope.
+
+Ruling: create `Staging Testing Company`, retain each missing creator ID as a
+disabled, permanently locked historical reference and give it no membership —
+preserves FK integrity and creator history without granting old JWTs new access
+or inventing real identities — cost if wrong: historical placeholder labels
+need later reconciliation; a real testing user must be created by admin.
+
+Ruling: the first real testing account is provisioned using the existing admin
+GUI and becomes owner; do not generate or publish a shared testing password —
+no particular operator identity or credential was supplied — cost if wrong:
+the testing company's trips are not customer-visible until that account exists.
+
+Ruling: scope the initial recovery to exactly five orphan trips and require a
+new company name — user approved the reported records, not an existing-company
+transfer or unbounded orphan handling — cost if wrong: unexpected staging data
+changes abort migration instead of being silently assigned.
+
+Numbered schema version 2 adds the archived-creator marker. Authentication,
+refresh and admin lifecycle endpoints prevent archive reactivation. Private
+quarantine records the assignment and preserves retired settings. Migration
+compares all pre-existing trip columns before/after and aborts any historic
+record change. Synthetic tests cover five-trip assignment, exact count guards,
+existing-name refusal, corrupt IDs, FK validation, first real owner authority,
+foreign-company denial, idempotency and version-one upgrades.
+
+Final independent review found two Important issues: dangling legacy company
+IDs could collide with newly allocated testing/fallback company IDs, and a
+configured five-trip recovery silently accepted zero orphans. Both were
+reproduced by failing tests and fixed: only pre-migration company IDs are
+authoritative, recovered creators have explicit mappings, and configuration
+validation runs even for zero orphans. The Minor verifier finding was also
+fixed with failing regressions: version 2 and its archive marker are required.
+
+Working-tree verification: 413/413 application tests, TypeScript check, build
+and whitespace check pass. Existing oversized-bundle warning remains. Exact
+release-source verification and staging deployment are next; no live activation
+claim until migration verification and HTTP auth health checks succeed.

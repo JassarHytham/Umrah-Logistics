@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 export function verifyWorkspaceDatabase(db:Database.Database) {
   const version=(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as any)?.version;
-  if(!version||version<1)throw new Error('Workspace schema version is missing');
+  if(!version||version<2)throw new Error('Workspace schema version is missing or outdated');
+  if(!(db.pragma('table_info(users)') as {name:string}[]).some(column=>column.name==='is_archived_creator'))throw new Error('Workspace archive marker is missing');
   if(db.pragma('integrity_check',{simple:true})!=='ok')throw new Error('Workspace database integrity check failed');
   if((db.pragma('foreign_key_check') as unknown[]).length)throw new Error('Workspace foreign-key check failed');
   if(db.prepare('SELECT 1 FROM logistics_rows WHERE workspace_id IS NULL LIMIT 1').get())throw new Error('Workspace trip ownership is missing');

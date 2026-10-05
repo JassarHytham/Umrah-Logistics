@@ -20,7 +20,7 @@ import { parseItineraryTextEN } from "./utils/parserEN.js";
 import { detectCaptureLang } from "./utils/langDetect.js";
 import { DEFAULT_ALERT_SETTINGS } from "./types.js";
 import { hasWorkspaceSchema, migrateStagingWorkspaces, workspaceFeatureEnabled } from './server/migrations.js';
-import { provisionWorkspaceMember, workspaceForUser } from './server/workspaces.js';
+import { isArchivedCreator, provisionWorkspaceMember, workspaceForUser } from './server/workspaces.js';
 import { workspaceRows, workspaceRowAccess, workspaceEventRecipients, registerWorkspaceAccessFunctions } from './server/access.js';
 import { registerWorkspaceRoutes } from './server/workspaceRoutes.js';
 import { outboundAlertsAllowed } from './server/deployment.js';
@@ -560,7 +560,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
     const current = db.prepare("SELECT role, is_active FROM users WHERE id = ?").get(Number(user.id)) as
       | { role: string; is_active: number }
       | undefined;
-    if (!current || !current.is_active) return res.status(401).json({ error: "Unauthorized" });
+    if (!current || !current.is_active || (workspaceEnabled && isArchivedCreator(db,Number(user.id)))) return res.status(401).json({ error: "Unauthorized" });
     req.user = { ...user, role: current.role };
     if (workspaceEnabled) {
       const workspace = workspaceForUser(db,Number(user.id));
@@ -973,7 +973,11 @@ if (workspaceEnabled) {
     try { if (verified.pragma('integrity_check',{simple:true})!=='ok') throw new Error('Pre-migration backup failed integrity check'); }
     finally { verified.close(); }
   }
-  migrateStagingWorkspaces(db);
+  migrateStagingWorkspaces(db,{
+    orphanTripAssignment:process.env.UMRAH_DEPLOYMENT_ENV==='staging' && process.env.STAGING_ORPHAN_TRIP_COMPANY ? {
+      companyName:process.env.STAGING_ORPHAN_TRIP_COMPANY,expectedTripCount:Number(process.env.STAGING_ORPHAN_TRIP_COUNT),
+    }:undefined,
+  });
   registerWorkspaceAccessFunctions(db);
   registerWorkspaceRoutes(app,{db,authenticateToken,requireAdmin,encryptJson,decryptJson,sendLiveEvent,logEvent,checkAndSendAlerts});
 }
@@ -1021,7 +1025,7 @@ app.post("/api/auth/login", async (req, res) => {
   if (!username || typeof password !== "string") return res.status(401).json({ error: "Invalid credentials" });
   const user: any = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
 
-  if (!user || !(await bcrypt.compare(password, user.password)) || !user.is_active) {
+  if (!user || !(await bcrypt.compare(password, user.password)) || !user.is_active || (workspaceEnabled && user.is_archived_creator)) {
     logEvent("login_failure", { category: "auth", level: "warning", actorUserId: user ? user.id : null, metadata: { username } });
     return res.status(401).json({ error: "Invalid credentials" });
   }
@@ -1056,7 +1060,7 @@ app.post("/api/auth/refresh", (req, res) => {
     const user = db.prepare("SELECT id, username, company_name, avatar, role, is_active FROM users WHERE id = ?").get(Number(payload.id)) as
       | { id: number; username: string; company_name: string | null; avatar: string | null; role: string; is_active: number }
       | undefined;
-    if (!user || !user.is_active) return res.status(401).json({ error: "Invalid refresh token" });
+    if (!user || !user.is_active || (workspaceEnabled && isArchivedCreator(db,user.id))) return res.status(401).json({ error: "Invalid refresh token" });
 
     return res.json(authResponse(user));
   } catch {
@@ -1232,6 +1236,7 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
   const userId = Number(req.params.id);
   const target = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!target) return res.status(404).json({ error: "User not found" });
+  if(workspaceEnabled && isArchivedCreator(db,userId))return res.status(400).json({error:'Archived creator records cannot be changed into active accounts'});
 
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "companyId")) {
     const companyId = req.body.companyId;
@@ -1269,6 +1274,7 @@ app.post("/api/admin/users/:id/reset-password", authenticateToken, requireAdmin,
 
   const target = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!target) return res.status(404).json({ error: "User not found" });
+  if(workspaceEnabled && isArchivedCreator(db,userId))return res.status(400).json({error:'Archived creator records cannot receive login credentials'});
 
   const hashedPassword = await bcrypt.hash(password, 10);
   db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashedPassword, userId);
@@ -1283,6 +1289,7 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, r
 
   const target = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!target) return res.status(404).json({ error: "User not found" });
+  if(workspaceEnabled && isArchivedCreator(db,userId))return res.status(400).json({error:'Archived creator records are preserved for trip history'});
   if (workspaceEnabled && db.prepare('SELECT 1 FROM workspace_memberships WHERE user_id=?').get(userId)) return res.status(400).json({error:'Disable the membership to preserve workspace history'});
 
   const ownsRows = db.prepare("SELECT 1 FROM logistics_rows WHERE user_id = ? LIMIT 1").get(userId);

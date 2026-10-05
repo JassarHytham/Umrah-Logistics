@@ -123,9 +123,10 @@ Create focused modules under `server/` for `workspaces.ts`, `access.ts`, `subscr
 are implemented behind the staging-only workspace gate. Production mappings,
 conflict-resolution approvals and subscription policies remain open. See
 `docs/operations/staging-workspace-rollout.md` for trial choices and rollback.
-Live staging activation is blocked by orphan trip ownership; workspace behavior
-is disabled until reviewed mapping is supplied. Checked items denote code and
-tests, not a completed live database migration or completed SaaS launch.
+The user approved assigning the five orphan trips to a new staging testing
+company. Activation now proceeds through a count-guarded, history-preserving
+migration. Checked items denote code/tests; live deployment verification is
+recorded separately and does not mean the entire SaaS launch is complete.
 
 **Files:** `server.ts`, `types.ts`, `server/workspaces.ts`, `server/access.ts`, `server/migrations.ts`, `App.tsx`, `components/Settings.tsx`, `components/AdminDashboard.tsx`, and new `tests/workspaceIsolation.test.ts` / `tests/workspaceMigration.test.ts`.
 

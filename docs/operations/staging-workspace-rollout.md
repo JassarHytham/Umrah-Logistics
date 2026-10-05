@@ -4,14 +4,27 @@ This batch applies only to the `staging` branch and staging deployment. Do not
 merge into `main`, set the staging flag on production, or restore a staging
 database into production.
 
-**Live rollout blocker:** October 5 staging startup found trips whose creator
-accounts no longer exist. Migration version 1 rolled back without assigning
-them guessed owners. Deployment now sets `STAGING_WORKSPACES_ENABLED=false`
-to restore pre-migration staging behavior until ownership is reviewed. The
-workspace code is implemented, but not active on the live staging database.
-Outbound scheduled alerts remain suppressed in this compatibility mode.
-This flag is for an unmigrated database only; do not disable workspace behavior
-on an already migrated database without a matching snapshot/code rollback.
+**Approved recovery:** The user authorized assigning all five orphan trips to
+a new testing company and proceeding. The staging rollout now enables workspace
+mode and supplies `STAGING_ORPHAN_TRIP_COMPANY=Staging Testing Company` and
+`STAGING_ORPHAN_TRIP_COUNT=5`. Assignment is atomic and refuses a different
+orphan count, invalid creator IDs or an already existing company with that name.
+Live migration/health verification is required before claiming activation.
+
+Missing creator IDs are retained as locked, disabled historical records, not
+revived login accounts. Their unknown original names are not invented. These
+records receive no membership or owner authority, cannot log in/refresh, and
+cannot be activated, password-reset or deleted through admin APIs. Old settings
+for these identities remain in private quarantine. Trip IDs, creator IDs, JSON,
+versions and deletion history are compared before/after migration and preserved.
+
+The first real account created by an admin for this testing company becomes
+its owner. In the admin GUI, create a user and select **Staging Testing Company**;
+sign in as that user to view its active trips and recycle bin. No shared/default
+testing password is generated. Existing owners can open **Settings → المشاركة
+والصلاحيات → أعضاء الشركة** to manage their staff. Outbound staging alerts remain
+off by default. Never disable workspace mode on a migrated database without a
+matching snapshot/code rollback.
 
 ## Trial decisions
 
@@ -36,15 +49,18 @@ The existing GitHub Actions staging deployment uses `/var/www/umrah-staging`,
 PM2 `umrah-staging` and `/var/lib/umrah/staging/umrah.db`. It sets
 `UMRAH_DEPLOYMENT_ENV=staging`; `NODE_ENV=production` still controls static serving.
 Only staging can run the workspace migration and its post-deployment verifier,
-after the blocked enable flag is changed following approved ownership review.
+after its enable flag is changed following approved ownership review.
 While blocked, deployment reports aggregate orphan counts and verifies an
 unauthenticated HTTP request is rejected with 401 by the running staging API.
 Staging no longer rewrites the shared production backup cron configuration.
 
 Startup makes an online snapshot in the database directory's
 `workspace-migration-backups/before-workspaces-<timestamp>.db`, verifies its
-integrity, and runs migration version 1 atomically. Failure aborts startup.
-The deployment verifier waits up to 30 seconds, then checks schema version,
+integrity, and runs the initial workspace migration atomically. Version 2 records
+the protected historical-creator marker; existing version-1 staging databases
+are upgraded idempotently. Failure aborts startup.
+The deployment verifier waits up to 30 seconds, then checks schema version 2
+and its archived-creator marker,
 integrity, foreign-key consistency and non-null trip workspace ownership.
 It reports aggregate counts only. A failed job requires investigation; PM2
 restart alone is not verification. Full prepare-release/health rollback

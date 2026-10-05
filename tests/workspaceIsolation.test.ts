@@ -17,7 +17,7 @@ const user = async (companyId?: number) => {
   const created = await request(app).post('/api/admin/users').set(auth(adminToken)).send({ username, password: 'Password123!', companyId });
   expect(created.status).toBe(201);
   const login = await request(app).post('/api/auth/login').send({ username, password: 'Password123!' });
-  return { id: created.body.user.id as number, username, token: login.body.token as string };
+  return { id: created.body.user.id as number, username, token: login.body.token as string, refreshToken:login.body.refreshToken as string };
 };
 const row = (id: string) => ({ id, groupNo: '100', groupName: 'Synthetic', agency: 'Example', status: 'Planned', notes: '' });
 const save = (token: string, rows: any[]) => request(app).post('/api/data/sync').set(auth(token)).send({ rows });
@@ -31,6 +31,18 @@ const share = async (sender: Awaited<ReturnType<typeof user>>, receiver: Awaited
 };
 
 describe('staging workspace ownership and isolation', () => {
+  it('prevents archived creator records from being reactivated or given usable sessions',async()=>{
+    const account=await user();
+    db.prepare('UPDATE users SET is_archived_creator=1,is_active=0 WHERE id=?').run(account.id);
+    expect((await request(app).patch(`/api/admin/users/${account.id}`).set(auth(adminToken)).send({isActive:true})).status).toBe(400);
+    expect((await request(app).post(`/api/admin/users/${account.id}/reset-password`).set(auth(adminToken)).send({password:'AnotherPassword123!'})).status).toBe(400);
+    // Even an inconsistent database active flag cannot revive a historical identity.
+    db.prepare('UPDATE users SET is_active=1 WHERE id=?').run(account.id);
+    expect((await rowsFor(account.token)).status).toBe(401);
+    expect((await request(app).post('/api/auth/refresh').send({refreshToken:account.refreshToken})).status).toBe(401);
+    const login=await request(app).post('/api/auth/login').send({username:account.username,password:'Password123!'});
+    expect(login.body.token).toBeUndefined();
+  });
   it('does not expose cached trash contents after a share is revoked', async () => {
     const source=await user(); const recipient=await user();
     await save(source.token,[row('revoked-trash')]); await share(source,recipient);

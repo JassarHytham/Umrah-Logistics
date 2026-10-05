@@ -56,7 +56,12 @@ jobs:
               node scripts/package-extension.mjs
               UMRAH_DEPLOYMENT_ENV="$APP_DEPLOYMENT_ENV" DB_PATH="$APP_DB_PATH" pm2 restart "$APP_NAME" --update-env || UMRAH_DEPLOYMENT_ENV="$APP_DEPLOYMENT_ENV" DB_PATH="$APP_DB_PATH" pm2 start npm --name "$APP_NAME" -- start
               if [ "$BRANCH" = "staging" ]; then
-                UMRAH_DEPLOYMENT_ENV=staging ./node_modules/.bin/tsx scripts/verify-workspaces.ts --db "$APP_DB_PATH"
+                # Print only safe staging runtime fields, never PM2's complete secret environment.
+                pm2 jlist | node -e 'let input="";process.stdin.on("data",chunk=>input+=chunk);process.stdin.on("end",()=>{const processInfo=JSON.parse(input).find(item=>item.name==="umrah-staging");const env=processInfo?.pm2_env;console.log("Staging runtime:",JSON.stringify({status:env?.status,cwd:env?.pm_cwd,script:env?.pm_exec_path,deploymentEnvironment:env?.UMRAH_DEPLOYMENT_ENV,databasePath:env?.DB_PATH}));});'
+                if ! UMRAH_DEPLOYMENT_ENV=staging ./node_modules/.bin/tsx scripts/verify-workspaces.ts --db "$APP_DB_PATH"; then
+                  pm2 logs "$APP_NAME" --lines 30 --nostream --err | grep -E 'Error:|SQLITE_|server.ts|server/migrations' || true
+                  return 1
+                fi
               fi
             }
 

@@ -235,6 +235,13 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   hiddenColumns: [],
 };
 
+export type SubscriptionStatus = 'pending'|'scheduled'|'active'|'grace'|'expired'|'suspended';
+export interface WorkspaceSubscription {
+  workspaceId:number;planLabel:string;startsAt:string|null;endsAt:string|null;graceEndsAt:string|null;
+  seatLimit:number|null;cancelledAt:string|null;suspendedAt:string|null;suspensionReason:string|null;
+  updatedAt:string;revision:number;
+}
+
 export const normalizeDisplaySettings = (settings?: Partial<DisplaySettings> | null): DisplaySettings => {
   const savedOrder = settings?.columnOrder ?? DEFAULT_COLUMN_ORDER;
   const mergedOrder = [...savedOrder];

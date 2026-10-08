@@ -19,7 +19,7 @@ import { parseDateTime, parseItineraryText } from "./utils/parser.js";
 import { parseItineraryTextEN } from "./utils/parserEN.js";
 import { detectCaptureLang } from "./utils/langDetect.js";
 import { DEFAULT_ALERT_SETTINGS } from "./types.js";
-import { hasWorkspaceSchema, migrateStagingWorkspaces, workspaceFeatureEnabled } from './server/migrations.js';
+import { workspaceMigrationRequired, migrateStagingWorkspaces, workspaceFeatureEnabled } from './server/migrations.js';
 import { isArchivedCreator, provisionWorkspaceMember, workspaceForUser } from './server/workspaces.js';
 import { workspaceRows, workspaceRowAccess, workspaceEventRecipients, registerWorkspaceAccessFunctions } from './server/access.js';
 import { registerWorkspaceRoutes } from './server/workspaceRoutes.js';
@@ -963,7 +963,7 @@ try {
 }
 
 if (workspaceEnabled) {
-  if (!isTestEnv && !hasWorkspaceSchema(db)) {
+  if (!isTestEnv && workspaceMigrationRequired(db)) {
     const backupDir=path.join(path.dirname(path.resolve(DB_PATH)),'workspace-migration-backups');
     const { mkdirSync } = await import('node:fs');
     mkdirSync(backupDir,{recursive:true,mode:0o700});
@@ -1368,6 +1368,7 @@ app.patch("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any
 app.delete("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any, res) => {
   const companyId = Number(req.params.id);
   if (workspaceEnabled && db.prepare('SELECT 1 FROM workspace_memberships WHERE workspace_id=?').get(companyId)) return res.status(400).json({error:'Workspace memberships must be preserved; use the workspace lifecycle workflow'});
+  if (workspaceEnabled && db.prepare('SELECT 1 FROM subscription_events WHERE workspace_id=?').get(companyId)) return res.status(400).json({error:'Subscription history must be preserved; use the workspace lifecycle workflow'});
   const existing = db.prepare("SELECT id, name FROM companies WHERE id = ?").get(companyId) as { id: number; name: string } | undefined;
   if (!existing) return res.status(404).json({ error: "Company not found" });
 

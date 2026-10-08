@@ -11,6 +11,10 @@ mode and supplies `STAGING_ORPHAN_TRIP_COMPANY=Staging Testing Company` and
 orphan count, invalid creator IDs or an already existing company with that name.
 Live migration/health verification is required before claiming activation.
 
+**Live activation verified:** release `cf0a682` deployed successfully on October
+5, 2026 (run `37311310324`): schema 2, all 4,504 trips retained, seven memberships,
+integrity/FK checks and HTTP auth health passed. Production was not restarted.
+
 Missing creator IDs are retained as locked, disabled historical records, not
 revived login accounts. Their unknown original names are not invented. These
 records receive no membership or owner authority, cannot log in/refresh, and
@@ -48,19 +52,23 @@ matching snapshot/code rollback.
 The existing GitHub Actions staging deployment uses `/var/www/umrah-staging`,
 PM2 `umrah-staging` and `/var/lib/umrah/staging/umrah.db`. It sets
 `UMRAH_DEPLOYMENT_ENV=staging`; `NODE_ENV=production` still controls static serving.
-Only staging can run the workspace migration and its post-deployment verifier,
-after its enable flag is changed following approved ownership review.
-While blocked, deployment reports aggregate orphan counts and verifies an
-unauthenticated HTTP request is rejected with 401 by the running staging API.
+Only staging can run the workspace migration and its post-deployment verifier.
+Deployment verifies an unauthenticated HTTP request is rejected with 401 by the
+running staging API; aggregate orphan reporting applies only to unmigrated
+compatibility mode.
 Staging no longer rewrites the shared production backup cron configuration.
 
 Startup makes an online snapshot in the database directory's
 `workspace-migration-backups/before-workspaces-<timestamp>.db`, verifies its
-integrity, and runs the initial workspace migration atomically. Version 2 records
+integrity before initial migration or a pending schema upgrade. Migrations are
+transactional. Version 2 records
 the protected historical-creator marker; existing version-1 staging databases
-are upgraded idempotently. Failure aborts startup.
-The deployment verifier waits up to 30 seconds, then checks schema version 2
-and its archived-creator marker,
+are upgraded idempotently. Version 3 adds pending subscription storage and
+immutable event history. It does not enforce subscriptions or invent active
+terms; admin/customer workflows and access checks are subsequent plan tasks.
+Failure aborts startup.
+The deployment verifier waits up to 30 seconds, then checks schema version 3,
+its archived-creator marker and subscription records for all companies,
 integrity, foreign-key consistency and non-null trip workspace ownership.
 It reports aggregate counts only. A failed job requires investigation; PM2
 restart alone is not verification. Full prepare-release/health rollback

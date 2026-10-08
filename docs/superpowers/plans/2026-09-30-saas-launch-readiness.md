@@ -167,12 +167,17 @@ recorded separately and does not mean the entire SaaS launch is complete.
 
 ### Task 2.1: Store the subscription and history
 
-- [ ] Add a subscription per workspace containing plan label, `starts_at`, `ends_at`, `grace_ends_at`, `seat_limit`, cancellation timestamp, suspension timestamp/reason, and `updated_at`.
-- [ ] Store a revision/version for concurrent admin updates. Record immutable activation, renewal, cancellation, seat-change, and suspension events with actor, old/new values, and a reason/reference to the external arrangement.
+**Staging storage note:** Schema 3 adds pending subscription records without
+changing operational access. The domain layer requires explicit grace/seat
+values and an active platform-admin actor. Admin/customer API and GUI workflows,
+Riyadh date display, access enforcement and notices remain Tasks 2.2/2.3.
+
+- [x] Add a subscription per workspace containing plan label, `starts_at`, `ends_at`, `grace_ends_at`, `seat_limit`, cancellation timestamp, suspension timestamp/reason, and `updated_at`.
+- [x] Store a revision/version for concurrent admin updates. Record immutable activation, renewal, cancellation, seat-change, and suspension events with actor, old/new values, and a reason/reference to the external arrangement.
 - [ ] Use UTC timestamps and an exclusive end boundary: access ends when `now >= ends_at`. Display customer dates in Asia/Riyadh.
-- [ ] For annual renewal, calculate one calendar year rather than 365 days. Clamp February 29 to February 28 in a non-leap year; preserve the time of day.
-- [ ] Early renewal extends from the existing end; late renewal starts from the recorded agreed restart date, defaulting to the confirmation date. Admin overrides must be explicit and audited.
-- [ ] Derive status at request time: `pending`, `scheduled`, `active`, `grace`, `expired`, or `suspended`. Cancellation is a renewal instruction and does not immediately erase the remaining term.
+- [x] For annual renewal, calculate one calendar year rather than 365 days. Clamp February 29 to February 28 in a non-leap year; preserve the time of day.
+- [x] Early renewal extends from the existing end; late renewal starts from the recorded agreed restart date, defaulting to the confirmation date. Admin overrides must be explicit and audited.
+- [ ] Derive status at request time: `pending`, `scheduled`, `active`, `grace`, `expired`, or `suspended`. Cancellation is a renewal instruction and does not immediately erase the remaining term. (Domain derivation tested; route integration remains Task 2.2.)
 
 ### Task 2.2: Add admin and customer workflows
 

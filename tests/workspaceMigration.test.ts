@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
-import { migrateStagingWorkspaces, workspaceFeatureEnabled } from '../server/migrations';
+import { migrateStagingWorkspaces, workspaceFeatureEnabled, workspaceMigrationRequired } from '../server/migrations';
 import { provisionWorkspaceMember, workspaceForUser } from '../server/workspaces';
 import { registerWorkspaceAccessFunctions, workspaceRowAccess } from '../server/access';
 
@@ -23,6 +23,17 @@ const legacy=()=>{
 };
 
 describe('staging workspace migration',()=>{
+  it('requires a protected upgrade snapshot until subscription schema version three is recorded',()=>{
+    const db=legacy();try{
+      expect(workspaceMigrationRequired(db)).toBe(true);
+      migrateStagingWorkspaces(db);
+      expect(workspaceMigrationRequired(db)).toBe(false);
+      db.exec('DELETE FROM schema_migrations WHERE version=3');
+      expect(workspaceMigrationRequired(db)).toBe(true);
+      migrateStagingWorkspaces(db);
+      expect(workspaceMigrationRequired(db)).toBe(false);
+    }finally{db.close();}
+  });
   it('enables workspace behavior only in staging or its explicit test mode',()=>{
     expect(workspaceFeatureEnabled({NODE_ENV:'production'})).toBe(false);
     expect(workspaceFeatureEnabled({NODE_ENV:'production',UMRAH_DEPLOYMENT_ENV:'staging'})).toBe(true);
@@ -43,7 +54,8 @@ describe('staging workspace migration',()=>{
       expect(db.prepare('SELECT COUNT(*) AS count FROM workspace_grants').get()).toEqual({count:0});
       expect(db.prepare('SELECT kind FROM workspace_migration_quarantine ORDER BY id').all()).toEqual([{kind:'trip_group_access'},{kind:'orphan_settings'}]);
       expect(db.prepare('SELECT tg_config FROM workspace_settings WHERE workspace_id=?').get(rows[0].workspace_id)).toEqual({tg_config:'synthetic-encrypted-settings'});
-      expect(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all()).toEqual([{version:1},{version:2}]);
+      expect(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all()).toEqual([{version:1},{version:2},{version:3}]);
+      expect(db.prepare('SELECT COUNT(*) AS count FROM workspace_subscriptions').get()).toEqual({count:2});
       expect(db.pragma('foreign_key_check')).toEqual([]);
       expect(db.pragma('foreign_keys',{simple:true})).toBe(1);
     }finally{db.close();}
@@ -85,11 +97,14 @@ describe('staging workspace migration',()=>{
             AND (NEW.workspace_id IS NULL OR NEW.workspace_id=m.workspace_id))
             THEN RAISE(ABORT,'Invalid workspace membership') END;
         END;
-        DELETE FROM schema_migrations WHERE version=2;`);
+        DROP TRIGGER companies_subscription_pending;
+        DROP TABLE subscription_events;
+        DROP TABLE workspace_subscriptions;
+        DELETE FROM schema_migrations WHERE version>=2;`);
       const before=db.prepare('SELECT * FROM logistics_rows ORDER BY id').all();
       migrateStagingWorkspaces(db);migrateStagingWorkspaces(db);
       expect(db.prepare('SELECT * FROM logistics_rows ORDER BY id').all()).toEqual(before);
-      expect(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all()).toEqual([{version:1},{version:2}]);
+      expect(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all()).toEqual([{version:1},{version:2},{version:3}]);
       expect(db.prepare('SELECT is_archived_creator FROM users WHERE id=1').get()).toEqual({is_archived_creator:0});
     }finally{db.close();}
   });

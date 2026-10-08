@@ -1,6 +1,7 @@
 import type { Database } from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
+import { migrateSubscriptionSchema } from './subscriptions';
 
 type MigrationOptions = { orphanTripAssignment?: { companyName:string; expectedTripCount:number } };
 
@@ -20,12 +21,15 @@ export const hasWorkspaceSchema = (db: Database) => Boolean(db.prepare(
   "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'workspace_memberships'",
 ).get());
 
+export const workspaceMigrationRequired = (db:Database) => !hasWorkspaceSchema(db)
+  || ((db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {version:number|null}).version??0)<3;
+
 // Staging rehearsal only. Existing authoritative company IDs are preserved;
 // unassigned accounts receive individual workspaces, never name-based grouping.
 export function migrateStagingWorkspaces(db: Database, options:MigrationOptions={}) {
   if (hasWorkspaceSchema(db)) {
     db.pragma('foreign_keys = ON');
-    db.transaction(()=>archiveMarkerMigration(db))();
+    db.transaction(()=>{archiveMarkerMigration(db);migrateSubscriptionSchema(db);})();
     return;
   }
   db.pragma('foreign_keys = OFF');
@@ -162,6 +166,7 @@ export function migrateStagingWorkspaces(db: Database, options:MigrationOptions=
           BEGIN SELECT RAISE(ABORT,'Trip ownership is immutable'); END;
         INSERT INTO schema_migrations(version) VALUES (1);
       `);
+      migrateSubscriptionSchema(db);
       if(JSON.stringify(db.prepare(historicTripsQuery).all())!==historicTrips)throw new Error('Workspace migration changed historic trip records');
       if ((db.pragma('foreign_key_check') as unknown[]).length) throw new Error('Workspace migration foreign-key validation failed');
     })();

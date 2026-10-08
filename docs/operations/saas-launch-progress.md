@@ -228,3 +228,62 @@ Working-tree verification: 413/413 application tests, TypeScript check, build
 and whitespace check pass. Existing oversized-bundle warning remains. Exact
 release-source verification and staging deployment are next; no live activation
 claim until migration verification and HTTP auth health checks succeed.
+
+Release `cf0a6825210b0ed50993e95e17f3043279b687a6` was verified in a clean
+git-archive snapshot: 403/403 application tests, 41/41 extension tests,
+TypeScript check and build passed. Successful staging deployment:
+https://github.com/JassarHytham/Umrah-Logistics/actions/runs/37311310324
+Its read-only verifier confirmed schema 2, 4,504 trips, seven memberships,
+integrity/FK checks and complete workspace ownership. HTTP auth health passed;
+production PM2 kept the same PID and uptime. The atomic migration's exact-five
+guard and historic-column comparison succeeded. No testing login was invented;
+create its first real owner through the admin GUI when an operator is chosen.
+
+## Task 2.1 — Subscription storage foundation
+
+Ruling: implement the approved plan's subscription model without enabling its
+access matrix, sending notices or auto-activating customer terms — grace/seat
+values must be explicitly supplied by an admin and policy approvals remain
+pending — cost if wrong: subscriptions do not restrict staging operations until
+the later API/UI/enforcement tasks are implemented and verified together.
+
+The existing written plan is the requirements/design authority for this task;
+no separate reachable spec was supplied. Additive subscription migration and
+domain operations will be tested before integration. Existing terms are pending,
+not fabricated paid arrangements. Production remains outside the feature gate.
+
+Delivered: additive schema 3; one pending record per existing/new company;
+explicit annual activation/renewal, seats/cancellation/suspension/reactivation
+domain operations; UTC calendar-year boundaries and Feb-29 clamping; immediate
+transactions, revision checks, normalized request idempotency and immutable
+actor/old/new/reason history. No routes expose mutations yet. Ordinary deletion
+of an audited company returns 400 instead of an uncontrolled FK error.
+
+Independent review: two Important issues reproduced and fixed RED→GREEN in one
+pass. Over-capacity workspaces can suspend/cancel/reactivate/renew without an
+allowance change; allowance checks still protect activation/seat changes.
+SQLite replacement inserts cannot overwrite audit history through either ID
+or request-key collisions. Subscription suite 39/39; full working-tree suite
+457/457 in 27 files; TypeScript/build/whitespace checks passed. No second review.
+
+Local read-only-copy rehearsal preserved all 4,658 trip records, produced schema
+versions 1/2/3 and passed integrity/FK checks. Live upgrades now take the same
+verified protected online snapshot before changing schema.
+
+Two preliminary mixed API runs failed intermittently in user provisioning/
+integration settings (400), offboarded-trash bulk purge (400) and its all-trash
+variant (socket hangup). Isolated 26/26, subsequent mixed 78/78 and both full
+suites passed. No root cause was established; response-body diagnostics were
+added rather than speculative production patches or automatic test retries.
+
+Final: minor (deferred): deletion of an otherwise deletable platform admin who
+authored subscription events is FK-blocked with HTTP 500; preserve history and
+improve the response in the account-lifecycle phase. Existing self-admin
+deletion protection still applies. Disable the account instead of deleting it.
+
+Final: Ruling: review excluded API/UI/access enforcement/invitations/notices and
+production — keep these unchecked subsequent tasks, not implied by storage
+tests — cost if wrong: no usable subscription administration UI or restrictions
+yet. Review excluded customer DB/secrets/live state and unrelated dirty edits;
+executor retains responsibility for exact-source and aggregate deployment
+verification. Deployment remains pending for this storage batch.

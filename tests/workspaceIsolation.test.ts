@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { createServer } from 'node:http';
 import WebSocket from 'ws';
+import { changeSubscription } from '../server/subscriptions';
 
 vi.hoisted(() => { process.env.WORKSPACE_TEST_MODE = 'true'; });
 const { app, db, attachLiveUpdates, checkAndSendAlerts } = await import('../server');
@@ -15,7 +16,7 @@ beforeAll(async () => {
 const user = async (companyId?: number) => {
   const username = `workspace_${++serial}_${Date.now()}`;
   const created = await request(app).post('/api/admin/users').set(auth(adminToken)).send({ username, password: 'Password123!', companyId });
-  expect(created.status).toBe(201);
+  expect(created.status,JSON.stringify(created.body)).toBe(201);
   const login = await request(app).post('/api/auth/login').send({ username, password: 'Password123!' });
   return { id: created.body.user.id as number, username, token: login.body.token as string, refreshToken:login.body.refreshToken as string };
 };
@@ -31,6 +32,26 @@ const share = async (sender: Awaited<ReturnType<typeof user>>, receiver: Awaited
 };
 
 describe('staging workspace ownership and isolation', () => {
+  it('rejects ordinary company deletion when immutable subscription history exists',async()=>{
+    const company=await request(app).post('/api/admin/companies').set(auth(adminToken)).send({name:`audited_subscription_${Date.now()}`});
+    const admin=db.prepare("SELECT id FROM users WHERE role='admin'").get() as {id:number};
+    const now=new Date().toISOString();
+    changeSubscription(db,{workspaceId:company.body.company.id,actorUserId:admin.id,expectedRevision:0,requestId:'synthetic-activation',reason:'Synthetic approved agreement',
+      action:{type:'activate',startsAt:now,planLabel:'Synthetic annual',seatLimit:1,graceDays:0}},now);
+    const response=await request(app).delete(`/api/admin/companies/${company.body.company.id}`).set(auth(adminToken));
+    expect(response.status).toBe(400);
+    expect(db.prepare('SELECT 1 FROM subscription_events WHERE workspace_id=?').get(company.body.company.id)).toBeDefined();
+  });
+  it('creates pending subscription storage for new companies and personal workspaces without blocking trips',async()=>{
+    const company=await request(app).post('/api/admin/companies').set(auth(adminToken)).send({name:`subscription_${Date.now()}`});
+    expect(company.status).toBe(201);
+    expect(db.prepare('SELECT starts_at,seat_limit FROM workspace_subscriptions WHERE workspace_id=?').get(company.body.company.id)).toEqual({starts_at:null,seat_limit:null});
+    const account=await user();
+    const membership=db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(account.id) as any;
+    expect(db.prepare('SELECT starts_at FROM workspace_subscriptions WHERE workspace_id=?').get(membership.workspace_id)).toEqual({starts_at:null});
+    expect((await save(account.token,[row('pending-storage-trip')])).status).toBe(200);
+    expect((await request(app).delete(`/api/admin/companies/${company.body.company.id}`).set(auth(adminToken))).status).toBe(200);
+  });
   it('prevents archived creator records from being reactivated or given usable sessions',async()=>{
     const account=await user();
     db.prepare('UPDATE users SET is_archived_creator=1,is_active=0 WHERE id=?').run(account.id);
@@ -68,7 +89,7 @@ describe('staging workspace ownership and isolation', () => {
     await request(app).post(`/api/data/${id}/delete`).set(auth(employee.token)).send();
     await request(app).patch(`/api/admin/users/${employee.id}`).set(auth(adminToken)).send({isActive:false});
     const result=mode==='single'?await request(app).delete(`/api/data/${id}`).set(auth(owner.token)):mode==='bulk'?await request(app).post('/api/data/bulk').set(auth(owner.token)).send({action:'purge',ids:[id]}):await request(app).delete('/api/data/deleted').set(auth(owner.token));
-    expect(result.status).toBe(200);expect(result.body.failed??[]).toEqual([]);
+    expect(result.status,JSON.stringify(result.body)).toBe(200);expect(result.body.failed??[]).toEqual([]);
     expect(db.prepare('SELECT id FROM logistics_rows WHERE id=?').get(id)).toBeUndefined();
   });
 

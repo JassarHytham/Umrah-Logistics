@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Users, Building2, Activity, Server, Plus, KeyRound, Ban, CheckCircle2, Trash2, LogOut, Loader2, X, Menu, Search } from 'lucide-react';
 import { api } from '../services/api';
 import type { AdminUser, AdminCompany, AdminAuditEvent, AdminHealth } from '../types';
+import { CompanyTripSharingToggle } from './CompanyTripSharingToggle';
 
 interface AdminDashboardProps {
   user: any;
@@ -13,6 +14,7 @@ const EVENT_LABELS: Record<string, string> = {
   login_success: 'تسجيل دخول ناجح',
   login_failure: 'محاولة تسجيل دخول فاشلة',
   user_created: 'إنشاء مستخدم',
+  company_trip_sharing_updated: 'تحديث مشاركة رحلات الشركة',
   user_password_reset: 'إعادة تعيين كلمة مرور',
   user_disabled: 'تعطيل مستخدم',
   user_enabled: 'تفعيل مستخدم',
@@ -544,6 +546,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     }
   };
 
+  const handleCompanyTripSharing=async(company:AdminCompany,shareAllTrips:boolean)=>{
+    const response=await api.admin.updateCompanyTripSharing(company.id,shareAllTrips);
+    setCompanies(current=>current.map(item=>item.id===company.id?{...item,shareAllTrips:response.shareAllTrips}:item));
+  };
+
   const filteredUsers = users.filter((u) => {
     const q = userSearch.trim().toLowerCase();
     if (!q) return true;
@@ -710,16 +717,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     <tr className="border-b">
                       <th className="text-right p-3">الاسم</th>
                       <th className="text-right p-3">عدد المستخدمين</th>
+                      <th className="text-right p-3">مشاركة جميع الرحلات</th>
                       <th className="text-right p-3">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCompanies.length === 0 ? (
-                      <tr><td colSpan={3} className="p-6 text-center text-gray-400 text-sm">لا توجد نتائج مطابقة</td></tr>
+                      <tr><td colSpan={4} className="p-6 text-center text-gray-400 text-sm">لا توجد نتائج مطابقة</td></tr>
                     ) : filteredCompanies.map((c) => (
                       <tr key={c.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => setViewCompanyId(c.id)}>
                         <td className="p-3 font-bold">{c.name}</td>
                         <td className="p-3 text-gray-500">{c.userCount}</td>
+                        <td className="p-3">
+                          {typeof c.shareAllTrips==='boolean'?<CompanyTripSharingToggle companyName={c.name} enabled={c.shareAllTrips} onChange={enabled=>handleCompanyTripSharing(c,enabled)} />:<span className="text-gray-500">غير متاح في هذه البيئة</span>}
+                        </td>
                         <td className="p-3">
                           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => setViewCompanyId(c.id)} title="عرض المستخدمين" className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><Users size={16} /></button>

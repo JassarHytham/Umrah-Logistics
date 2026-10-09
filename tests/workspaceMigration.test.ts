@@ -23,12 +23,12 @@ const legacy=()=>{
 };
 
 describe('staging workspace migration',()=>{
-  it('requires a protected upgrade snapshot until subscription schema version three is recorded',()=>{
+  it('requires a protected upgrade snapshot until sharing-policy schema version four is recorded',()=>{
     const db=legacy();try{
       expect(workspaceMigrationRequired(db)).toBe(true);
       migrateStagingWorkspaces(db);
       expect(workspaceMigrationRequired(db)).toBe(false);
-      db.exec('DELETE FROM schema_migrations WHERE version=3');
+      db.exec('DELETE FROM schema_migrations WHERE version=4');
       expect(workspaceMigrationRequired(db)).toBe(true);
       migrateStagingWorkspaces(db);
       expect(workspaceMigrationRequired(db)).toBe(false);
@@ -54,7 +54,7 @@ describe('staging workspace migration',()=>{
       expect(db.prepare('SELECT COUNT(*) AS count FROM workspace_grants').get()).toEqual({count:0});
       expect(db.prepare('SELECT kind FROM workspace_migration_quarantine ORDER BY id').all()).toEqual([{kind:'trip_group_access'},{kind:'orphan_settings'}]);
       expect(db.prepare('SELECT tg_config FROM workspace_settings WHERE workspace_id=?').get(rows[0].workspace_id)).toEqual({tg_config:'synthetic-encrypted-settings'});
-      expect(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all()).toEqual([{version:1},{version:2},{version:3}]);
+      expect(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all()).toEqual([{version:1},{version:2},{version:3},{version:4}]);
       expect(db.prepare('SELECT COUNT(*) AS count FROM workspace_subscriptions').get()).toEqual({count:2});
       expect(db.pragma('foreign_key_check')).toEqual([]);
       expect(db.pragma('foreign_keys',{simple:true})).toBe(1);
@@ -104,7 +104,7 @@ describe('staging workspace migration',()=>{
       const before=db.prepare('SELECT * FROM logistics_rows ORDER BY id').all();
       migrateStagingWorkspaces(db);migrateStagingWorkspaces(db);
       expect(db.prepare('SELECT * FROM logistics_rows ORDER BY id').all()).toEqual(before);
-      expect(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all()).toEqual([{version:1},{version:2},{version:3}]);
+      expect(db.prepare('SELECT version FROM schema_migrations ORDER BY version').all()).toEqual([{version:1},{version:2},{version:3},{version:4}]);
       expect(db.prepare('SELECT is_archived_creator FROM users WHERE id=1').get()).toEqual({is_archived_creator:0});
     }finally{db.close();}
   });
@@ -121,6 +121,19 @@ describe('staging workspace migration',()=>{
       expect(db.prepare("SELECT workspace_id FROM logistics_rows WHERE id='a'").get()).toEqual({workspace_id:first?.workspaceId});
       registerWorkspaceAccessFunctions(db);
       expect(workspaceRowAccess(db,1,'recovered-0')).toBeNull();
+    }finally{db.close();}
+  });
+  it('defaults existing and new companies to shared while preserving an explicitly disabled policy on restart',()=>{
+    const db=legacy();try{
+      migrateStagingWorkspaces(db);
+      expect(db.prepare('SELECT share_all_trips FROM companies ORDER BY id').all()).toEqual([{share_all_trips:1},{share_all_trips:1}]);
+      db.exec('UPDATE companies SET share_all_trips=0 WHERE id=1');
+      const before=db.prepare('SELECT * FROM logistics_rows ORDER BY id').all();
+      migrateStagingWorkspaces(db);
+      expect(db.prepare('SELECT share_all_trips FROM companies WHERE id=1').get()).toEqual({share_all_trips:0});
+      expect(db.prepare('SELECT * FROM logistics_rows ORDER BY id').all()).toEqual(before);
+      db.exec("INSERT INTO companies(name) VALUES('New shared company')");
+      expect(db.prepare("SELECT share_all_trips FROM companies WHERE name='New shared company'").get()).toEqual({share_all_trips:1});
     }finally{db.close();}
   });
   it('rejects an approved recovery when no orphan trips remain and rolls back',()=>{

@@ -231,6 +231,9 @@ export const api = {
         body: JSON.stringify({ name }),
       });
     },
+    async updateCompanyTripSharing(id:number,shareAllTrips:boolean) {
+      return api.request(`/admin/companies/${id}/trip-sharing`,{method:'PATCH',body:JSON.stringify({shareAllTrips})});
+    },
     async deleteCompany(id: number) {
       return api.request(`/admin/companies/${id}`, {
         method: 'DELETE',

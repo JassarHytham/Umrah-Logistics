@@ -1314,13 +1314,13 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, r
 
 app.get("/api/admin/companies", authenticateToken, requireAdmin, (req, res) => {
   const rows = db.prepare(`
-    SELECT c.id, c.name, strftime('%Y-%m-%dT%H:%M:%SZ', c.created_at) AS createdAt, COUNT(u.id) AS userCount
+    SELECT c.id, c.name, ${workspaceEnabled?'c.share_all_trips AS shareAllTrips,':''} strftime('%Y-%m-%dT%H:%M:%SZ', c.created_at) AS createdAt, COUNT(u.id) AS userCount
     FROM companies c
     LEFT JOIN users u ON u.company_id = c.id
     GROUP BY c.id
     ORDER BY c.name ASC
   `).all();
-  res.json({ companies: rows });
+  res.json({ companies: workspaceEnabled?rows.map((row:any)=>({...row,shareAllTrips:row.shareAllTrips===1})):rows });
 });
 
 app.post("/api/admin/companies", authenticateToken, requireAdmin, (req: any, res) => {
@@ -2394,12 +2394,13 @@ app.get("/api/alerts/debug", authenticateToken, (req: any, res) => {
   const tgConfig = decryptJson<StoredTelegramConfig | null>(settings?.tg_config, null);
   const extraSettings = parseExtraSettings(settings?.extra_settings);
   const alertSettings = extraSettings.alertSettings ?? DEFAULT_ALERT_SETTINGS;
-  const notifiedIds: string[] = parseStoredJson(settings?.notified_ids, []);
-  const notifiedSet = new Set(notifiedIds);
-
-  const rawRows = workspaceEnabled ? db.prepare('SELECT data FROM logistics_rows WHERE workspace_id=? AND deleted_at IS NULL').all(req.workspace.workspaceId) as {data:string}[] : db
+  const rawRows = workspaceEnabled ? workspaceRows(db,req.user.id).filter(record=>record.workspace_id===req.workspace.workspaceId).map(record=>({data:record.data})) as {data:string}[] : db
     .prepare("SELECT data FROM logistics_rows WHERE user_id = ?")
     .all(req.user.id) as { data: string }[];
+  const storedNotifiedIds: string[] = parseStoredJson(settings?.notified_ids, []);
+  const visibleIds=new Set(rawRows.map(record=>parseRowData(record.data).id));
+  const notifiedIds=workspaceEnabled?storedNotifiedIds.filter(id=>visibleIds.has(id)):storedNotifiedIds;
+  const notifiedSet = new Set(notifiedIds);
 
   const tripDiagnostics = rawRows.map(({ data }) => {
     const row = JSON.parse(data);

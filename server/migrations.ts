@@ -5,6 +5,13 @@ import { migrateSubscriptionSchema } from './subscriptions';
 
 type MigrationOptions = { orphanTripAssignment?: { companyName:string; expectedTripCount:number } };
 
+const companySharingMigration=(db:Database)=>{
+  if(!(db.pragma('table_info(companies)') as {name:string}[]).some(column=>column.name==='share_all_trips'))
+    db.exec('ALTER TABLE companies ADD COLUMN share_all_trips INTEGER NOT NULL DEFAULT 1 CHECK(share_all_trips IN (0,1))');
+  db.exec('CREATE INDEX IF NOT EXISTS logistics_workspace_creator_deleted ON logistics_rows(workspace_id,user_id,deleted_at)');
+  db.prepare('INSERT OR IGNORE INTO schema_migrations(version) VALUES (4)').run();
+};
+
 const archiveMarkerMigration = (db:Database) => {
   const columns=db.pragma('table_info(users)') as {name:string}[];
   if(!columns.some(column=>column.name==='is_archived_creator')) {
@@ -22,14 +29,14 @@ export const hasWorkspaceSchema = (db: Database) => Boolean(db.prepare(
 ).get());
 
 export const workspaceMigrationRequired = (db:Database) => !hasWorkspaceSchema(db)
-  || ((db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {version:number|null}).version??0)<3;
+  || ((db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {version:number|null}).version??0)<4;
 
 // Staging rehearsal only. Existing authoritative company IDs are preserved;
 // unassigned accounts receive individual workspaces, never name-based grouping.
 export function migrateStagingWorkspaces(db: Database, options:MigrationOptions={}) {
   if (hasWorkspaceSchema(db)) {
     db.pragma('foreign_keys = ON');
-    db.transaction(()=>{archiveMarkerMigration(db);migrateSubscriptionSchema(db);})();
+    db.transaction(()=>{archiveMarkerMigration(db);migrateSubscriptionSchema(db);companySharingMigration(db);})();
     return;
   }
   db.pragma('foreign_keys = OFF');
@@ -167,6 +174,7 @@ export function migrateStagingWorkspaces(db: Database, options:MigrationOptions=
         INSERT INTO schema_migrations(version) VALUES (1);
       `);
       migrateSubscriptionSchema(db);
+      companySharingMigration(db);
       if(JSON.stringify(db.prepare(historicTripsQuery).all())!==historicTrips)throw new Error('Workspace migration changed historic trip records');
       if ((db.pragma('foreign_key_check') as unknown[]).length) throw new Error('Workspace migration foreign-key validation failed');
     })();

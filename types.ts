@@ -11,7 +11,7 @@ export interface UserAccount {
 }
 
 export type WorkspaceRole='owner'|'manager'|'editor'|'viewer';
-export interface WorkspaceContext { workspaceId:number; userId:number; role:WorkspaceRole; name:string; }
+export interface WorkspaceContext { workspaceId:number; userId:number; role:WorkspaceRole; name:string; shareAllTrips:boolean; }
 
 export interface AdminUser {
   id: number;
@@ -29,6 +29,7 @@ export interface AdminCompany {
   name: string;
   userCount: number;
   createdAt: string;
+  shareAllTrips?: boolean;
 }
 
 export interface AdminHealth {

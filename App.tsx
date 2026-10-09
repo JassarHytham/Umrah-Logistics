@@ -30,6 +30,7 @@ import { Settings } from './components/Settings';
 import { Profile } from './components/Profile';
 import { api } from './services/api';
 import { createRowUpdateQueue } from './utils/rowUpdateQueue';
+import { createLatestDataLoader, createLiveRefreshListener } from './utils/latestDataLoader';
 import { isPersistedRow, markRowsDeleted, removeDeletedRows, restoreRows } from './utils/rowStateActions';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
@@ -57,6 +58,7 @@ const applyDisplayFilters = (rows: LogisticsRow[], displaySettings: DisplaySetti
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
+  const userDataLoader=useRef(createLatestDataLoader());
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'operational' | 'analytics' | 'settings' | 'profile'>('operational');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -129,16 +131,18 @@ export default function App() {
   }, []);
 
   const loadUserData = async (showLoader = true) => {
-    try {
-      if (showLoader) setLoading(true);
-      const [rows, deleted, settings, invitations, accessGrants] = await Promise.all([
+    if (showLoader) setLoading(true);
+    await userDataLoader.current.run(()=>Promise.all([
         api.data.fetchRows(),
         api.data.fetchDeletedRows(),
         api.settings.fetch(),
         api.shares.fetchInvitations(),
         api.shares.fetchAccess()
-      ]);
+      ]),([rows, deleted, settings, invitations, accessGrants])=>{
       setAllRows(rows);
+      const authorizedRows=new Map<string,LogisticsRow>(rows.map((row:LogisticsRow)=>[row.id,row]));
+      setFilteredRows(previous=>previous.filter(row=>authorizedRows.has(row.id)).map(row=>authorizedRows.get(row.id)!));
+      setShareTarget(previous=>previous&&!authorizedRows.has(previous.row.id)?null:previous);
       if(settings.workspace)setUser((previous:any)=>({...previous,workspace:settings.workspace}));
       setDeletedRows(deleted || []);
       setShareInvitations(invitations || []);
@@ -165,11 +169,11 @@ export default function App() {
           }
         }
       }
-    } catch (err) {
+    },(err)=>{
       console.error("Failed to load data", err);
-    } finally {
+    },()=>{
       setLoading(false);
-    }
+    });
   };
 
   const syncAllData = async () => {
@@ -272,10 +276,12 @@ export default function App() {
         loadUserData(false);
       }, 250);
     };
+    const liveRefresh=createLiveRefreshListener(()=>userDataLoader.current.invalidate(),scheduleRefresh);
 
     const connect = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       socket = new WebSocket(`${protocol}//${window.location.host}/api/live?token=${encodeURIComponent(token)}`);
+      socket.onopen=liveRefresh.onOpen;
 
       socket.onmessage = (event) => {
         try {
@@ -285,7 +291,7 @@ export default function App() {
             return;
           }
           if (message.type === 'rows_changed' || message.type === 'invitations_changed') {
-            scheduleRefresh();
+            liveRefresh.onChange();
           }
         } catch (err) {
           console.error("Live update parse failed", err);
@@ -306,11 +312,12 @@ export default function App() {
 
     return () => {
       manuallyClosed = true;
+      userDataLoader.current.invalidate();
       if (reconnectTimer) window.clearTimeout(reconnectTimer);
       if (refreshTimer) window.clearTimeout(refreshTimer);
       socket?.close();
     };
-  }, [user]);
+  }, [user?.id,user?.role]);
 
   const requestNotificationPermission = async () => {
     if (typeof Notification !== 'undefined') {

@@ -16,13 +16,31 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
     return member;
   };
   const canManage=(role:string)=>role==='owner'||role==='manager';
+  app.patch('/api/admin/companies/:id/trip-sharing',authenticateToken,requireAdmin,(req:any,res)=>{
+    const id=Number(req.params.id),enabled=req.body?.shareAllTrips;
+    if(!Number.isSafeInteger(id)||id<1||typeof enabled!=='boolean')return fail(res,'INVALID_TRIP_SHARING','A valid company and boolean sharing setting are required',400);
+    const company=db.prepare('SELECT share_all_trips FROM companies WHERE id=?').get(id) as {share_all_trips:number}|undefined;
+    if(!company)return fail(res,'COMPANY_NOT_FOUND','Company not found',404);
+    if(company.share_all_trips!==Number(enabled)) {
+      db.transaction(()=>{
+        db.prepare('UPDATE companies SET share_all_trips=? WHERE id=?').run(Number(enabled),id);
+        logEvent('company_trip_sharing_updated',{category:'company_mgmt',actorUserId:req.user.id,metadata:{companyId:id,shareAllTrips:enabled}});
+      })();
+      const members=db.prepare('SELECT user_id FROM workspace_memberships WHERE workspace_id=?').all(id) as {user_id:number}[];
+      sendLiveEvent(members.map(member=>member.user_id),'rows_changed',req.user.id);
+    }
+    res.json({success:true,shareAllTrips:enabled});
+  });
   const inviteView=(i:any)=>({id:i.id,sourceWorkspaceId:i.source_workspace_id,scopeType:i.scope_type,
     rowId:i.scope_type==='row'?i.scope_value:null,groupNo:i.scope_type==='group'?i.scope_value:null,
     agency:i.scope_type==='agency'?i.scope_value:null,role:i.role,createdAt:i.created_at,
     senderUsername:i.sender_username,receiverUsername:i.receiver_username});
-  const sourceAuthorized=(sender:number,workspace:number)=>{
+  const sourceAuthorized=(sender:number,workspace:number,scope?:string,value?:string)=>{
     const member=workspaceForUser(db,sender);
-    return member?.workspaceId===workspace && member.role!=='viewer';
+    if(member?.workspaceId!==workspace||member.role==='viewer')return false;
+    if(member.shareAllTrips||canManage(member.role))return true;
+    // Broad workspace scopes can include coworkers' private/future rows.
+    return scope==='row'&&Boolean(db.prepare('SELECT 1 FROM logistics_rows WHERE workspace_id=? AND id=? AND user_id=?').get(workspace,value,sender));
   };
   const notifications=(workspace:number,scope:string,value:string)=>{
     const recipients=new Set<number>();
@@ -59,11 +77,13 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
     const member=context(req,res); if(!member)return;
     const personal=db.prepare('SELECT * FROM settings WHERE user_id=?').get(req.user.id) as any;
     const workspace=db.prepare('SELECT * FROM workspace_settings WHERE workspace_id=?').get(member.workspaceId) as any;
+    const notified=json(workspace?.notified_ids,[]);
+    const visibleIds=!member.shareAllTrips&&!canManage(member.role)?new Set(workspaceRows(db,req.user.id).map(row=>row.id)):null;
     res.json({...json(personal?.extra_settings,{}),workspace:member,fontSize:personal?.font_size??100,
       tgConfig:canManage(member.role)?decryptJson(workspace?.tg_config,null):null,
       templates:json(workspace?.templates,[]),alertSettings:json(workspace?.alert_settings,null),
       // The database trash endpoint is authoritative; legacy mirrors may retain revoked shares.
-      deletedRows:[],notifiedIds:json(workspace?.notified_ids,[]),
+      deletedRows:[],notifiedIds:Array.isArray(notified)?notified.filter(id=>!visibleIds||visibleIds.has(id)):[],
       integrationReviewRequired:Boolean(workspace?.integration_review_required)});
   });
   app.post('/api/settings',authenticateToken,(req:any,res)=>{
@@ -98,9 +118,9 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
     const scope=req.body.scopeType;
     if(!['row','group','agency'].includes(scope))return fail(res,'INVALID_SCOPE','Invalid share scope',400);
     const source=Number(req.body.sourceWorkspaceId??member.workspaceId);
-    if(!sourceAuthorized(req.user.id,source))return fail(res,'WORKSPACE_FORBIDDEN','Source workspace sharing authority required');
     const value=String(scope==='row'?req.body.rowId??'':scope==='group'?req.body.groupNo??'':req.body.agency??'').trim();
     if(!value||value.length>200)return fail(res,'INVALID_SCOPE','A valid share scope is required',400);
+    if(!sourceAuthorized(req.user.id,source,scope,value))return fail(res,'WORKSPACE_FORBIDDEN','This sharing scope requires company manager authority or ownership of the trip');
     const recipient=db.prepare('SELECT id FROM users WHERE username=? AND is_active=1').get(String(req.body.receiverUsername||'').trim().toLowerCase()) as any;
     if(!recipient||!workspaceForUser(db,recipient.id))return fail(res,'RECIPIENT_NOT_FOUND','Active recipient not found',404);
     if(recipient.id===req.user.id)return fail(res,'INVALID_RECIPIENT','Cannot share with yourself',400);
@@ -123,7 +143,7 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
     if(!invite)return fail(res,'INVITATION_NOT_FOUND','Invitation not found',404);
     if(action==='accept'){
       const member=context(req,res); if(!member)return;
-      if(!sourceAuthorized(invite.sender_user_id,invite.source_workspace_id))return fail(res,'WORKSPACE_FORBIDDEN','Sharing authority is no longer active');
+      if(!sourceAuthorized(invite.sender_user_id,invite.source_workspace_id,invite.scope_type,invite.scope_value))return fail(res,'WORKSPACE_FORBIDDEN','Sharing authority is no longer active');
       if(invite.scope_type==='row'){
         const record=db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(invite.scope_value) as any;
         if(record?.workspace_id!==invite.source_workspace_id)return fail(res,'SCOPE_NOT_FOUND','Trip no longer exists',404);
@@ -143,7 +163,10 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
   app.get('/api/shares/access',authenticateToken,(req:any,res)=>{
     const member=context(req,res); if(!member)return;
     if(member.role==='viewer')return res.json([]);
-    res.json((db.prepare(`SELECT g.*,u.username FROM workspace_grants g JOIN users u ON u.id=g.user_id WHERE source_workspace_id=? ORDER BY g.created_at DESC`).all(member.workspaceId) as any[]).map(g=>({
+    const companyWide=member.shareAllTrips||canManage(member.role);
+    res.json((db.prepare(`SELECT g.*,u.username FROM workspace_grants g JOIN users u ON u.id=g.user_id WHERE source_workspace_id=?
+      ${companyWide?'':"AND (g.granted_by_user_id=? OR (g.scope_type='row' AND EXISTS(SELECT 1 FROM logistics_rows r WHERE r.id=g.row_id AND r.user_id=?)))"}
+      ORDER BY g.created_at DESC`).all(...(companyWide?[member.workspaceId]:[member.workspaceId,req.user.id,req.user.id])) as any[]).map(g=>({
       sourceWorkspaceId:g.source_workspace_id,scopeType:g.scope_type,rowId:g.scope_type==='row'?g.scope_value:undefined,
       groupNo:g.scope_type==='group'?g.scope_value:undefined,agency:g.scope_type==='agency'?g.scope_value:undefined,
       userId:g.user_id,username:g.username,role:g.role,createdAt:g.created_at,rowSummary:g.scope_type==='row'?'Shared trip':g.scope_value,
@@ -152,8 +175,8 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
   for(const method of ['patch','delete'] as const)app[method]('/api/shares/access',authenticateToken,(req:any,res)=>{
     const member=context(req,res); if(!member)return;
     const source=Number(req.body.sourceWorkspaceId??member.workspaceId);
-    if(!sourceAuthorized(req.user.id,source))return fail(res,'WORKSPACE_FORBIDDEN','Source workspace sharing authority required');
     const scope=req.body.scopeType,value=String(scope==='row'?req.body.rowId??'':scope==='group'?req.body.groupNo??'':req.body.agency??'').trim();
+    if(!sourceAuthorized(req.user.id,source,scope,value))return fail(res,'WORKSPACE_FORBIDDEN','Source workspace sharing authority required');
     const recipient=Number(req.body.userId);
     const before=notifications(source,scope,value);
     const result=method==='patch'?db.prepare('UPDATE workspace_grants SET role=? WHERE source_workspace_id=? AND scope_type=? AND scope_value=? AND user_id=?').run(req.body.role==='viewer'?'viewer':'editor',source,scope,value,recipient)

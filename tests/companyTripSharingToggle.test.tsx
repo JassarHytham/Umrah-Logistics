@@ -13,4 +13,11 @@ describe('company sharing toggle accessibility',()=>{
     expect(html).toContain('المدير والمالك');
     expect(html.includes('checked=""')).toBe(enabled);
   });
+  it('renders manager visibility as a separate company control',()=>{
+    const html=renderToStaticMarkup(React.createElement(sharing.ManagerTripVisibilityToggle,{companyName:'Synthetic Company',enabled:false,onChange:async()=>{}}));
+    expect(html).toContain('role="switch"');
+    expect(html).toContain('aria-checked="false"');
+    expect(html).toContain('Synthetic Company');
+    expect(html).toContain('حتى عند تفعيل مشاركة جميع الرحلات');
+  });
 });

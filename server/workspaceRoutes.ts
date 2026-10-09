@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import type { Database } from 'better-sqlite3';
-import { workspaceForUser } from './workspaces';
+import { canSeeAllWorkspaceTrips, workspaceForUser } from './workspaces';
 import { workspaceEventRecipients, workspaceRowAccess, workspaceRows } from './access';
 
 type Dependencies={ db:Database; authenticateToken:any; requireAdmin:any; encryptJson:(value:unknown)=>string;
@@ -31,6 +31,41 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
     }
     res.json({success:true,shareAllTrips:enabled});
   });
+  app.patch('/api/admin/companies/:id/manager-visibility',authenticateToken,requireAdmin,(req:any,res)=>{
+    const id=Number(req.params.id),enabled=req.body?.managerSeesAllTrips;
+    if(!Number.isSafeInteger(id)||id<1||typeof enabled!=='boolean')return fail(res,'INVALID_MANAGER_VISIBILITY','A valid company and boolean visibility setting are required',400);
+    const company=db.prepare('SELECT manager_sees_all_trips FROM companies WHERE id=?').get(id) as {manager_sees_all_trips:number}|undefined;
+    if(!company)return fail(res,'COMPANY_NOT_FOUND','Company not found',404);
+    if(company.manager_sees_all_trips!==Number(enabled)) {
+      db.transaction(()=>{
+        db.prepare('UPDATE companies SET manager_sees_all_trips=? WHERE id=?').run(Number(enabled),id);
+        logEvent('company_manager_visibility_updated',{category:'company_mgmt',actorUserId:req.user.id,metadata:{companyId:id,managerSeesAllTrips:enabled}});
+      })();
+      const managers=db.prepare("SELECT user_id FROM workspace_memberships WHERE workspace_id=? AND role='manager'").all(id) as {user_id:number}[];
+      sendLiveEvent(managers.map(manager=>manager.user_id),'rows_changed',req.user.id);
+    }
+    res.json({success:true,managerSeesAllTrips:enabled});
+  });
+  app.patch('/api/admin/users/:id/workspace-role',authenticateToken,requireAdmin,(req:any,res)=>{
+    const userId=Number(req.params.id),role=req.body?.role;
+    if(!Number.isSafeInteger(userId)||userId<1||!['owner','manager','editor','viewer'].includes(role))return fail(res,'INVALID_ROLE','A valid user and workspace role are required',400);
+    const member=db.prepare(`SELECT m.workspace_id AS workspaceId,m.role,m.is_active AS membershipActive,u.role AS accountRole,u.is_active AS accountActive,u.is_archived_creator AS archived
+      FROM workspace_memberships m JOIN users u ON u.id=m.user_id WHERE m.user_id=?`).get(userId) as any;
+    if(!member||member.accountRole==='admin'||member.archived)return fail(res,'MEMBER_NOT_FOUND','Workspace member not found',404);
+    if(role==='owner'&&(!member.accountActive||!member.membershipActive))return fail(res,'INACTIVE_OWNER','Enable the member before transferring ownership',409);
+    if(member.role!==role) {
+      if(member.role==='owner'&&role!=='owner')return fail(res,'OWNER_REQUIRED','Transfer ownership before changing the current owner role',409);
+      const previousOwner=role==='owner'?(db.prepare("SELECT user_id FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(member.workspaceId) as {user_id:number}|undefined):undefined;
+      db.transaction(()=>{
+        if(previousOwner&&previousOwner.user_id!==userId)
+          db.prepare("UPDATE workspace_memberships SET role='manager' WHERE workspace_id=? AND user_id=?").run(member.workspaceId,previousOwner.user_id);
+        db.prepare('UPDATE workspace_memberships SET role=? WHERE workspace_id=? AND user_id=?').run(role,member.workspaceId,userId);
+        logEvent('workspace_member_updated',{category:'user_mgmt',actorUserId:req.user.id,targetUserId:userId,metadata:{workspaceId:member.workspaceId,role,previousOwnerUserId:previousOwner?.user_id}});
+      })();
+      sendLiveEvent([userId,...(previousOwner&&previousOwner.user_id!==userId?[previousOwner.user_id]:[])],'rows_changed',req.user.id);
+    }
+    res.json({success:true,workspaceRole:role});
+  });
   const inviteView=(i:any)=>({id:i.id,sourceWorkspaceId:i.source_workspace_id,scopeType:i.scope_type,
     rowId:i.scope_type==='row'?i.scope_value:null,groupNo:i.scope_type==='group'?i.scope_value:null,
     agency:i.scope_type==='agency'?i.scope_value:null,role:i.role,createdAt:i.created_at,
@@ -38,7 +73,7 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
   const sourceAuthorized=(sender:number,workspace:number,scope?:string,value?:string)=>{
     const member=workspaceForUser(db,sender);
     if(member?.workspaceId!==workspace||member.role==='viewer')return false;
-    if(member.shareAllTrips||canManage(member.role))return true;
+    if(canSeeAllWorkspaceTrips(member))return true;
     // Broad workspace scopes can include coworkers' private/future rows.
     return scope==='row'&&Boolean(db.prepare('SELECT 1 FROM logistics_rows WHERE workspace_id=? AND id=? AND user_id=?').get(workspace,value,sender));
   };
@@ -78,7 +113,7 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
     const personal=db.prepare('SELECT * FROM settings WHERE user_id=?').get(req.user.id) as any;
     const workspace=db.prepare('SELECT * FROM workspace_settings WHERE workspace_id=?').get(member.workspaceId) as any;
     const notified=json(workspace?.notified_ids,[]);
-    const visibleIds=!member.shareAllTrips&&!canManage(member.role)?new Set(workspaceRows(db,req.user.id).map(row=>row.id)):null;
+    const visibleIds=!canSeeAllWorkspaceTrips(member)?new Set(workspaceRows(db,req.user.id).map(row=>row.id)):null;
     res.json({...json(personal?.extra_settings,{}),workspace:member,fontSize:personal?.font_size??100,
       tgConfig:canManage(member.role)?decryptJson(workspace?.tg_config,null):null,
       templates:json(workspace?.templates,[]),alertSettings:json(workspace?.alert_settings,null),
@@ -163,7 +198,7 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
   app.get('/api/shares/access',authenticateToken,(req:any,res)=>{
     const member=context(req,res); if(!member)return;
     if(member.role==='viewer')return res.json([]);
-    const companyWide=member.shareAllTrips||canManage(member.role);
+    const companyWide=canSeeAllWorkspaceTrips(member);
     res.json((db.prepare(`SELECT g.*,u.username FROM workspace_grants g JOIN users u ON u.id=g.user_id WHERE source_workspace_id=?
       ${companyWide?'':"AND (g.granted_by_user_id=? OR (g.scope_type='row' AND EXISTS(SELECT 1 FROM logistics_rows r WHERE r.id=g.row_id AND r.user_id=?)))"}
       ORDER BY g.created_at DESC`).all(...(companyWide?[member.workspaceId]:[member.workspaceId,req.user.id,req.user.id])) as any[]).map(g=>({

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Users, Building2, Activity, Server, Plus, KeyRound, Ban, CheckCircle2, Trash2, LogOut, Loader2, X, Menu, Search } from 'lucide-react';
 import { api } from '../services/api';
 import type { AdminUser, AdminCompany, AdminAuditEvent, AdminHealth } from '../types';
-import { CompanyTripSharingToggle } from './CompanyTripSharingToggle';
+import { CompanyTripSharingToggle, ManagerTripVisibilityToggle } from './CompanyTripSharingToggle';
 
 interface AdminDashboardProps {
   user: any;
@@ -15,6 +15,8 @@ const EVENT_LABELS: Record<string, string> = {
   login_failure: 'محاولة تسجيل دخول فاشلة',
   user_created: 'إنشاء مستخدم',
   company_trip_sharing_updated: 'تحديث مشاركة رحلات الشركة',
+  company_manager_visibility_updated: 'تحديث رؤية المدير للرحلات',
+  workspace_member_updated: 'تحديث صلاحية عضو الشركة',
   user_password_reset: 'إعادة تعيين كلمة مرور',
   user_disabled: 'تعطيل مستخدم',
   user_enabled: 'تفعيل مستخدم',
@@ -517,6 +519,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     }
   };
 
+  const handleWorkspaceRole=async(target:AdminUser,role:'owner'|'manager'|'editor'|'viewer')=>{
+    if(role==='owner'&&!window.confirm(`نقل ملكية الشركة إلى "${target.username}"؟ سيصبح المالك الحالي مديرًا.`))return;
+    try { await api.admin.updateWorkspaceRole(target.id,role); await loadAll(); }
+    catch(err:any){setError(err.message||'فشل تحديث صلاحية عضو الشركة');}
+  };
+
   const handleToggleActive = async (target: AdminUser) => {
     try {
       await api.admin.updateUser(target.id, { isActive: !target.isActive });
@@ -549,6 +557,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const handleCompanyTripSharing=async(company:AdminCompany,shareAllTrips:boolean)=>{
     const response=await api.admin.updateCompanyTripSharing(company.id,shareAllTrips);
     setCompanies(current=>current.map(item=>item.id===company.id?{...item,shareAllTrips:response.shareAllTrips}:item));
+  };
+  const handleManagerVisibility=async(company:AdminCompany,managerSeesAllTrips:boolean)=>{
+    const response=await api.admin.updateManagerVisibility(company.id,managerSeesAllTrips);
+    setCompanies(current=>current.map(item=>item.id===company.id?{...item,managerSeesAllTrips:response.managerSeesAllTrips}:item));
   };
 
   const filteredUsers = users.filter((u) => {
@@ -644,6 +656,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                     <tr className="border-b">
                       <th className="text-right p-3">اسم المستخدم</th>
                       <th className="text-right p-3">الشركة</th>
+                      <th className="text-right p-3">صلاحية الشركة</th>
                       <th className="text-right p-3">الحالة</th>
                       <th className="text-right p-3">آخر دخول</th>
                       <th className="text-right p-3">إجراءات</th>
@@ -651,12 +664,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                   </thead>
                   <tbody>
                     {filteredUsers.length === 0 ? (
-                      <tr><td colSpan={5} className="p-6 text-center text-gray-400 text-sm">لا توجد نتائج مطابقة</td></tr>
+                      <tr><td colSpan={6} className="p-6 text-center text-gray-400 text-sm">لا توجد نتائج مطابقة</td></tr>
                     ) : filteredUsers.map((u) => (
                       <tr key={u.id} className="border-b hover:bg-gray-50">
                         <td className="p-3 font-bold">{u.username}{u.role === 'admin' && <span className="mr-2 text-[10px] bg-gold-100 text-gold-700 px-2 py-0.5 rounded-full">مسؤول</span>}</td>
                         <td className="p-3 text-gray-500">
-                          {u.role === 'admin' ? (
+                          {u.role === 'admin' || u.workspaceRole ? (
                             u.companyName || '—'
                           ) : (
                             <select
@@ -669,6 +682,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                             </select>
                           )}
                         </td>
+                        <td className="p-3">{u.role==='admin'||!u.workspaceRole?'—':<select
+                          aria-label={`صلاحية الشركة لـ ${u.username}`}
+                          value={u.workspaceRole}
+                          disabled={u.workspaceRole==='owner'}
+                          onChange={event=>void handleWorkspaceRole(u,event.target.value as 'owner'|'manager'|'editor'|'viewer')}
+                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-gold-500 disabled:opacity-60"
+                        >
+                          <option value="owner">مالك</option><option value="manager">مدير</option><option value="editor">محرر</option><option value="viewer">مشاهد</option>
+                        </select>}</td>
                         <td className="p-3">
                           <span className={`text-xs font-bold px-2 py-1 rounded-full ${u.isActive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
                             {u.isActive ? 'نشط' : 'معطل'}
@@ -718,19 +740,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <th className="text-right p-3">الاسم</th>
                       <th className="text-right p-3">عدد المستخدمين</th>
                       <th className="text-right p-3">مشاركة جميع الرحلات</th>
+                      <th className="text-right p-3">رؤية المدير لجميع الرحلات</th>
                       <th className="text-right p-3">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredCompanies.length === 0 ? (
-                      <tr><td colSpan={4} className="p-6 text-center text-gray-400 text-sm">لا توجد نتائج مطابقة</td></tr>
+                      <tr><td colSpan={5} className="p-6 text-center text-gray-400 text-sm">لا توجد نتائج مطابقة</td></tr>
                     ) : filteredCompanies.map((c) => (
                       <tr key={c.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => setViewCompanyId(c.id)}>
                         <td className="p-3 font-bold">{c.name}</td>
                         <td className="p-3 text-gray-500">{c.userCount}</td>
                         <td className="p-3">
-                          {typeof c.shareAllTrips==='boolean'?<CompanyTripSharingToggle companyName={c.name} enabled={c.shareAllTrips} onChange={enabled=>handleCompanyTripSharing(c,enabled)} />:<span className="text-gray-500">غير متاح في هذه البيئة</span>}
+                          {typeof c.shareAllTrips==='boolean'?<CompanyTripSharingToggle companyName={c.name} enabled={c.shareAllTrips} managerSeesAllTrips={c.managerSeesAllTrips} onChange={enabled=>handleCompanyTripSharing(c,enabled)} />:<span className="text-gray-500">غير متاح في هذه البيئة</span>}
                         </td>
+                        <td className="p-3">{typeof c.managerSeesAllTrips==='boolean'?<ManagerTripVisibilityToggle companyName={c.name} enabled={c.managerSeesAllTrips} onChange={enabled=>handleManagerVisibility(c,enabled)} />:'—'}</td>
                         <td className="p-3">
                           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                             <button onClick={() => setViewCompanyId(c.id)} title="عرض المستخدمين" className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"><Users size={16} /></button>

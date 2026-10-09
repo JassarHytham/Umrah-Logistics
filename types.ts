@@ -11,12 +11,13 @@ export interface UserAccount {
 }
 
 export type WorkspaceRole='owner'|'manager'|'editor'|'viewer';
-export interface WorkspaceContext { workspaceId:number; userId:number; role:WorkspaceRole; name:string; shareAllTrips:boolean; }
+export interface WorkspaceContext { workspaceId:number; userId:number; role:WorkspaceRole; name:string; shareAllTrips:boolean; managerSeesAllTrips:boolean; }
 
 export interface AdminUser {
   id: number;
   username: string;
   role: 'user' | 'admin';
+  workspaceRole?: WorkspaceRole | null;
   isActive: boolean;
   companyId: number | null;
   companyName: string | null;
@@ -30,6 +31,7 @@ export interface AdminCompany {
   userCount: number;
   createdAt: string;
   shareAllTrips?: boolean;
+  managerSeesAllTrips?: boolean;
 }
 
 export interface AdminHealth {

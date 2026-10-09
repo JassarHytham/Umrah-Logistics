@@ -205,6 +205,9 @@ export const api = {
         body: JSON.stringify(payload),
       });
     },
+    async updateWorkspaceRole(id:number,role:'owner'|'manager'|'editor'|'viewer') {
+      return api.request(`/admin/users/${id}/workspace-role`,{method:'PATCH',body:JSON.stringify({role})});
+    },
     async resetPassword(id: number, password: string) {
       return api.request(`/admin/users/${id}/reset-password`, {
         method: 'POST',
@@ -233,6 +236,9 @@ export const api = {
     },
     async updateCompanyTripSharing(id:number,shareAllTrips:boolean) {
       return api.request(`/admin/companies/${id}/trip-sharing`,{method:'PATCH',body:JSON.stringify({shareAllTrips})});
+    },
+    async updateManagerVisibility(id:number,managerSeesAllTrips:boolean) {
+      return api.request(`/admin/companies/${id}/manager-visibility`,{method:'PATCH',body:JSON.stringify({managerSeesAllTrips})});
     },
     async deleteCompany(id: number) {
       return api.request(`/admin/companies/${id}`, {

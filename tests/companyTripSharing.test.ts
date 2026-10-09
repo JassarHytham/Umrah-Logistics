@@ -60,6 +60,46 @@ describe('per-company automatic trip sharing',()=>{
     expect(await f.ids(f.editor.token)).toEqual([f.editorRow.id]);
     expect((await request(app).patch(`/api/data/${f.editorRow.id}`).set(auth(f.editor.token)).send({updates:{notes:'forbidden'}})).status).toBe(403);
   });
+  it('lets an admin limit managers independently of company trip sharing',async()=>{
+    const f=await fixture();
+    const roleUrl=`/api/admin/users/${f.peer.id}/workspace-role`;
+    expect((await request(app).patch(roleUrl).set(auth(f.owner.token)).send({role:'manager'})).status).toBe(403);
+    expect((await request(app).patch(roleUrl).set(auth(adminToken)).send({role:'manager'})).status).toBe(200);
+    const listed=(await request(app).get('/api/admin/users').set(auth(adminToken))).body.users;
+    expect(listed.find((u:any)=>u.id===f.peer.id).workspaceRole).toBe('manager');
+    expect(listed.find((u:any)=>u.id===f.owner.id).companyId).toBe(f.workspace.workspaceId);
+    expect((await request(app).patch(`/api/admin/users/${f.owner.id}`).set(auth(adminToken)).send({companyId:null})).status).toBe(409);
+    expect(await f.ids(f.peer.token)).toHaveLength(3);
+    const limit=await request(app).patch(`/api/admin/companies/${f.workspace.workspaceId}/manager-visibility`).set(auth(adminToken)).send({managerSeesAllTrips:false});
+    expect(limit.status).toBe(200);
+    expect(await f.ids(f.peer.token)).toEqual([f.peerRow.id]);
+    expect(await f.ids(f.owner.token)).toHaveLength(3);
+    expect(await f.ids(f.editor.token)).toHaveLength(3);
+    expect((await request(app).patch(`/api/data/${f.ownerRow.id}`).set(auth(f.peer.token)).send({updates:{notes:'hidden'}})).status).toBe(404);
+    expect((await request(app).post('/api/shares/invitations').set(auth(f.peer.token)).send({receiverUsername:f.editor.username,scopeType:'group',groupNo:'100'})).status).toBe(403);
+    db.prepare('UPDATE workspace_settings SET notified_ids=? WHERE workspace_id=?').run(JSON.stringify([f.ownerRow.id,f.peerRow.id]),f.workspace.workspaceId);
+    expect((await request(app).get('/api/settings').set(auth(f.peer.token))).body.notifiedIds).toEqual([f.peerRow.id]);
+    const invitation=await request(app).post('/api/shares/invitations').set(auth(f.owner.token)).send({receiverUsername:f.peer.username,scopeType:'row',rowId:f.ownerRow.id,role:'viewer'});
+    expect(invitation.status).toBe(200);
+    expect((await request(app).post(`/api/shares/invitations/${invitation.body.invitation.id}/accept`).set(auth(f.peer.token))).status).toBe(200);
+    expect(await f.ids(f.peer.token)).toEqual([f.ownerRow.id,f.peerRow.id].sort());
+    expect((await request(app).patch(`/api/data/${f.ownerRow.id}`).set(auth(f.peer.token)).send({updates:{notes:'viewer cannot edit'}})).status).toBe(403);
+    expect((await request(app).post(`/api/data/${f.ownerRow.id}/delete`).set(auth(f.owner.token))).status).toBe(200);
+    expect((await request(app).delete(`/api/data/${f.ownerRow.id}`).set(auth(f.peer.token))).status).toBe(403);
+    const company=(await request(app).get('/api/admin/companies').set(auth(adminToken))).body.companies.find((c:any)=>c.id===f.workspace.workspaceId);
+    expect(company.managerSeesAllTrips).toBe(false);
+    expect(company.userCount).toBe(3);
+  });
+  it('transfers the single owner through the admin portal',async()=>{
+    const f=await fixture();
+    expect((await request(app).patch(`/api/admin/users/${f.owner.id}/workspace-role`).set(auth(adminToken)).send({role:'editor'})).status).toBe(409);
+    expect((await request(app).patch(`/api/admin/users/${f.editor.id}/workspace-role`).set(auth(adminToken)).send({role:'admin'})).status).toBe(400);
+    const result=await request(app).patch(`/api/admin/users/${f.editor.id}/workspace-role`).set(auth(adminToken)).send({role:'owner'});
+    expect(result.status).toBe(200);
+    expect((await request(app).get('/api/workspace').set(auth(f.editor.token))).body.role).toBe('owner');
+    expect((await request(app).get('/api/workspace').set(auth(f.owner.token))).body.role).toBe('manager');
+    expect((db.prepare("SELECT COUNT(*) AS count FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(f.workspace.workspaceId) as any).count).toBe(1);
+  });
   it('prevents stale-tab mutations, restores and duplicate leaks for hidden trips',async()=>{
     const f=await fixture();
     await request(app).post(`/api/data/${f.ownerRow.id}/delete`).set(auth(f.owner.token));
@@ -132,6 +172,11 @@ describe('per-company automatic trip sharing',()=>{
     for(const shareAllTrips of ['false',0,null,undefined])
       expect((await request(app).patch(`/api/admin/companies/${f.workspace.workspaceId}/trip-sharing`).set(auth(adminToken)).send({shareAllTrips})).status).toBe(400);
     expect((await request(app).patch('/api/admin/companies/999999/trip-sharing').set(auth(adminToken)).send({shareAllTrips:false})).status).toBe(404);
+    const managerUrl=`/api/admin/companies/${f.workspace.workspaceId}/manager-visibility`;
+    expect((await request(app).patch(managerUrl).set(auth(f.owner.token)).send({managerSeesAllTrips:false})).status).toBe(403);
+    for(const managerSeesAllTrips of ['false',0,null,undefined])
+      expect((await request(app).patch(managerUrl).set(auth(adminToken)).send({managerSeesAllTrips})).status).toBe(400);
+    expect((await request(app).patch('/api/admin/companies/999999/manager-visibility').set(auth(adminToken)).send({managerSeesAllTrips:false})).status).toBe(404);
   });
   it('hides unauthorized trips and notified IDs in alert diagnostics and settings',async()=>{
     const f=await fixture();expect((await f.toggle(false)).status).toBe(200);

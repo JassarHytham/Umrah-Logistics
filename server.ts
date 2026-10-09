@@ -683,7 +683,8 @@ const canPurgeRow = (userId: number, record: LogisticsRowRecord) => {
   if (!workspaceEnabled) return Number(record.user_id) === Number(userId);
   const member = workspaceForUser(db, userId);
   const stored = db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(record.id) as any;
-  return Boolean(member && ['owner','manager'].includes(member.role) && stored?.workspace_id === member.workspaceId);
+  if (!member || !['owner','manager'].includes(member.role) || stored?.workspace_id !== member.workspaceId) return false;
+  return member.role==='owner' || (member.managerSeesAllTrips || workspaceRowAccess(db,userId,record.id)?.role==='editor');
 };
 
 const getVisibleRowForUser = (userId: number, rowId: string, includeDeleted = false) => {
@@ -1185,14 +1186,15 @@ app.get("/api/admin/audit", authenticateToken, requireAdmin, (req, res) => {
 app.get("/api/admin/users", authenticateToken, requireAdmin, (req, res) => {
   const rows = db.prepare(`
     SELECT
-      u.id, u.username, u.role,
+      u.id, u.username, u.role, ${workspaceEnabled?'m.role AS workspaceRole,':''}
       u.is_active AS isActive,
-      u.company_id AS companyId,
+      ${workspaceEnabled?'COALESCE(m.workspace_id,u.company_id)':'u.company_id'} AS companyId,
       c.name AS companyName,
       strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS createdAt,
       strftime('%Y-%m-%dT%H:%M:%SZ', u.last_login_at) AS lastLoginAt
     FROM users u
-    LEFT JOIN companies c ON c.id = u.company_id
+    ${workspaceEnabled?'LEFT JOIN workspace_memberships m ON m.user_id = u.id':''}
+    LEFT JOIN companies c ON c.id = ${workspaceEnabled?'COALESCE(m.workspace_id,u.company_id)':'u.company_id'}
     ORDER BY u.created_at DESC
   `).all() as any[];
   res.json({ users: rows.map((r) => ({ ...r, isActive: !!r.isActive })) });
@@ -1240,6 +1242,11 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
 
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "companyId")) {
     const companyId = req.body.companyId;
+    if(workspaceEnabled) {
+      const membership=db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(userId) as {workspace_id:number}|undefined;
+      if(membership && Number(companyId)!==membership.workspace_id)
+        return res.status(409).json({error:'Active workspace memberships cannot be moved by changing company'});
+    }
     if (companyId !== null) {
       const company = db.prepare("SELECT 1 FROM companies WHERE id = ?").get(companyId);
       if (!company) return res.status(400).json({ error: "Company not found" });
@@ -1314,13 +1321,13 @@ app.delete("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, r
 
 app.get("/api/admin/companies", authenticateToken, requireAdmin, (req, res) => {
   const rows = db.prepare(`
-    SELECT c.id, c.name, ${workspaceEnabled?'c.share_all_trips AS shareAllTrips,':''} strftime('%Y-%m-%dT%H:%M:%SZ', c.created_at) AS createdAt, COUNT(u.id) AS userCount
+    SELECT c.id, c.name, ${workspaceEnabled?'c.share_all_trips AS shareAllTrips,c.manager_sees_all_trips AS managerSeesAllTrips,':''} strftime('%Y-%m-%dT%H:%M:%SZ', c.created_at) AS createdAt, COUNT(${workspaceEnabled?'m.user_id':'u.id'}) AS userCount
     FROM companies c
-    LEFT JOIN users u ON u.company_id = c.id
+    ${workspaceEnabled?'LEFT JOIN workspace_memberships m ON m.workspace_id = c.id':'LEFT JOIN users u ON u.company_id = c.id'}
     GROUP BY c.id
     ORDER BY c.name ASC
   `).all();
-  res.json({ companies: workspaceEnabled?rows.map((row:any)=>({...row,shareAllTrips:row.shareAllTrips===1})):rows });
+  res.json({ companies: workspaceEnabled?rows.map((row:any)=>({...row,shareAllTrips:row.shareAllTrips===1,managerSeesAllTrips:row.managerSeesAllTrips===1})):rows });
 });
 
 app.post("/api/admin/companies", authenticateToken, requireAdmin, (req: any, res) => {
@@ -1360,7 +1367,9 @@ app.patch("/api/admin/companies/:id", authenticateToken, requireAdmin, (req: any
 
   logEvent("company_renamed", { category: "company_mgmt", actorUserId: req.user.id, metadata: { companyId, name } });
 
-  const userCount = (db.prepare("SELECT COUNT(*) AS count FROM users WHERE company_id = ?").get(companyId) as { count: number }).count;
+  const userCount = (db.prepare(workspaceEnabled
+    ? 'SELECT COUNT(*) AS count FROM workspace_memberships WHERE workspace_id = ?'
+    : 'SELECT COUNT(*) AS count FROM users WHERE company_id = ?').get(companyId) as { count: number }).count;
   const createdAt = (db.prepare("SELECT strftime('%Y-%m-%dT%H:%M:%SZ', created_at) AS createdAt FROM companies WHERE id = ?").get(companyId) as { createdAt: string }).createdAt;
   res.json({ company: { id: companyId, name, userCount, createdAt } });
 });

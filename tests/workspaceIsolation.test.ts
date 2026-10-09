@@ -18,6 +18,8 @@ const user = async (companyId?: number) => {
   const created = await request(app).post('/api/admin/users').set(auth(adminToken)).send({ username, password: 'Password123!', companyId });
   expect(created.status,JSON.stringify(created.body)).toBe(201);
   const login = await request(app).post('/api/auth/login').send({ username, password: 'Password123!' });
+  expect(login.status,JSON.stringify({error:login.body.error,userId:created.body.user.id})).toBe(200);
+  expect(login.body.user.id).toBe(created.body.user.id);
   return { id: created.body.user.id as number, username, token: login.body.token as string, refreshToken:login.body.refreshToken as string };
 };
 const row = (id: string) => ({ id, groupNo: '100', groupName: 'Synthetic', agency: 'Example', status: 'Planned', notes: '' });
@@ -25,9 +27,9 @@ const save = (token: string, rows: any[]) => request(app).post('/api/data/sync')
 const rowsFor = (token: string) => request(app).get('/api/data').set(auth(token));
 const share = async (sender: Awaited<ReturnType<typeof user>>, receiver: Awaited<ReturnType<typeof user>>, scopeType = 'group', role = 'editor') => {
   const invite = await request(app).post('/api/shares/invitations').set(auth(sender.token)).send({ receiverUsername: receiver.username, scopeType, groupNo: '100', agency: 'Example', role });
-  expect(invite.status).toBe(200);
+  expect(invite.status,JSON.stringify({error:invite.body.error,code:invite.body.code,sender:sender.id,member:db.prepare('SELECT workspace_id,role,is_active FROM workspace_memberships WHERE user_id=?').get(sender.id)})).toBe(200);
   const accepted = await request(app).post(`/api/shares/invitations/${invite.body.invitation.id}/accept`).set(auth(receiver.token)).send();
-  expect(accepted.status).toBe(200);
+  expect(accepted.status,JSON.stringify({error:accepted.body.error,code:accepted.body.code,recipient:receiver.id,member:db.prepare('SELECT workspace_id,role,is_active FROM workspace_memberships WHERE user_id=?').get(receiver.id)})).toBe(200);
   return invite.body.invitation;
 };
 

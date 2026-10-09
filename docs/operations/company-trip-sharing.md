@@ -58,3 +58,17 @@ Evidence so far: 477/477 working-tree application tests, type check, build and
 whitespace check pass. Existing >500 kB bundle warning remains. Read-only local
 copy rehearsal preserved 4,658 trips and passed integrity/FK checks with schema
 versions 1/2/3/4. Exact-source and live deployment evidence follow after release.
+
+The first clean parallel release run had transient failures in synthetic sharing
+fixture sync (403), existing patch-invalidation share creation (403), and the
+existing oversized-body security test (EPIPE). Another parallel run failed an
+existing share acceptance (401). The unchanged exact source passed all 467
+tests with one worker; the working tree passed all 477 tests again after adding
+safe login/response/membership diagnostics. No root cause was established and
+no authentication or production behavior was weakened to make these pass.
+The clean snapshot's type check/build, 41 extension tests and package check pass.
+
+Manual browser verification was blocked by missing computer-use permissions.
+The localhost-only, synthetic in-memory probe was stopped; no customer database
+was used. API/live integration and rendered accessibility checks passed. Do not
+represent these checks as a completed manual browser smoke test.

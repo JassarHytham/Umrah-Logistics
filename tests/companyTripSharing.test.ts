@@ -14,7 +14,10 @@ const account=async(companyId?:number)=>{
   const username=`sharing_${++serial}`;
   const response=await request(app).post('/api/admin/users').set(auth(adminToken)).send({username,password:'SyntheticPassword123!',companyId});
   expect(response.status,JSON.stringify(response.body)).toBe(201);
-  const token=(await request(app).post('/api/auth/login').send({username,password:'SyntheticPassword123!'})).body.token;
+  const login=await request(app).post('/api/auth/login').send({username,password:'SyntheticPassword123!'});
+  expect(login.status,JSON.stringify({error:login.body.error,userId:response.body.user.id})).toBe(200);
+  expect(login.body.user.id).toBe(response.body.user.id);
+  const token=login.body.token;
   return {id:response.body.user.id as number,username,token:token as string};
 };
 const fixture=async()=>{
@@ -24,8 +27,10 @@ const fixture=async()=>{
   const prefix=`company-${serial}`;
   const trip=(id:string)=>({id,groupNo:'100',agency:'Example',groupName:'Synthetic',status:'Planned',notes:''});
   const ownerRow=trip(`${prefix}-owner`),editorRow=trip(`${prefix}-editor`),peerRow=trip(`${prefix}-peer`);
-  for(const [user,row] of [[owner,ownerRow],[editor,editorRow],[peer,peerRow]] as const)
-    expect((await request(app).post('/api/data/sync').set(auth(user.token)).send({rows:[row]})).status).toBe(200);
+  for(const [user,row] of [[owner,ownerRow],[editor,editorRow],[peer,peerRow]] as const){
+    const response=await request(app).post('/api/data/sync').set(auth(user.token)).send({rows:[row]});
+    expect(response.status,JSON.stringify({error:response.body.error,code:response.body.code,userId:user.id,membership:db.prepare('SELECT workspace_id,role,is_active FROM workspace_memberships WHERE user_id=?').get(user.id)})).toBe(200);
+  }
   const toggle=(enabled:boolean,token=adminToken)=>request(app).patch(`/api/admin/companies/${workspace.workspaceId}/trip-sharing`).set(auth(token)).send({shareAllTrips:enabled});
   const ids=async(token:string,deleted=false)=>(await request(app).get(`/api/data${deleted?'/deleted':''}`).set(auth(token))).body.map((r:any)=>r.id).sort();
   return {owner,editor,peer,workspace,ownerRow,editorRow,peerRow,toggle,ids};

@@ -1236,29 +1236,47 @@ app.post("/api/admin/users", authenticateToken, requireAdmin, async (req: any, r
 
 app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, res) => {
   const userId = Number(req.params.id);
-  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  const target = db.prepare("SELECT id,username FROM users WHERE id = ?").get(userId) as {id:number;username:string}|undefined;
   if (!target) return res.status(404).json({ error: "User not found" });
   if(workspaceEnabled && isArchivedCreator(db,userId))return res.status(400).json({error:'Archived creator records cannot be changed into active accounts'});
+  if (userId === Number(req.user.id) && req.body?.isActive === false)
+    return res.status(400).json({ error: "Cannot disable your own account" });
 
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "companyId")) {
     const companyId = req.body.companyId;
-    if(workspaceEnabled) {
-      const membership=db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(userId) as {workspace_id:number}|undefined;
-      if(membership && Number(companyId)!==membership.workspace_id)
-        return res.status(409).json({error:'Active workspace memberships cannot be moved by changing company'});
-    }
+    if (companyId !== null && (!Number.isSafeInteger(companyId) || companyId < 1))
+      return res.status(400).json({ error: "Invalid company" });
     if (companyId !== null) {
       const company = db.prepare("SELECT 1 FROM companies WHERE id = ?").get(companyId);
       if (!company) return res.status(400).json({ error: "Company not found" });
     }
-    db.prepare("UPDATE users SET company_id = ? WHERE id = ?").run(companyId, userId);
+    const membership=workspaceEnabled ? db.prepare('SELECT workspace_id,role FROM workspace_memberships WHERE user_id=?').get(userId) as {workspace_id:number;role:string}|undefined : undefined;
+    let moved=false;
+    db.transaction(()=>{
+      if(membership && companyId!==membership.workspace_id) {
+        const destination=companyId ?? Number(db.prepare('INSERT INTO companies(name) VALUES (?)')
+          .run(`Workspace — ${target.username} — ${crypto.randomUUID().slice(0,8)}`).lastInsertRowid);
+        const hasOwner=Boolean(db.prepare("SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(destination));
+        const newRole=hasOwner ? (membership.role==='owner'?'manager':membership.role) : 'owner';
+        db.prepare('UPDATE workspace_memberships SET workspace_id=?,role=? WHERE user_id=?').run(destination,newRole,userId);
+        db.prepare('INSERT OR IGNORE INTO workspace_settings(workspace_id) VALUES (?)').run(destination);
+        db.prepare('DELETE FROM workspace_grants WHERE source_workspace_id=? AND user_id=?').run(membership.workspace_id,userId);
+        db.prepare(`UPDATE workspace_share_invitations SET status='declined',responded_at=CURRENT_TIMESTAMP
+          WHERE source_workspace_id=? AND receiver_user_id=? AND status='pending'`).run(membership.workspace_id,userId);
+        logEvent('workspace_member_moved',{category:'user_mgmt',actorUserId:req.user.id,targetUserId:userId,
+          metadata:{fromWorkspaceId:membership.workspace_id,toWorkspaceId:destination,role:newRole}});
+        moved=true;
+      }
+      db.prepare("UPDATE users SET company_id = ? WHERE id = ?").run(companyId, userId);
+    })();
+    if(moved) {
+      sendLiveEvent([userId],'rows_changed',req.user.id);
+      sendLiveEvent([userId],'invitations_changed',req.user.id);
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "isActive")) {
     const isActive = req.body.isActive ? 1 : 0;
-    if (userId === Number(req.user.id) && !req.body.isActive) {
-      return res.status(400).json({ error: "Cannot disable your own account" });
-    }
     db.prepare("UPDATE users SET is_active = ? WHERE id = ?").run(isActive, userId);
     if (workspaceEnabled) {
       db.prepare('UPDATE workspace_memberships SET is_active=? WHERE user_id=?').run(isActive,userId);
@@ -1268,8 +1286,12 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
   }
 
   const updated = db.prepare(`
-    SELECT u.id, u.username, u.role, u.is_active AS isActive, u.company_id AS companyId, c.name AS companyName, strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS createdAt, strftime('%Y-%m-%dT%H:%M:%SZ', u.last_login_at) AS lastLoginAt
-    FROM users u LEFT JOIN companies c ON c.id = u.company_id WHERE u.id = ?
+    SELECT u.id, u.username, u.role, ${workspaceEnabled?'m.role AS workspaceRole,':''} u.is_active AS isActive,
+      ${workspaceEnabled?'COALESCE(m.workspace_id,u.company_id)':'u.company_id'} AS companyId,
+      c.name AS companyName, strftime('%Y-%m-%dT%H:%M:%SZ', u.created_at) AS createdAt,
+      strftime('%Y-%m-%dT%H:%M:%SZ', u.last_login_at) AS lastLoginAt
+    FROM users u ${workspaceEnabled?'LEFT JOIN workspace_memberships m ON m.user_id=u.id':''}
+    LEFT JOIN companies c ON c.id=${workspaceEnabled?'COALESCE(m.workspace_id,u.company_id)':'u.company_id'} WHERE u.id = ?
   `).get(userId) as any;
   res.json({ user: { ...updated, isActive: !!updated.isActive } });
 });

@@ -68,7 +68,7 @@ describe('per-company automatic trip sharing',()=>{
     const listed=(await request(app).get('/api/admin/users').set(auth(adminToken))).body.users;
     expect(listed.find((u:any)=>u.id===f.peer.id).workspaceRole).toBe('manager');
     expect(listed.find((u:any)=>u.id===f.owner.id).companyId).toBe(f.workspace.workspaceId);
-    expect((await request(app).patch(`/api/admin/users/${f.owner.id}`).set(auth(adminToken)).send({companyId:null})).status).toBe(409);
+    expect((await request(app).patch(`/api/admin/users/${f.owner.id}`).set(auth(f.owner.token)).send({companyId:null})).status).toBe(403);
     expect(await f.ids(f.peer.token)).toHaveLength(3);
     const limit=await request(app).patch(`/api/admin/companies/${f.workspace.workspaceId}/manager-visibility`).set(auth(adminToken)).send({managerSeesAllTrips:false});
     expect(limit.status).toBe(200);
@@ -92,13 +92,64 @@ describe('per-company automatic trip sharing',()=>{
   });
   it('transfers the single owner through the admin portal',async()=>{
     const f=await fixture();
-    expect((await request(app).patch(`/api/admin/users/${f.owner.id}/workspace-role`).set(auth(adminToken)).send({role:'editor'})).status).toBe(409);
     expect((await request(app).patch(`/api/admin/users/${f.editor.id}/workspace-role`).set(auth(adminToken)).send({role:'admin'})).status).toBe(400);
     const result=await request(app).patch(`/api/admin/users/${f.editor.id}/workspace-role`).set(auth(adminToken)).send({role:'owner'});
     expect(result.status).toBe(200);
     expect((await request(app).get('/api/workspace').set(auth(f.editor.token))).body.role).toBe('owner');
     expect((await request(app).get('/api/workspace').set(auth(f.owner.token))).body.role).toBe('manager');
     expect((db.prepare("SELECT COUNT(*) AS count FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(f.workspace.workspaceId) as any).count).toBe(1);
+    expect((await request(app).patch(`/api/admin/users/${f.editor.id}/workspace-role`).set(auth(adminToken)).send({role:'manager'})).status).toBe(200);
+    expect((await request(app).get('/api/workspace').set(auth(f.editor.token))).body.role).toBe('manager');
+    expect((db.prepare("SELECT COUNT(*) AS count FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(f.workspace.workspaceId) as any).count).toBe(0);
+    expect((await request(app).patch(`/api/admin/users/${f.owner.id}/workspace-role`).set(auth(adminToken)).send({role:'owner'})).status).toBe(200);
+    expect((await request(app).get('/api/workspace').set(auth(f.owner.token))).body.role).toBe('owner');
+  });
+  it('moves a member between companies without moving their historic trips',async()=>{
+    const f=await fixture(),other=await account();
+    const otherWorkspace=(await request(app).get('/api/workspace').set(auth(other.token))).body;
+    const invite=await request(app).post('/api/shares/invitations').set(auth(f.peer.token)).send({receiverUsername:f.owner.username,scopeType:'row',rowId:f.peerRow.id,role:'viewer'});
+    expect(invite.status).toBe(200);
+    expect((await request(app).post(`/api/shares/invitations/${invite.body.invitation.id}/accept`).set(auth(f.owner.token))).status).toBe(200);
+    expect((await request(app).patch(`/api/admin/users/${f.owner.id}`).set(auth(adminToken)).send({companyId:999999})).status).toBe(400);
+    expect((await request(app).get('/api/workspace').set(auth(f.owner.token))).body.workspaceId).toBe(f.workspace.workspaceId);
+
+    const moved=await request(app).patch(`/api/admin/users/${f.owner.id}`).set(auth(adminToken)).send({companyId:otherWorkspace.workspaceId});
+    expect(moved.status,JSON.stringify(moved.body)).toBe(200);
+    expect(moved.body.user).toMatchObject({companyId:otherWorkspace.workspaceId,workspaceRole:'manager'});
+    expect((await request(app).get('/api/workspace').set(auth(f.owner.token))).body).toMatchObject({workspaceId:otherWorkspace.workspaceId,role:'manager'});
+    expect((db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(f.ownerRow.id) as any).workspace_id).toBe(f.workspace.workspaceId);
+    expect(await f.ids(f.owner.token)).toEqual([]);
+    expect(await f.ids(f.editor.token)).toContain(f.ownerRow.id);
+    expect((db.prepare('SELECT 1 FROM workspace_grants WHERE source_workspace_id=? AND user_id=?').get(f.workspace.workspaceId,f.owner.id))).toBeUndefined();
+    expect((await request(app).post('/api/settings').set(auth(f.owner.token)).send({workspaceId:f.workspace.workspaceId,tgConfig:{token:'stale'}})).status).toBe(409);
+    expect((await request(app).get('/api/settings').set(auth(other.token))).body.tgConfig).toBeNull();
+    const newRow={id:`moved-${serial}`,groupNo:'200',agency:'New',status:'Planned'};
+    expect((await request(app).post('/api/data/sync').set(auth(f.owner.token)).send({workspaceId:f.workspace.workspaceId,rows:[newRow]})).status).toBe(403);
+    expect((await request(app).post('/api/data/sync').set(auth(f.owner.token)).send({rows:[newRow]})).status).toBe(200);
+    expect((db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(newRow.id) as any).workspace_id).toBe(otherWorkspace.workspaceId);
+
+    const privateMove=await request(app).patch(`/api/admin/users/${f.owner.id}`).set(auth(adminToken)).send({companyId:null});
+    expect(privateMove.status,JSON.stringify(privateMove.body)).toBe(200);
+    expect(privateMove.body.user.workspaceRole).toBe('owner');
+    const privateWorkspace=(await request(app).get('/api/workspace').set(auth(f.owner.token))).body;
+    expect(privateWorkspace.workspaceId).not.toBe(otherWorkspace.workspaceId);
+    expect(privateWorkspace.workspaceId).not.toBe(f.workspace.workspaceId);
+    expect((db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(newRow.id) as any).workspace_id).toBe(otherWorkspace.workspaceId);
+  });
+  it('keeps a regular role in an occupied company and assigns the first member as owner in an empty company',async()=>{
+    const f=await fixture(),other=await account();
+    const otherWorkspace=(await request(app).get('/api/workspace').set(auth(other.token))).body;
+    const first=await request(app).patch(`/api/admin/users/${f.editor.id}`).set(auth(adminToken)).send({companyId:otherWorkspace.workspaceId});
+    expect(first.status).toBe(200);
+    expect(first.body.user.workspaceRole).toBe('editor');
+    expect((await request(app).get('/api/workspace').set(auth(f.editor.token))).body.workspaceId).toBe(otherWorkspace.workspaceId);
+    const empty=await request(app).post('/api/admin/companies').set(auth(adminToken)).send({name:`Empty company ${serial}`});
+    expect(empty.status).toBe(201);
+    const second=await request(app).patch(`/api/admin/users/${f.editor.id}`).set(auth(adminToken)).send({companyId:empty.body.company.id});
+    expect(second.status).toBe(200);
+    expect(second.body.user).toMatchObject({companyId:empty.body.company.id,workspaceRole:'owner'});
+    expect((await request(app).get('/api/workspace').set(auth(f.editor.token))).body.role).toBe('owner');
+    expect((db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(f.editorRow.id) as any).workspace_id).toBe(f.workspace.workspaceId);
   });
   it('prevents stale-tab mutations, restores and duplicate leaks for hidden trips',async()=>{
     const f=await fixture();

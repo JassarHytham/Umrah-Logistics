@@ -54,7 +54,6 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
     if(!member||member.accountRole==='admin'||member.archived)return fail(res,'MEMBER_NOT_FOUND','Workspace member not found',404);
     if(role==='owner'&&(!member.accountActive||!member.membershipActive))return fail(res,'INACTIVE_OWNER','Enable the member before transferring ownership',409);
     if(member.role!==role) {
-      if(member.role==='owner'&&role!=='owner')return fail(res,'OWNER_REQUIRED','Transfer ownership before changing the current owner role',409);
       const previousOwner=role==='owner'?(db.prepare("SELECT user_id FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(member.workspaceId) as {user_id:number}|undefined):undefined;
       db.transaction(()=>{
         if(previousOwner&&previousOwner.user_id!==userId)
@@ -123,6 +122,7 @@ export function registerWorkspaceRoutes(app:Express,deps:Dependencies) {
   });
   app.post('/api/settings',authenticateToken,(req:any,res)=>{
     const member=context(req,res); if(!member)return;
+    if(req.body?.workspaceId!==member.workspaceId)return fail(res,'WORKSPACE_CHANGED','Reload company settings before saving',409);
     const workspaceFields=['tgConfig','templates','alertSettings'];
     if((workspaceFields.some(key=>req.body[key]!==undefined)||req.body.resolveIntegrationReview===true)&&!canManage(member.role))return fail(res,'WORKSPACE_FORBIDDEN','Workspace settings require owner or manager access');
     if(req.body.deletedRows!==undefined&&member.role==='viewer')return fail(res,'WORKSPACE_READ_ONLY','Viewer access is read only');

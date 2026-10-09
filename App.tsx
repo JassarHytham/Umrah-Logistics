@@ -182,8 +182,9 @@ export default function App() {
     try {
       const shouldSyncRows = !rowUpdateQueueRef.current?.hasPending();
       await Promise.all([
-        shouldSyncRows && user?.workspace?.role!=='viewer' ? api.data.syncRows(allRows) : Promise.resolve(),
+        shouldSyncRows && user?.workspace?.role!=='viewer' ? api.data.syncRows(allRows,user?.workspace?.workspaceId) : Promise.resolve(),
         api.settings.save({
+          ...(user?.workspace?{workspaceId:user.workspace.workspaceId}:{}),
           ...(user?.workspace ? (['owner','manager'].includes(user.workspace.role)?{tgConfig,alertSettings}: {}) : {tgConfig,alertSettings}),
           ...(user?.workspace?.role==='viewer'?{}:{deletedRows}),notifiedIds,fontSize,previewSettings,displaySettings,
         })
@@ -572,7 +573,7 @@ export default function App() {
     try {
       rowUpdateQueueRef.current?.cancel(id);
       if (!isPersistedRow(rowToDelete)) {
-        await api.data.syncRows([rowToDelete]);
+        await api.data.syncRows([rowToDelete],user?.workspace?.workspaceId);
       }
       await api.data.deleteRow(id);
       const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, [id], user?.username);
@@ -596,7 +597,7 @@ export default function App() {
         rowsToDelete.forEach(row => rowUpdateQueueRef.current?.cancel(row.id));
         const localOnlyRows = rowsToDelete.filter(row => !isPersistedRow(row));
         if (localOnlyRows.length > 0) {
-          await api.data.syncRows(localOnlyRows);
+          await api.data.syncRows(localOnlyRows,user?.workspace?.workspaceId);
         }
         const result = await api.data.bulkRows('delete', rowsToDelete.map(row => row.id));
         // Apply exactly what the server accepted, so the screen can never claim rows
@@ -624,7 +625,7 @@ export default function App() {
       rowsToDelete.forEach(row => rowUpdateQueueRef.current?.cancel(row.id));
       const localOnlyRows = rowsToDelete.filter(row => !isPersistedRow(row));
       if (localOnlyRows.length > 0) {
-        await api.data.syncRows(localOnlyRows);
+        await api.data.syncRows(localOnlyRows,user?.workspace?.workspaceId);
       }
       const result = await api.data.bulkRows('delete', rowsToDelete.map(row => row.id));
       const next = markRowsDeleted(allRowsRef.current, deletedRowsRef.current, result.processed || [], user?.username);
@@ -648,7 +649,7 @@ export default function App() {
       rowsToUpdate.forEach(row => rowUpdateQueueRef.current?.cancel(row.id));
       const localOnlyRows = rowsToUpdate.filter(row => !isPersistedRow(row));
       if (localOnlyRows.length > 0) {
-        await api.data.syncRows(localOnlyRows);
+        await api.data.syncRows(localOnlyRows,user?.workspace?.workspaceId);
       }
       const result = await api.data.bulkRows('status', rowsToUpdate.map(row => row.id), status);
       const processedIds = new Set<string>(result.processed || []);
@@ -1006,7 +1007,7 @@ export default function App() {
             integrationReviewRequired={integrationReviewRequired}
             onResolveIntegrationReview={async () => {
               try {
-                await api.settings.save({tgConfig,alertSettings,resolveIntegrationReview:true});
+                await api.settings.save({workspaceId:user?.workspace?.workspaceId,tgConfig,alertSettings,resolveIntegrationReview:true});
                 setIntegrationReviewRequired(false);
               } catch {
                 showNotification('فشل حفظ إعدادات الشركة', 'error');

@@ -59,10 +59,10 @@ export const api = {
     async fetchDeletedRows() {
       return api.request('/data/deleted');
     },
-    async syncRows(rows: any[]) {
+    async syncRows(rows: any[], workspaceId?: number) {
       return api.request('/data/sync', {
         method: 'POST',
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ rows, ...(workspaceId!==undefined?{workspaceId}:{}) }),
       });
     },
     async updateRow(id: string, updates: any, baseVersion?: number) {

@@ -17,6 +17,7 @@ const EVENT_LABELS: Record<string, string> = {
   company_trip_sharing_updated: 'تحديث مشاركة رحلات الشركة',
   company_manager_visibility_updated: 'تحديث رؤية المدير للرحلات',
   workspace_member_updated: 'تحديث صلاحية عضو الشركة',
+  workspace_member_moved: 'نقل عضو بين الشركات',
   user_password_reset: 'إعادة تعيين كلمة مرور',
   user_disabled: 'تعطيل مستخدم',
   user_enabled: 'تفعيل مستخدم',
@@ -511,9 +512,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   };
 
   const handleChangeCompany = async (target: AdminUser, companyId: string) => {
+    if(target.workspaceRole && !window.confirm(`نقل "${target.username}" إلى ${companies.find(company=>company.id===Number(companyId))?.name||'مساحة خاصة جديدة'}؟ ستبقى رحلاته السابقة في الشركة الحالية، وقد تتغير صلاحيته في الشركة الجديدة.`))return;
     try {
       await api.admin.updateUser(target.id, { companyId: companyId ? Number(companyId) : null });
-      loadAll();
+      await loadAll();
     } catch (err: any) {
       setError(err.message || 'فشل تحديث شركة المستخدم');
     }
@@ -669,7 +671,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                       <tr key={u.id} className="border-b hover:bg-gray-50">
                         <td className="p-3 font-bold">{u.username}{u.role === 'admin' && <span className="mr-2 text-[10px] bg-gold-100 text-gold-700 px-2 py-0.5 rounded-full">مسؤول</span>}</td>
                         <td className="p-3 text-gray-500">
-                          {u.role === 'admin' || u.workspaceRole ? (
+                          {u.role === 'admin' ? (
                             u.companyName || '—'
                           ) : (
                             <select
@@ -677,7 +679,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                               onChange={(e) => handleChangeCompany(u, e.target.value)}
                               className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-gold-500"
                             >
-                              <option value="">بدون شركة</option>
+                              <option value="">{u.workspaceRole?'إنشاء مساحة خاصة':'بدون شركة'}</option>
                               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                           )}
@@ -685,9 +687,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
                         <td className="p-3">{u.role==='admin'||!u.workspaceRole?'—':<select
                           aria-label={`صلاحية الشركة لـ ${u.username}`}
                           value={u.workspaceRole}
-                          disabled={u.workspaceRole==='owner'}
                           onChange={event=>void handleWorkspaceRole(u,event.target.value as 'owner'|'manager'|'editor'|'viewer')}
-                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-gold-500 disabled:opacity-60"
+                          className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-gold-500"
                         >
                           <option value="owner">مالك</option><option value="manager">مدير</option><option value="editor">محرر</option><option value="viewer">مشاهد</option>
                         </select>}</td>

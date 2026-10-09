@@ -24,6 +24,10 @@ const user = async (companyId?: number) => {
 };
 const row = (id: string) => ({ id, groupNo: '100', groupName: 'Synthetic', agency: 'Example', status: 'Planned', notes: '' });
 const save = (token: string, rows: any[]) => request(app).post('/api/data/sync').set(auth(token)).send({ rows });
+const saveSettings = async (token:string,payload:Record<string,unknown>) => {
+  const context=await request(app).get('/api/workspace').set(auth(token));
+  return request(app).post('/api/settings').set(auth(token)).send({workspaceId:context.body.workspaceId,...payload});
+};
 const rowsFor = (token: string) => request(app).get('/api/data').set(auth(token));
 const share = async (sender: Awaited<ReturnType<typeof user>>, receiver: Awaited<ReturnType<typeof user>>, scopeType = 'group', role = 'editor') => {
   const invite = await request(app).post('/api/shares/invitations').set(auth(sender.token)).send({ receiverUsername: receiver.username, scopeType, groupNo: '100', agency: 'Example', role });
@@ -98,11 +102,11 @@ describe('staging workspace ownership and isolation', () => {
   it('preserves integration conflicts through autosaves until explicitly resolved by a manager',async()=>{
     const owner=await user();const workspace=(await request(app).get('/api/workspace').set(auth(owner.token))).body;
     db.prepare('UPDATE workspace_settings SET integration_review_required=1 WHERE workspace_id=?').run(workspace.workspaceId);
-    await request(app).post('/api/settings').set(auth(owner.token)).send({tgConfig:{enabled:false},alertSettings:{},fontSize:100});
+    await saveSettings(owner.token,{tgConfig:{enabled:false},alertSettings:{},fontSize:100});
     expect((await request(app).get('/api/settings').set(auth(owner.token))).body.integrationReviewRequired).toBe(true);
     const editor=await user(workspace.workspaceId);
-    expect((await request(app).post('/api/settings').set(auth(editor.token)).send({resolveIntegrationReview:true})).status).toBe(403);
-    await request(app).post('/api/settings').set(auth(owner.token)).send({tgConfig:{enabled:false},resolveIntegrationReview:true});
+    expect((await saveSettings(editor.token,{resolveIntegrationReview:true})).status).toBe(403);
+    await saveSettings(owner.token,{tgConfig:{enabled:false},resolveIntegrationReview:true});
     expect((await request(app).get('/api/settings').set(auth(owner.token))).body.integrationReviewRequired).toBe(false);
   });
 
@@ -241,13 +245,13 @@ describe('staging workspace ownership and isolation', () => {
     const a=await user();
     const workspace=(await request(app).get('/api/workspace').set(auth(a.token))).body;
     const b=await user(workspace.workspaceId);
-    await request(app).post('/api/settings').set(auth(a.token)).send({tgConfig:{token:'synthetic-bot',chatId:'synthetic-chat',enabled:false},fontSize:120});
-    await request(app).post('/api/settings').set(auth(b.token)).send({fontSize:95});
+    await saveSettings(a.token,{tgConfig:{token:'synthetic-bot',chatId:'synthetic-chat',enabled:false},fontSize:120});
+    await saveSettings(b.token,{fontSize:95});
     const ownerSettings=(await request(app).get('/api/settings').set(auth(a.token))).body;
     const editorSettings=(await request(app).get('/api/settings').set(auth(b.token))).body;
     expect(ownerSettings).toMatchObject({fontSize:120,tgConfig:{token:'synthetic-bot'}});
     expect(editorSettings).toMatchObject({fontSize:95,tgConfig:null});
-    expect((await request(app).post('/api/settings').set(auth(b.token)).send({tgConfig:{token:'attack'}})).status).toBe(403);
+    expect((await saveSettings(b.token,{tgConfig:{token:'attack'}})).status).toBe(403);
   });
 
   it('keeps workspace live events isolated and closes a disabled employee socket',async()=>{
@@ -282,7 +286,7 @@ describe('staging workspace ownership and isolation', () => {
     const owner=await user();
     const workspace=(await request(app).get('/api/workspace').set(auth(owner.token))).body;
     const employee=await user(workspace.workspaceId);
-    await request(app).post('/api/settings').set(auth(owner.token)).send({tgConfig:{token:'synthetic-worker-bot',chatId:'synthetic-worker-chat',enabled:true}});
+    await saveSettings(owner.token,{tgConfig:{token:'synthetic-worker-bot',chatId:'synthetic-worker-chat',enabled:true}});
     const soon=new Date(Date.now()+10*60_000);
     const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Riyadh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(soon);
     const part=(name:string)=>parts.find(p=>p.type===name)!.value;

@@ -20,6 +20,7 @@ import { parseItineraryTextEN } from "./utils/parserEN.js";
 import { detectCaptureLang } from "./utils/langDetect.js";
 import { DEFAULT_ALERT_SETTINGS } from "./types.js";
 import { workspaceMigrationRequired, migrateStagingWorkspaces, workspaceFeatureEnabled } from './server/migrations.js';
+import { productionWorkspaceApproval, productionOwnerByCompanyId, productionInitialCompanySharing } from './server/productionWorkspaceApproval.js';
 import { isArchivedCreator, provisionWorkspaceMember, workspaceForUser } from './server/workspaces.js';
 import { workspaceRows, workspaceRowAccess, workspaceEventRecipients, registerWorkspaceAccessFunctions } from './server/access.js';
 import { registerWorkspaceRoutes } from './server/workspaceRoutes.js';
@@ -978,6 +979,9 @@ if (workspaceEnabled) {
     finally { verified.close(); }
   }
   migrateStagingWorkspaces(db,{
+    approval:process.env.UMRAH_DEPLOYMENT_ENV==='production' ? productionWorkspaceApproval : undefined,
+    ownerByCompanyId:process.env.UMRAH_DEPLOYMENT_ENV==='production' ? productionOwnerByCompanyId : undefined,
+    initialCompanySharing:process.env.UMRAH_DEPLOYMENT_ENV==='production' ? productionInitialCompanySharing : undefined,
     orphanTripAssignment:process.env.UMRAH_DEPLOYMENT_ENV==='staging' && process.env.STAGING_ORPHAN_TRIP_COMPANY ? {
       companyName:process.env.STAGING_ORPHAN_TRIP_COMPANY,expectedTripCount:Number(process.env.STAGING_ORPHAN_TRIP_COUNT),
     }:undefined,

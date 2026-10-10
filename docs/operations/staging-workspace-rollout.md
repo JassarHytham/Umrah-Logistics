@@ -1,7 +1,8 @@
 # Staging workspace rollout
 
-This batch applies only to the `staging` branch and staging deployment. Do not
-merge into `main`, set the staging flag on production, or restore a staging
+This is the historical staging rollout record. The separately reviewed
+production activation is documented in
+`docs/operations/production-workspace-rollout.md`. Never restore a staging
 database into production.
 
 **Approved recovery:** The user authorized assigning all five orphan trips to

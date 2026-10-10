@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
+import { createHash } from 'node:crypto';
 import { migrateStagingWorkspaces, workspaceFeatureEnabled, workspaceMigrationRequired } from '../server/migrations';
 import { provisionWorkspaceMember, workspaceForUser } from '../server/workspaces';
 import { registerWorkspaceAccessFunctions, workspaceRowAccess } from '../server/access';
+
+const legacyDigest=(db:Database.Database)=>createHash('sha256').update(JSON.stringify(
+  ['trip_row_access','trip_group_access','trip_agency_access','trip_share_invitations']
+    .map(table=>db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all())
+)).digest('hex');
 
 const legacy=()=>{
   const db=new Database(':memory:');
@@ -40,6 +46,79 @@ describe('staging workspace migration',()=>{
     expect(workspaceFeatureEnabled({NODE_ENV:'production',UMRAH_DEPLOYMENT_ENV:'staging',STAGING_WORKSPACES_ENABLED:'false'})).toBe(false);
     expect(workspaceFeatureEnabled({NODE_ENV:'test'})).toBe(false);
     expect(workspaceFeatureEnabled({NODE_ENV:'test',WORKSPACE_TEST_MODE:'true'})).toBe(true);
+    expect(workspaceFeatureEnabled({NODE_ENV:'production',UMRAH_DEPLOYMENT_ENV:'production',PRODUCTION_WORKSPACES_ENABLED:'true'})).toBe(true);
+    expect(workspaceFeatureEnabled({NODE_ENV:'production',UMRAH_DEPLOYMENT_ENV:'production',STAGING_WORKSPACES_ENABLED:'true'})).toBe(false);
+  });
+  it('assigns the approved company owner instead of choosing by account order',()=>{
+    const db=legacy();try{
+      db.exec("INSERT INTO companies VALUES(1,'Reviewed company');UPDATE users SET company_id=1,is_active=1 WHERE id IN (1,2)");
+      migrateStagingWorkspaces(db,{ownerByCompanyId:{1:2}});
+      expect(db.prepare('SELECT user_id,role FROM workspace_memberships WHERE workspace_id=1 ORDER BY user_id').all())
+        .toEqual([{user_id:1,role:'editor'},{user_id:2,role:'owner'}]);
+      expect(db.prepare('SELECT id,user_id FROM logistics_rows ORDER BY id').all())
+        .toEqual([{id:'a',user_id:1},{id:'b',user_id:2}]);
+    }finally{db.close();}
+  });
+  it('gives unassigned accounts neutral private workspace names',()=>{
+    const db=legacy();try{
+      migrateStagingWorkspaces(db);
+      expect(db.prepare('SELECT name FROM companies ORDER BY id').all())
+        .toEqual([{name:'Workspace — account 1'},{name:'Workspace — account 2'}]);
+    }finally{db.close();}
+  });
+  it('does not create an empty workspace for the platform admin',()=>{
+    const db=legacy();try{
+      db.exec("INSERT INTO users(id,username,role,is_active,company_id) VALUES(9,'admin','admin',1,NULL)");
+      migrateStagingWorkspaces(db);
+      expect(db.prepare('SELECT COUNT(*) AS count FROM companies').get()).toEqual({count:2});
+      expect(db.prepare('SELECT 1 FROM workspace_memberships WHERE user_id=9').get()).toBeUndefined();
+    }finally{db.close();}
+  });
+  it('refuses an approved owner who is not an active member of that company',()=>{
+    const db=legacy();try{
+      db.exec("INSERT INTO companies VALUES(1,'Reviewed company');UPDATE users SET company_id=1 WHERE id IN (1,2)");
+      expect(()=>migrateStagingWorkspaces(db,{ownerByCompanyId:{1:2}})).toThrow('approved owner');
+      expect(db.prepare("SELECT 1 FROM sqlite_master WHERE name='workspace_memberships'").get()).toBeUndefined();
+    }finally{db.close();}
+  });
+  it('rejects changed account assignments before applying a production approval',()=>{
+    const db=legacy();try{
+      db.exec("INSERT INTO companies VALUES(1,'Reviewed company');UPDATE users SET company_id=1 WHERE id=1");
+      const approval={accounts:[
+        {id:1,role:'user',isActive:1,companyId:1},
+        {id:2,role:'user',isActive:0,companyId:null},
+      ],companyIds:[1],legacyShares:{trip_row_access:0,trip_group_access:1,trip_agency_access:0,trip_share_invitations:0},
+      legacyShareDigest:legacyDigest(db)};
+      db.exec('UPDATE users SET company_id=1 WHERE id=2');
+      expect(()=>migrateStagingWorkspaces(db,{approval,ownerByCompanyId:{1:1}})).toThrow('approval');
+      expect(db.prepare("SELECT 1 FROM sqlite_master WHERE name='workspace_memberships'").get()).toBeUndefined();
+    }finally{db.close();}
+  });
+  it('rejects a new legacy share before quarantining any access',()=>{
+    const db=legacy();try{
+      db.exec("INSERT INTO companies VALUES(1,'Reviewed company');UPDATE users SET company_id=1 WHERE id=1");
+      const approval={accounts:[
+        {id:1,role:'user',isActive:1,companyId:1},
+        {id:2,role:'user',isActive:0,companyId:null},
+      ],companyIds:[1],legacyShares:{trip_row_access:0,trip_group_access:1,trip_agency_access:0,trip_share_invitations:0},
+      legacyShareDigest:legacyDigest(db)};
+      db.exec("INSERT INTO trip_group_access VALUES('other',2,1)");
+      expect(()=>migrateStagingWorkspaces(db,{approval,ownerByCompanyId:{1:1}})).toThrow('approval');
+      expect(db.prepare('SELECT COUNT(*) AS count FROM trip_group_access').get()).toEqual({count:2});
+    }finally{db.close();}
+  });
+  it('rejects an edited legacy share even when the count is unchanged',()=>{
+    const db=legacy();try{
+      db.exec("INSERT INTO companies VALUES(1,'Reviewed company');UPDATE users SET company_id=1 WHERE id=1");
+      const approval={accounts:[
+        {id:1,role:'user',isActive:1,companyId:1},
+        {id:2,role:'user',isActive:0,companyId:null},
+      ],companyIds:[1],legacyShares:{trip_row_access:0,trip_group_access:1,trip_agency_access:0,trip_share_invitations:0},
+      legacyShareDigest:legacyDigest(db)};
+      db.exec("UPDATE trip_group_access SET group_no='changed' WHERE group_no='100'");
+      expect(()=>migrateStagingWorkspaces(db,{approval,ownerByCompanyId:{1:1}})).toThrow('approval');
+      expect(db.prepare("SELECT 1 FROM sqlite_master WHERE name='workspace_memberships'").get()).toBeUndefined();
+    }finally{db.close();}
   });
   it('preserves trips and disabled memberships, quarantines ambiguous shares/secrets and runs once',()=>{
     const db=legacy();
@@ -137,6 +216,15 @@ describe('staging workspace migration',()=>{
       db.exec("INSERT INTO companies(name) VALUES('New shared company')");
       expect(db.prepare("SELECT share_all_trips FROM companies WHERE name='New shared company'").get()).toEqual({share_all_trips:1});
       expect(db.prepare("SELECT manager_sees_all_trips FROM companies WHERE name='New shared company'").get()).toEqual({manager_sees_all_trips:1});
+    }finally{db.close();}
+  });
+  it('keeps existing company members on creator-only visibility when the approved rollout requests it',()=>{
+    const db=legacy();try{
+      db.exec("INSERT INTO companies VALUES(1,'Reviewed company');UPDATE users SET company_id=1,is_active=1 WHERE id IN (1,2)");
+      migrateStagingWorkspaces(db,{ownerByCompanyId:{1:2},initialCompanySharing:{1:false}});
+      expect(db.prepare('SELECT share_all_trips FROM companies WHERE id=1').get()).toEqual({share_all_trips:0});
+      expect(workspaceForUser(db,1)?.shareAllTrips).toBe(false);
+      expect(workspaceForUser(db,2)?.role).toBe('owner');
     }finally{db.close();}
   });
   it('rejects an approved recovery when no orphan trips remain and rolls back',()=>{

@@ -17,7 +17,7 @@ export function verifyWorkspaceDatabase(db:Database.Database) {
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  if(process.env.UMRAH_DEPLOYMENT_ENV!=='staging')throw new Error('This verification command is staging-only');
+  if(!['staging','production'].includes(process.env.UMRAH_DEPLOYMENT_ENV||''))throw new Error('Workspace verification requires an explicit deployment environment');
   const args=process.argv.slice(2);
   if(args.length!==2||args[0]!=='--db')throw new Error('Usage: tsx scripts/verify-workspaces.ts --db /path/to/staging.db');
   const deadline=Date.now()+30_000;
@@ -25,7 +25,7 @@ if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.ur
     let db:Database.Database|undefined;
     try {
       db=new Database(args[1],{readonly:true,fileMustExist:true});
-      console.log('Staging workspace migration verified:',JSON.stringify(verifyWorkspaceDatabase(db)));
+      console.log('Workspace migration verified:',JSON.stringify(verifyWorkspaceDatabase(db)));
       break;
     } catch(error) {
       if(Date.now()>=deadline)throw error;

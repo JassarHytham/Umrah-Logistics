@@ -1,9 +1,43 @@
 import type { Database } from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { migrateSubscriptionSchema } from './subscriptions';
 
-type MigrationOptions = { orphanTripAssignment?: { companyName:string; expectedTripCount:number } };
+type MigrationOptions = {
+  orphanTripAssignment?: { companyName:string; expectedTripCount:number };
+  ownerByCompanyId?: Record<number,number>;
+  initialCompanySharing?: Record<number,boolean>;
+  approval?: WorkspaceApproval;
+};
+export type WorkspaceApproval = {
+  accounts: {id:number;role:string;isActive:number;companyId:number|null}[];
+  companyIds: number[];
+  legacyShares: Record<'trip_row_access'|'trip_group_access'|'trip_agency_access'|'trip_share_invitations',number>;
+  legacyShareDigest: string;
+};
+
+export function fingerprintLegacyShares(db:Database) {
+  const records=['trip_row_access','trip_group_access','trip_agency_access','trip_share_invitations']
+    .map(table=>db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all());
+  return createHash('sha256').update(JSON.stringify(records)).digest('hex');
+}
+
+export function assertWorkspaceApproval(db:Database,approval:WorkspaceApproval) {
+  const accounts=db.prepare('SELECT id,role,is_active AS isActive,company_id AS companyId FROM users ORDER BY id').all();
+  const companies=(db.prepare('SELECT id FROM companies ORDER BY id').all() as {id:number}[]).map(company=>company.id);
+  if(JSON.stringify(accounts)!==JSON.stringify(approval.accounts)||JSON.stringify(companies)!==JSON.stringify(approval.companyIds))
+    throw new Error('Production workspace approval no longer matches accounts or companies');
+  for(const table of ['trip_row_access','trip_group_access','trip_agency_access','trip_share_invitations'] as const) {
+    const count=(db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as {count:number}).count;
+    if(count!==approval.legacyShares[table])throw new Error('Production workspace approval no longer matches legacy shares');
+  }
+  if(fingerprintLegacyShares(db)!==approval.legacyShareDigest)
+    throw new Error('Production workspace approval no longer matches legacy sharing records');
+  if(db.prepare('SELECT 1 FROM logistics_rows r LEFT JOIN users u ON u.id=r.user_id WHERE u.id IS NULL OR u.role!=\'user\' LIMIT 1').get())
+    throw new Error('Production workspace approval requires reviewed trip creators');
+  if(db.prepare('SELECT 1 FROM logistics_rows WHERE NOT json_valid(data) LIMIT 1').get())
+    throw new Error('Production workspace approval requires valid trip data');
+}
 
 const companySharingMigration=(db:Database)=>{
   if(!(db.pragma('table_info(companies)') as {name:string}[]).some(column=>column.name==='share_all_trips'))
@@ -28,6 +62,7 @@ const archiveMarkerMigration = (db:Database) => {
 
 export const workspaceFeatureEnabled = (env: NodeJS.ProcessEnv) =>
   ((env.UMRAH_DEPLOYMENT_ENV === 'staging' || env.NODE_ENV === 'staging') && env.STAGING_WORKSPACES_ENABLED !== 'false')
+  || (env.UMRAH_DEPLOYMENT_ENV === 'production' && env.PRODUCTION_WORKSPACES_ENABLED === 'true')
   || (env.NODE_ENV === 'test' && env.WORKSPACE_TEST_MODE === 'true');
 
 export const hasWorkspaceSchema = (db: Database) => Boolean(db.prepare(
@@ -37,14 +72,15 @@ export const hasWorkspaceSchema = (db: Database) => Boolean(db.prepare(
 export const workspaceMigrationRequired = (db:Database) => !hasWorkspaceSchema(db)
   || ((db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {version:number|null}).version??0)<5;
 
-// Staging rehearsal only. Existing authoritative company IDs are preserved;
-// unassigned accounts receive individual workspaces, never name-based grouping.
+// Existing authoritative company IDs are preserved; unassigned accounts receive
+// individual workspaces, never name-based grouping.
 export function migrateStagingWorkspaces(db: Database, options:MigrationOptions={}) {
   if (hasWorkspaceSchema(db)) {
     db.pragma('foreign_keys = ON');
     db.transaction(()=>{archiveMarkerMigration(db);migrateSubscriptionSchema(db);companySharingMigration(db);managerVisibilityMigration(db);})();
     return;
   }
+  if(options.approval)assertWorkspaceApproval(db,options.approval);
   db.pragma('foreign_keys = OFF');
   try {
     db.transaction(() => {
@@ -54,6 +90,11 @@ export function migrateStagingWorkspaces(db: Database, options:MigrationOptions=
       const historicTrips=JSON.stringify(db.prepare(historicTripsQuery).all());
       // Only company references valid before allocation are authoritative.
       const originalCompanyIds=new Set((db.prepare('SELECT id FROM companies').all() as {id:number}[]).map(company=>company.id));
+      for(const [id,ownerId] of Object.entries(options.ownerByCompanyId??{})) {
+        const companyId=Number(id);
+        const owner=db.prepare("SELECT 1 FROM users WHERE id=? AND company_id=? AND role='user' AND is_active=1").get(ownerId,companyId);
+        if(!originalCompanyIds.has(companyId)||!owner)throw new Error('Invalid approved owner for existing company');
+      }
       const recoveredCreatorWorkspaces=new Map<number,number>();
       db.exec(`
         CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
@@ -129,14 +170,16 @@ export function migrateStagingWorkspaces(db: Database, options:MigrationOptions=
       }
       const users = db.prepare("SELECT id,role,is_active,company_id,is_archived_creator FROM users ORDER BY is_active DESC,id").all() as any[];
       for (const user of users) {
+        if (user.role === 'admin') continue;
         let workspaceId = recoveredCreatorWorkspaces.get(user.id) ?? (originalCompanyIds.has(user.company_id) ? user.company_id : null);
         if (!workspaceId) {
-          workspaceId = Number(db.prepare('INSERT INTO companies(name) VALUES (?)').run(`Staging workspace — account ${user.id}`).lastInsertRowid);
+          workspaceId = Number(db.prepare('INSERT INTO companies(name) VALUES (?)').run(`Workspace — account ${user.id}`).lastInsertRowid);
         }
         if (user.role !== 'admin' && !user.is_archived_creator) {
           const owner = db.prepare("SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(workspaceId);
+          const approvedOwner=options.ownerByCompanyId?.[workspaceId];
           db.prepare('INSERT INTO workspace_memberships(workspace_id,user_id,role,is_active) VALUES (?,?,?,?)')
-            .run(workspaceId,user.id,owner ? 'editor' : 'owner',user.is_active ? 1 : 0);
+            .run(workspaceId,user.id,approvedOwner ? (user.id===approvedOwner?'owner':'editor') : owner ? 'editor' : 'owner',user.is_active ? 1 : 0);
         }
         db.prepare('UPDATE logistics_rows SET workspace_id=? WHERE user_id=?').run(workspaceId,user.id);
       }
@@ -181,6 +224,11 @@ export function migrateStagingWorkspaces(db: Database, options:MigrationOptions=
       `);
       migrateSubscriptionSchema(db);
       companySharingMigration(db);
+      for(const [id,enabled] of Object.entries(options.initialCompanySharing??{})) {
+        const companyId=Number(id);
+        if(!originalCompanyIds.has(companyId)||typeof enabled!=='boolean')throw new Error('Invalid approved company sharing policy');
+        db.prepare('UPDATE companies SET share_all_trips=? WHERE id=?').run(enabled?1:0,companyId);
+      }
       managerVisibilityMigration(db);
       if(JSON.stringify(db.prepare(historicTripsQuery).all())!==historicTrips)throw new Error('Workspace migration changed historic trip records');
       if ((db.pragma('foreign_key_check') as unknown[]).length) throw new Error('Workspace migration foreign-key validation failed');

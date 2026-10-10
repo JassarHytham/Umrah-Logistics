@@ -62,10 +62,22 @@ export const api = {
       return api.request('/data/deleted');
     },
     async syncRows(rows: any[], workspaceId?: number) {
-      return api.request('/data/sync', {
-        method: 'POST',
-        body: JSON.stringify({ rows, ...(workspaceId!==undefined?{workspaceId}:{}) }),
-      });
+      // The API accepts at most 5,000 rows per request. Smaller batches also
+      // keep each request well below the proxy and JSON body-size limits.
+      const batchSize = 1000;
+      let result;
+      for (let start = 0; start < rows.length || start === 0; start += batchSize) {
+        try {
+          result = await api.request('/data/sync', {
+            method: 'POST',
+            body: JSON.stringify({ rows: rows.slice(start,start + batchSize), ...(workspaceId!==undefined?{workspaceId}:{}) }),
+          });
+        } catch (error) {
+          if (start > 0 && error && typeof error === 'object') (error as Error & {partialSync?:boolean}).partialSync = true;
+          throw error;
+        }
+      }
+      return result;
     },
     async updateRow(id: string, updates: any, baseVersion?: number) {
       return api.request(`/data/${id}`, {

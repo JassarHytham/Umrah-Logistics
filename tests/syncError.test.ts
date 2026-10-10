@@ -44,4 +44,13 @@ describe('sync error details', () => {
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0]).toContain('الإعدادات');
   });
+
+  it('reloads after a later batch fails and still reports its HTTP reason',()=>{
+    const result=summarizeSyncResults([
+      {status:'rejected',reason:Object.assign(new Error('Temporary outage'),{status:502,partialSync:true})},
+      {status:'fulfilled',value:{success:true}},
+    ]);
+    expect(result.needsReload).toBe(true);
+    expect(result.messages).toEqual([expect.stringContaining('HTTP 502')]);
+  });
 });

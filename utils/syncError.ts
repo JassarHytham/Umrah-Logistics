@@ -18,9 +18,11 @@ export const formatSyncError = (area: SyncArea, error: unknown): string => {
 export const summarizeSyncResults = (
   [rows, settings]: [PromiseSettledResult<unknown>, PromiseSettledResult<unknown>],
 ): { needsReload: boolean; messages: string[] } => {
-  const needsReload = rows.status === 'rejected' && statusOf(rows.reason) === 409;
+  const rowConflict = rows.status === 'rejected' && statusOf(rows.reason) === 409;
+  const partialSync = rows.status === 'rejected' && Boolean(rows.reason && typeof rows.reason === 'object' && rows.reason.partialSync === true);
+  const needsReload = rowConflict || partialSync;
   const messages: string[] = [];
-  if (rows.status === 'rejected' && !needsReload) messages.push(formatSyncError('trips', rows.reason));
+  if (rows.status === 'rejected' && !rowConflict) messages.push(formatSyncError('trips', rows.reason));
   if (settings.status === 'rejected') messages.push(formatSyncError('settings', settings.reason));
   return { needsReload, messages };
 };

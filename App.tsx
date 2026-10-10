@@ -32,6 +32,7 @@ import { api } from './services/api';
 import { createRowUpdateQueue } from './utils/rowUpdateQueue';
 import { createLatestDataLoader, createLiveRefreshListener } from './utils/latestDataLoader';
 import { isPersistedRow, markRowsDeleted, removeDeletedRows, restoreRows } from './utils/rowStateActions';
+import { formatSyncError, summarizeSyncResults } from './utils/syncError';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
   try {
@@ -80,6 +81,7 @@ export default function App() {
   const [selectMode, setSelectMode] = useState(false);
   const [newRowToEditId, setNewRowToEditId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [filteredRows, setFilteredRows] = useState<LogisticsRow[]>([]);
   const [analyticsFilter, setAnalyticsFilter] = useState<Record<string, string[]> | undefined>(undefined);
   const [fontSize, setFontSize] = useState<number>(100);
@@ -181,7 +183,7 @@ export default function App() {
     setIsSyncing(true);
     try {
       const shouldSyncRows = !rowUpdateQueueRef.current?.hasPending();
-      await Promise.all([
+      const results = await Promise.allSettled([
         shouldSyncRows && user?.workspace?.role!=='viewer' ? api.data.syncRows(allRows,user?.workspace?.workspaceId) : Promise.resolve(),
         api.settings.save({
           ...(user?.workspace?{workspaceId:user.workspace.workspaceId}:{}),
@@ -189,16 +191,15 @@ export default function App() {
           ...(user?.workspace?.role==='viewer'?{}:{deletedRows}),notifiedIds,fontSize,previewSettings,displaySettings,
         })
       ]);
-    } catch (err: any) {
-      // A 409 means someone got there first — another tab, a teammate, or an
-      // extension capture. That is ordinary concurrent editing, not a failure, so
-      // reconcile against the server instead of showing the user a sync error.
-      if (err?.status === 409) {
-        await loadUserData(false);
-        return;
+      const { needsReload, messages } = summarizeSyncResults(results as [PromiseSettledResult<unknown>, PromiseSettledResult<unknown>]);
+      if (needsReload) await loadUserData(false);
+      if (messages.length) {
+        console.error('Sync failed', results.filter(result => result.status === 'rejected'));
+        showNotification(messages.join('\n'), 'error');
       }
-      console.error("Sync failed", err);
-      showNotification("فشل مزامنة البيانات مع الخادم", "error");
+    } catch (err: any) {
+      console.error('Sync failed before requests settled', err);
+      showNotification(formatSyncError('trips', err), 'error');
     } finally {
       setTimeout(() => setIsSyncing(false), 1000);
     }
@@ -331,8 +332,9 @@ export default function App() {
   };
 
   const showNotification = (msg: string, type: 'success' | 'error') => {
+    if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
     setNotification({ msg, type });
-    setTimeout(() => setNotification(null), 3500);
+    notificationTimerRef.current = setTimeout(() => setNotification(null), type === 'error' ? 10000 : 3500);
   };
 
   const handleTestTelegram = async () => {
@@ -880,8 +882,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-white text-right pb-20 relative transition-all duration-300" dir="rtl" style={{ fontSize: `${fontSize}%` }}>
       {notification && (
-        <div className={`fixed top-6 left-6 z-[60] px-6 py-4 rounded-lg shadow-xl text-white flex items-center gap-3 animate-bounce-in ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
-          <AlertCircle size={24} /> <span>{notification.msg}</span>
+        <div role="alert" className={`fixed top-6 left-6 z-[60] max-w-md px-6 py-4 rounded-lg shadow-xl text-white flex items-center gap-3 animate-bounce-in ${notification.type === 'error' ? 'bg-red-500' : 'bg-green-600'}`}>
+          <AlertCircle size={24} /> <span className="whitespace-pre-line">{notification.msg}</span>
         </div>
       )}
 

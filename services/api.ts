@@ -22,8 +22,10 @@ export const api = {
     if (contentType && contentType.includes('application/json')) {
       data = await response.json();
     } else {
-      const text = await response.text();
-      throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}...`);
+      const error: any = new Error('Server returned a non-JSON response');
+      error.status = response.status;
+      error.endpoint = endpoint;
+      throw error;
     }
 
     if (!response.ok) {

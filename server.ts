@@ -496,6 +496,9 @@ const botLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 app.use("/api/auth", authLimiter);
+// A trip sync can contain thousands of rows. Keep the larger parser limit
+// restricted to this endpoint; credentials and settings retain the 2 MiB cap.
+app.use("/api/data/sync", express.json({ limit: "8mb" }));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ limit: "2mb", extended: true }));
 // Public, unauthenticated marketing pages, served at clean paths (no .html

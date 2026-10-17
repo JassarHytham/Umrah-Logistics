@@ -33,6 +33,9 @@ const __dirname = path.dirname(__filename);
 const APP_ROOT = process.cwd();
 
 const app = express();
+// Nginx connects over loopback and appends the real client to X-Forwarded-For.
+// Trust only the local proxy so clients keep separate rate-limit allowances.
+app.set("trust proxy", "loopback");
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 const isTestEnv = process.env.VITEST === "true" || process.env.NODE_ENV === "test";
 const workspaceEnabled = workspaceFeatureEnabled(process.env);
@@ -473,6 +476,7 @@ const apiLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   keyGenerator: rateLimitKeyGenerator,
+  message: { error: "Too many requests, please try again later." },
   skip: () => isTestEnv,
 });
 
@@ -483,6 +487,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
   keyGenerator: rateLimitKeyGenerator,
+  message: { error: "Too many requests, please try again later." },
   skip: () => isTestEnv,
 });
 
@@ -492,6 +497,7 @@ const botLimiter = rateLimit({
   standardHeaders: "draft-8",
   legacyHeaders: false,
   keyGenerator: rateLimitKeyGenerator,
+  message: { error: "Too many requests, please try again later." },
   skip: () => isTestEnv,
 });
 

@@ -472,7 +472,9 @@ const rateLimitKeyGenerator = (req: any): string =>
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 600,
+  // Production observed a legitimate session burst at 100 API requests/min.
+  // Keep room for active sync while auth failures remain separately limited.
+  limit: 2400,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   keyGenerator: rateLimitKeyGenerator,

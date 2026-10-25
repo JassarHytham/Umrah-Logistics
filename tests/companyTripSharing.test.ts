@@ -36,6 +36,18 @@ const fixture=async()=>{
   return {owner,editor,peer,workspace,ownerRow,editorRow,peerRow,toggle,ids};
 };
 describe('per-company automatic trip sharing',()=>{
+  it('deduplicates within one workspace member while keeping another member separate',async()=>{
+    const f=await fixture();
+    const duplicate={...f.ownerRow,id:`${f.ownerRow.id}-copy`};
+    const skipped=await request(app).post('/api/data/sync').set(auth(f.owner.token)).send({rows:[duplicate]});
+    expect(skipped.body.skippedDuplicates).toEqual([{clientId:duplicate.id,existingId:f.ownerRow.id}]);
+    const anotherMember=await account(f.workspace.workspaceId);
+    const separate={...f.ownerRow,id:`${f.ownerRow.id}-other-member`};
+    const inserted=await request(app).post('/api/data/sync').set(auth(anotherMember.token)).send({rows:[separate]});
+    expect(inserted.body.skippedDuplicates).toBeUndefined();
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE id IN (?,?)').get(f.ownerRow.id,separate.id)).toEqual({count:2});
+  });
+
   it('defaults to ON and persists toggles without changing historic trips',async()=>{
     const f=await fixture();
     const list=(await request(app).get('/api/admin/companies').set(auth(adminToken))).body.companies;

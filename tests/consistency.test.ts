@@ -459,7 +459,10 @@ describe('POST /api/data/bulk', () => {
 
   it('restores many rows in a single request', async () => {
     const user = await registerUser('bulk_res');
-    const rows = Array.from({ length: 3 }, (_, i) => makeRow(`bulk-res-${i}-${Date.now()}`, 'BULK-3'));
+    const rows = Array.from({ length: 3 }, (_, i) => ({
+      ...makeRow(`bulk-res-${i}-${Date.now()}`, 'BULK-3'),
+      flight: `SV${100 + i}`,
+    }));
     await sync(user.token, rows);
     await request(app)
       .post('/api/data/bulk')

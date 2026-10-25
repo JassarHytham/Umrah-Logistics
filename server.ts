@@ -19,6 +19,7 @@ import { parseDateTime, parseItineraryText } from "./utils/parser.js";
 import { parseItineraryTextEN } from "./utils/parserEN.js";
 import { detectCaptureLang } from "./utils/langDetect.js";
 import { DEFAULT_ALERT_SETTINGS } from "./types.js";
+import { areTripsEquivalent, normalizeTripValue } from "./utils/tripDuplicate.js";
 import { workspaceMigrationRequired, migrateStagingWorkspaces, workspaceFeatureEnabled } from './server/migrations.js';
 import { productionWorkspaceApproval, productionOwnerByCompanyId, productionInitialCompanySharing } from './server/productionWorkspaceApproval.js';
 import { isArchivedCreator, provisionWorkspaceMember, workspaceForUser } from './server/workspaces.js';
@@ -613,8 +614,76 @@ type AccessScope = "owner" | "row" | "group" | "agency";
 const parseRowData = (data: string) => JSON.parse(data);
 
 const sanitizeRowForStorage = (row: any) => {
-  const { _sharing, _originalIndex, _version, _workspaceId, workspaceId, workspace_id, ...stored } = row;
+  const { _sharing, _originalIndex, _version, _workspaceId, _allowDuplicate, workspaceId, workspace_id, ...stored } = row;
   return stored;
+};
+
+type TripDuplicateCandidate = { id: string; row: Record<string, unknown> };
+type TripDuplicateCandidates = Map<string, TripDuplicateCandidate[]>;
+
+// Load the active comparison set once for a create batch. Trips are JSON-backed,
+// so normalize group identifiers and compare full business payloads in memory.
+const loadTripDuplicateCandidates = (userId: number, workspaceId: number | undefined, incomingRows: Record<string, unknown>[]): TripDuplicateCandidates => {
+  const scope = workspaceEnabled && workspaceId !== undefined
+    ? { clause: "workspace_id = ? AND user_id = ?", values: [workspaceId, userId] }
+    : { clause: "user_id = ?", values: [userId] };
+  const groupKeys = new Set(incomingRows.map((row) => normalizeTripValue(row.groupNo)).filter(Boolean));
+  if (groupKeys.size === 0) return new Map();
+  const groupNos = db.prepare(`
+    SELECT DISTINCT CASE WHEN json_valid(data) THEN json_extract(data, '$.groupNo') END AS groupNo
+    FROM logistics_rows WHERE ${scope.clause} AND deleted_at IS NULL
+  `).all(...scope.values) as { groupNo: unknown }[];
+  const matchingRawGroupNos = groupNos.map(({ groupNo }) => groupNo)
+    .filter((groupNo) => groupNo !== null && groupKeys.has(normalizeTripValue(groupNo)));
+  if (matchingRawGroupNos.length === 0) return new Map();
+  const placeholders = matchingRawGroupNos.map(() => '?').join(',');
+  const records = db.prepare(`
+    SELECT id, data FROM logistics_rows
+    WHERE ${scope.clause} AND deleted_at IS NULL AND json_valid(data)
+      AND json_extract(data, '$.groupNo') IN (${placeholders})
+  `).all(...scope.values, ...matchingRawGroupNos) as { id: string; data: string }[];
+  const candidates: TripDuplicateCandidates = new Map();
+  for (const record of records) {
+    try {
+      const row = parseRowData(record.data) as Record<string, unknown>;
+      const groupKey = normalizeTripValue(row.groupNo);
+      if (!groupKey) continue;
+      const list = candidates.get(groupKey) ?? [];
+      list.push({ id: record.id, row });
+      candidates.set(groupKey, list);
+    } catch { /* Ignore malformed historic JSON; never modify it. */ }
+  }
+  return candidates;
+};
+
+type TripInsertResult = { inserted: true; row: Record<string, unknown> } | { inserted: false; existingId: string };
+const createTripIfNotDuplicate = (
+  row: Record<string, unknown>,
+  candidates: TripDuplicateCandidates,
+  insert: (storedRow: Record<string, unknown>) => void,
+  options: { userId: number; source: string; bypass?: boolean },
+): TripInsertResult => {
+  const storedRow = sanitizeRowForStorage(row);
+  const groupKey = normalizeTripValue(storedRow.groupNo);
+  if (groupKey && !options.bypass) {
+    const match = (candidates.get(groupKey) ?? []).find((candidate) => areTripsEquivalent(candidate.row, storedRow));
+    if (match) {
+      logEvent("trip_duplicate_skipped", {
+        category: options.source === "extension" ? "integration" : "data",
+        actorUserId: options.userId,
+        metadata: { source: options.source, existingId: match.id, clientId: storedRow.id, occurredAt: new Date().toISOString() },
+      });
+      return { inserted: false, existingId: match.id };
+    }
+  }
+
+  insert(storedRow);
+  if (groupKey) {
+    const list = candidates.get(groupKey) ?? [];
+    list.push({ id: String(storedRow.id), row: storedRow });
+    candidates.set(groupKey, list);
+  }
+  return { inserted: true, row: storedRow };
 };
 
 const normalizeShareRole = (role: any): ShareRole => role === "viewer" ? "viewer" : "editor";
@@ -1567,8 +1636,10 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
   const updateStmt = db.prepare("UPDATE logistics_rows SET data = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
   const affectedUserIds = new Set<number>();
   const conflicts: any[] = [];
+  const skippedDuplicates: { clientId: string; existingId: string }[] = [];
 
   const sync = db.transaction((rows) => {
+    const duplicateCandidates = loadTripDuplicateCandidates(userId, workspaceEnabled ? req.workspace?.workspaceId : undefined, rows);
     for (const row of rows) {
       if (!row?.id) continue;
       // existingById is kept in sync as we go (not just a static pre-fetch), so a
@@ -1612,17 +1683,23 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
           const agencyRole = agencyRoles.get(agency);
           if (agencyRole && !canEditAccessRole(agencyRole)) continue;
         }
-        insertStmt.run(row.id, userId, JSON.stringify(storedRow));
+        const creation = createTripIfNotDuplicate(row, duplicateCandidates, (trip) => {
+          insertStmt.run(row.id, userId, JSON.stringify(trip));
+        }, { userId, source: "sync", bypass: row._allowDuplicate === "true" });
+        if (!creation.inserted) {
+          skippedDuplicates.push({ clientId: row.id, existingId: creation.existingId });
+          continue;
+        }
         const recipients = workspaceEnabled ? workspaceEventRecipients(db,row.id) : new Set<number>([userId]);
         if (groupNo) visibleUserIdsForGroupNo(groupNo, userId).forEach((id) => recipients.add(id));
         if (agency) visibleUserIdsForAgency(agency, userId).forEach((id) => recipients.add(id));
         recipients.forEach((id) => affectedUserIds.add(id));
-        existingById.set(row.id, { id: row.id, user_id: userId, data: JSON.stringify(storedRow), version: 1, updated_at: new Date().toISOString(), deleted_at: null as any, deleted_by_user_id: null as any });
+        existingById.set(row.id, { id: row.id, user_id: userId, data: JSON.stringify(creation.row), version: 1, updated_at: new Date().toISOString(), deleted_at: null as any, deleted_by_user_id: null as any });
       }
     }
   });
 
-  sync(rows);
+  sync.immediate(rows);
   if (rows.length > 0) {
     logEvent("data_synced", { category: "data", actorUserId: req.user.id, metadata: { rowCount: rows.length } });
   }
@@ -1631,7 +1708,7 @@ app.post("/api/data/sync", authenticateToken, (req: any, res) => {
     return res.status(409).json({ success: false, code: "CONFLICT", conflicts });
   }
   sendLiveEvent(affectedUserIds, "rows_changed", req.user.id);
-  res.json({ success: true });
+  res.json({ success: true, ...(skippedDuplicates.length ? { skippedDuplicates } : {}) });
 });
 
 app.patch("/api/data/:id", authenticateToken, (req: any, res) => {
@@ -2603,26 +2680,28 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
       SET deleted_at = CURRENT_TIMESTAMP, deleted_by_user_id = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND deleted_at IS NULL
     `);
-    const insertStmt = db.prepare(`
-      INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        data = excluded.data,
-        deleted_at = NULL,
-        deleted_by_user_id = NULL,
-        version = version + 1,
-        updated_at = CURRENT_TIMESTAMP
-    `);
+    const insertStmt = db.prepare("INSERT INTO logistics_rows (id, user_id, data) VALUES (?, ?, ?)");
+    const insertedRows: any[] = [];
+    const skippedDuplicates: { clientId: string; existingId: string }[] = [];
 
-    db.transaction(() => {
+    const createIngestBatch = db.transaction(() => {
       for (const record of replaced) softDeleteStmt.run(req.user.id, record.id);
-      for (const row of newRows) insertStmt.run(row.id, req.user.id, JSON.stringify(row));
-    })();
+      const duplicateCandidates = loadTripDuplicateCandidates(req.user.id, workspaceEnabled ? req.workspace?.workspaceId : undefined, newRows);
+      for (const row of newRows) {
+        const creation = createTripIfNotDuplicate(row, duplicateCandidates, (trip) => {
+          insertStmt.run(row.id, req.user.id, JSON.stringify(trip));
+        }, { userId: req.user.id, source: "extension" });
+        if (creation.inserted) insertedRows.push(creation.row);
+        else skippedDuplicates.push({ clientId: row.id, existingId: creation.existingId });
+      }
+    });
+    createIngestBatch.immediate();
 
     const affectedUserIds = new Set<number>([req.user.id]);
     replaced.forEach((record) => {
       getVisibleUserIdsForRowRecord(record).forEach((id) => affectedUserIds.add(id));
     });
-    newRows.forEach((row: any) => {
+    insertedRows.forEach((row: any) => {
       const rowGroupNo = String(row.groupNo || "").trim();
       const rowAgency = normalizeAgency(row.agency);
       if (rowGroupNo) getVisibleUserIdsForGroupNo(rowGroupNo, req.user.id).forEach((id) => affectedUserIds.add(id));
@@ -2634,10 +2713,18 @@ app.post("/api/ingest/text", authenticateToken, (req: any, res) => {
     logEvent("ingest_processed", {
       category: "integration",
       actorUserId: req.user.id,
-      metadata: { action: overwrite ? "overwrite" : "add", groupNo: groupNoValue, count: newRows.length },
+      metadata: { action: overwrite ? "overwrite" : "add", groupNo: groupNoValue, count: insertedRows.length, duplicateCount: skippedDuplicates.length },
     });
 
-    res.json({ success: true, rows: newRows, message: `تم ${action} ${newRows.length} رحلة` });
+    if (insertedRows.length === 0 && skippedDuplicates.length > 0) {
+      return res.json({ success: true, status: "duplicate_skipped", existing_id: skippedDuplicates[0].existingId, rows: [] });
+    }
+    res.json({
+      success: true,
+      ...(skippedDuplicates.length ? { status: "partial_duplicate_skipped", skippedDuplicates } : {}),
+      rows: insertedRows,
+      message: `تم ${action} ${insertedRows.length} رحلة`,
+    });
 
   } catch (err: any) {
     logEvent("ingest_failed", {

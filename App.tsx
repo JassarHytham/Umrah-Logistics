@@ -33,6 +33,7 @@ import { createRowUpdateQueue } from './utils/rowUpdateQueue';
 import { createLatestDataLoader, createLiveRefreshListener } from './utils/latestDataLoader';
 import { isPersistedRow, markRowsDeleted, removeDeletedRows, restoreRows } from './utils/rowStateActions';
 import { formatSyncError, summarizeSyncResults } from './utils/syncError';
+import { applySkippedTripDuplicates } from './utils/syncDuplicateResult';
 
 const loadFromStorage = (key: string, defaultValue: any) => {
   try {
@@ -183,8 +184,20 @@ export default function App() {
     setIsSyncing(true);
     try {
       const shouldSyncRows = !rowUpdateQueueRef.current?.hasPending();
+      const syncRows = shouldSyncRows && user?.workspace?.role!=='viewer'
+        ? api.data.syncRows(allRows,user?.workspace?.workspaceId).then((result) => {
+            const skipped = result.skippedDuplicates || [];
+            if (skipped.length || allRows.some((row) => row._allowDuplicate)) {
+              const processedIds = new Set(allRows.map((row) => row.id));
+              const reconciliation = applySkippedTripDuplicates(allRows, skipped, processedIds);
+              setAllRows((current) => applySkippedTripDuplicates(current, skipped, processedIds).rows);
+              if (reconciliation.notification) showNotification(reconciliation.notification, 'success');
+            }
+            return result;
+          })
+        : Promise.resolve();
       const results = await Promise.allSettled([
-        shouldSyncRows && user?.workspace?.role!=='viewer' ? api.data.syncRows(allRows,user?.workspace?.workspaceId) : Promise.resolve(),
+        syncRows,
         api.settings.save({
           ...(user?.workspace?{workspaceId:user.workspace.workspaceId}:{}),
           ...(user?.workspace ? (['owner','manager'].includes(user.workspace.role)?{tgConfig,alertSettings}: {}) : {tgConfig,alertSettings}),
@@ -738,7 +751,7 @@ export default function App() {
   };
 
   const duplicateRow = (row: LogisticsRow) => {
-    setAllRows([{ ...row, id: uid() }, ...allRows]);
+    setAllRows([{ ...row, id: uid(), _allowDuplicate: 'true' }, ...allRows]);
     showNotification("تم تكرار الرحلة بنجاح", "success");
   };
 

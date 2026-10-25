@@ -66,18 +66,20 @@ export const api = {
       // keep each request well below the proxy and JSON body-size limits.
       const batchSize = 1000;
       let result;
+      const skippedDuplicates: { clientId: string; existingId: string }[] = [];
       for (let start = 0; start < rows.length || start === 0; start += batchSize) {
         try {
           result = await api.request('/data/sync', {
             method: 'POST',
             body: JSON.stringify({ rows: rows.slice(start,start + batchSize), ...(workspaceId!==undefined?{workspaceId}:{}) }),
           });
+          skippedDuplicates.push(...(result.skippedDuplicates || []));
         } catch (error) {
           if (start > 0 && error && typeof error === 'object') (error as Error & {partialSync?:boolean}).partialSync = true;
           throw error;
         }
       }
-      return result;
+      return { ...result, skippedDuplicates };
     },
     async updateRow(id: string, updates: any, baseVersion?: number) {
       return api.request(`/data/${id}`, {

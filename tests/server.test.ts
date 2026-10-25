@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import { createServer, type Server } from 'http';
 import WebSocket from 'ws';
@@ -85,6 +85,195 @@ describe('POST /api/auth/register', () => {
   it('no longer exists; new users are created via POST /api/admin/users', async () => {
     const res = await request(app).post('/api/auth/register').send({ username: 'someone', password: 'Password123!' });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('exact trip duplicate prevention', () => {
+  let duplicateToken = '';
+  let duplicateUserId = 0;
+  const syncPost = (path: string) => request(app).post(path).set('Authorization', `Bearer ${duplicateToken}`);
+  beforeEach(async () => {
+    const user = await registerTestUser({ username: `dedup_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, password: 'Password123!' });
+    duplicateToken = user.body.token;
+    duplicateUserId = user.body.user.id;
+  });
+
+  const tripRow = (groupNo: string, id: string, overrides: Record<string, unknown> = {}) => ({
+    id,
+    groupNo,
+    groupName: 'Test Group',
+    agency: 'Test Agency',
+    count: '20',
+    Column1: 'Arrival',
+    date: '2026-11-02',
+    time: '09:30',
+    flight: 'XY123',
+    from: 'Jeddah Airport',
+    to: 'Hotel One (Makkah)',
+    carType: 'Bus',
+    tafweej: 'Arrival — Jeddah Airport → Hotel One (Makkah)',
+    status: 'Planned',
+    ...overrides,
+  });
+
+  it('skips an exact duplicate from a sync create and reports its client and existing ids', async () => {
+    const groupNo = `DEDUP${Date.now()}`;
+    const first = tripRow(groupNo, `first-${groupNo}`);
+    const second = tripRow(groupNo, `second-${groupNo}`);
+    const initial = await syncPost('/api/data/sync').send({ rows: [first] });
+    const duplicate = await syncPost('/api/data/sync').send({ rows: [second] });
+
+    expect(initial.status).toBe(200);
+    expect(duplicate.body.skippedDuplicates).toEqual([{ clientId: second.id, existingId: first.id }]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND id IN (?,?)').get(duplicateUserId, first.id, second.id)).toEqual({ count: 1 });
+  });
+
+  it('keeps trips when one itinerary detail differs', async () => {
+    const differences = [
+      { groupName: 'Another Group Name' },
+      { Column1: 'Departure' },
+      { date: '2026-11-03' },
+      { time: '10:30' },
+      { flight: 'XY124' },
+      { from: 'Madinah Airport' },
+      { to: 'Hotel Two (Makkah)' },
+      { count: '21' },
+      { agency: 'Another Agency' },
+      { carType: 'Van' },
+      { tafweej: 'Alternate route details' },
+      { customLeg: 'Makkah to Madinah' },
+    ];
+    for (const [index, difference] of differences.entries()) {
+      const groupNo = `DIFF${Date.now()}${index}`;
+      const first = tripRow(groupNo, `first-${groupNo}`);
+      const second = tripRow(groupNo, `second-${groupNo}`, difference);
+      const result = await syncPost('/api/data/sync').send({ rows: [first, second] });
+      expect(result.body.skippedDuplicates || []).toEqual([]);
+      expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND id IN (?,?)').get(duplicateUserId, first.id, second.id)).toEqual({ count: 2 });
+    }
+  });
+
+  it('normalizes case, whitespace, Arabic digits, dates, and times before skipping', async () => {
+    const groupNo = `NORM${Date.now()}`;
+    const first = tripRow(groupNo, `first-${groupNo}`, { date: '02/11/2026', time: '9:30' });
+    const arabicGroup = String(groupNo).replace(/\d/g, (digit) => String.fromCharCode(0x0660 + Number(digit)));
+    const equivalent = tripRow(arabicGroup, `second-${groupNo}`, {
+      groupName: '  test   group ', agency: 'TEST AGENCY', date: '2026-11-02', time: '09:30:00',
+      from: 'JEDDAH   AIRPORT',
+    });
+    const result = await syncPost('/api/data/sync').send({ rows: [first, equivalent] });
+    expect(result.body.skippedDuplicates).toEqual([{ clientId: equivalent.id, existingId: first.id }]);
+  });
+
+  it('checks old active rows without changing their stored content or metadata', async () => {
+    const groupNo = `OLD${Date.now()}`;
+    const existing = tripRow(groupNo, `old-${groupNo}`);
+    db.prepare('INSERT INTO logistics_rows (id,user_id,data) VALUES (?,?,?)').run(existing.id, duplicateUserId, JSON.stringify(existing));
+    const before = db.prepare('SELECT id,user_id,data,version,updated_at,deleted_at FROM logistics_rows WHERE id=?').get(existing.id);
+    const result = await syncPost('/api/data/sync').send({ rows: [tripRow(groupNo, `new-${groupNo}`)] });
+    const after = db.prepare('SELECT id,user_id,data,version,updated_at,deleted_at FROM logistics_rows WHERE id=?').get(existing.id);
+    expect(result.body.skippedDuplicates).toEqual([{ clientId: `new-${groupNo}`, existingId: existing.id }]);
+    expect(after).toEqual(before);
+    const skipped = db.prepare("SELECT event_type,category,actor_user_id,metadata,created_at FROM audit_log WHERE event_type='trip_duplicate_skipped' ORDER BY id DESC LIMIT 1").get() as any;
+    expect(skipped).toMatchObject({ event_type: 'trip_duplicate_skipped', category: 'data', actor_user_id: duplicateUserId });
+    expect(JSON.parse(skipped.metadata)).toMatchObject({ source: 'sync', existingId: existing.id, occurredAt: expect.any(String) });
+  });
+
+  it('allows a matching trip to be re-added after the earlier row was deleted', async () => {
+    const groupNo = `DELETED${Date.now()}`;
+    const deleted = tripRow(groupNo, `deleted-${groupNo}`);
+    db.prepare('INSERT INTO logistics_rows (id,user_id,data,deleted_at) VALUES (?,?,?,CURRENT_TIMESTAMP)').run(deleted.id, duplicateUserId, JSON.stringify(deleted));
+    const restored = tripRow(groupNo, `restored-${groupNo}`);
+    const result = await syncPost('/api/data/sync').send({ rows: [restored] });
+    expect(result.body.skippedDuplicates || []).toEqual([]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND id IN (?,?)').get(duplicateUserId, deleted.id, restored.id)).toEqual({ count: 2 });
+  });
+
+  it('deduplicates equivalent new rows within one sync batch', async () => {
+    const groupNo = `BATCH${Date.now()}`;
+    const first = tripRow(groupNo, `first-${groupNo}`);
+    const second = tripRow(groupNo, `second-${groupNo}`);
+    const result = await syncPost('/api/data/sync').send({ rows: [first, second] });
+    expect(result.body.skippedDuplicates).toEqual([{ clientId: second.id, existingId: first.id }]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND id IN (?,?)').get(duplicateUserId, first.id, second.id)).toEqual({ count: 1 });
+  });
+
+  it('does not deduplicate a same-id sync replay and ignores later status and notes edits', async () => {
+    const groupNo = `REPLAY${Date.now()}`;
+    const original = tripRow(groupNo, `replay-${groupNo}`);
+    await syncPost('/api/data/sync').send({ rows: [original] });
+    await syncPost('/api/data/sync').send({ rows: [{ ...original, status: 'Completed', notes: 'Driver confirmed' }] });
+    const result = await syncPost('/api/data/sync').send({ rows: [tripRow(groupNo, `new-${groupNo}`)] });
+    expect(result.body.skippedDuplicates).toEqual([{ clientId: `new-${groupNo}`, existingId: original.id }]);
+    expect(JSON.parse((db.prepare('SELECT data FROM logistics_rows WHERE id=?').get(original.id) as any).data)).toMatchObject({ status: 'Completed', notes: 'Driver confirmed' });
+  });
+
+  it('allows the explicit Duplicate action bypass but never stores its transient flag', async () => {
+    const groupNo = `BYPASS${Date.now()}`;
+    const original = tripRow(groupNo, `original-${groupNo}`);
+    const copy = { ...original, id: `copy-${groupNo}`, _allowDuplicate: 'true' };
+    await syncPost('/api/data/sync').send({ rows: [original] });
+    const result = await syncPost('/api/data/sync').send({ rows: [copy] });
+    expect(result.body.skippedDuplicates || []).toEqual([]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND id IN (?,?)').get(duplicateUserId, original.id, copy.id)).toEqual({ count: 2 });
+    expect(JSON.parse((db.prepare('SELECT data FROM logistics_rows WHERE id=?').get(copy.id) as any).data)).not.toHaveProperty('_allowDuplicate');
+  });
+
+  it('serializes two simultaneous identical creates so only one is inserted', async () => {
+    const groupNo = `RACE${Date.now()}`;
+    const first = tripRow(groupNo, `race-a-${groupNo}`);
+    const second = tripRow(groupNo, `race-b-${groupNo}`);
+    const results = await Promise.all([
+      syncPost('/api/data/sync').send({ rows: [first] }),
+      syncPost('/api/data/sync').send({ rows: [second] }),
+    ]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND id IN (?,?)').get(duplicateUserId, first.id, second.id)).toEqual({ count: 1 });
+    expect(results.flatMap((result) => result.body.skippedDuplicates || [])).toHaveLength(1);
+  });
+
+  it('scopes duplicate comparison to the trip owner', async () => {
+    const groupNo = `OWNER${Date.now()}`;
+    const existing = tripRow(groupNo, `owner-a-${groupNo}`);
+    await syncPost('/api/data/sync').send({ rows: [existing] });
+    const otherCredentials = { username: `other_${Date.now()}`, password: 'Password123!' };
+    const other = await registerTestUser(otherCredentials);
+    const incoming = tripRow(groupNo, `owner-b-${groupNo}`);
+    const result = await request(app).post('/api/data/sync').set('Authorization', `Bearer ${other.body.token}`).send({ rows: [incoming] });
+    expect(result.body.skippedDuplicates || []).toEqual([]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE id IN (?,?)').get(existing.id, incoming.id)).toEqual({ count: 2 });
+  });
+});
+
+describe('extension exact duplicate response', () => {
+  it('returns a successful parseable duplicate-skipped response on a repeated capture', async () => {
+    const user = await registerSharedTestUser('ingest_exact_dup');
+    const groupNo = `EXTDEDUP${Date.now()}`;
+    const text = `\nرحلة الوصول\nتاريخ الوصول\n15/01/2027\nوقت الوصول\n14:30\nرقم الرحلة\nSV123\nالمطار\nمطار الملك عبد العزيز\n`;
+    const first = await request(app).post('/api/ingest/text').set('Authorization', `Bearer ${user.token}`).send({ text, groupNo, groupName: 'Extension Duplicate Group', count: '2' });
+    const repeated = await request(app).post('/api/ingest/text').set('Authorization', `Bearer ${user.token}`).send({ text, groupNo, groupName: 'Extension Duplicate Group', count: '2' });
+
+    expect(first.body.success).toBe(true);
+    expect(first.body.rows.length).toBeGreaterThan(0);
+    expect(repeated.status).toBe(200);
+    expect(repeated.body).toMatchObject({ success: true, status: 'duplicate_skipped', existing_id: expect.any(String), rows: [] });
+    expect(JSON.parse(JSON.stringify(repeated.body)).success).toBe(true);
+    expect(db.prepare("SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND deleted_at IS NULL AND json_extract(data,'$.groupNo')=?").get(user.user.id, groupNo)).toEqual({ count: first.body.rows.length });
+  });
+
+  it('serializes simultaneous identical extension captures', async () => {
+    const user = await registerSharedTestUser('ingest_race');
+    const groupNo = `EXTRACE${Date.now()}`;
+    const body = {
+      text: '\nرحلة الوصول\nتاريخ الوصول\n15/01/2027\nوقت الوصول\n14:30\nرقم الرحلة\nSV123\nالمطار\nمطار الملك عبد العزيز\n',
+      groupNo, groupName: 'Extension Race Group', count: '2',
+    };
+    const results = await Promise.all([
+      request(app).post('/api/ingest/text').set('Authorization', `Bearer ${user.token}`).send(body),
+      request(app).post('/api/ingest/text').set('Authorization', `Bearer ${user.token}`).send(body),
+    ]);
+    expect(results.every((result) => result.body.success)).toBe(true);
+    expect(results.filter((result) => result.body.rows.length > 0)).toHaveLength(1);
+    expect(results.filter((result) => result.body.status === 'duplicate_skipped')).toHaveLength(1);
   });
 });
 
@@ -885,16 +1074,15 @@ describe('POST /api/data/sync', () => {
     expect(ids).toContain('row2');
   });
 
-  it('sync merges new rows without deleting omitted rows', async () => {
-    // Sync 2 rows
+  it('does not add an identical new id while preserving other rows', async () => {
     await authPost('/api/data/sync').send({ rows: sampleRows });
-    // Sync 1 different row
     const newRow = [{ ...sampleRows[0], id: 'row_new' }];
-    await authPost('/api/data/sync').send({ rows: newRow });
+    const sync = await authPost('/api/data/sync').send({ rows: newRow });
 
     const res = await authGet('/api/data');
-    expect(res.body).toHaveLength(3);
-    expect(res.body.map((r: any) => r.id)).toEqual(expect.arrayContaining(['row1', 'row2', 'row_new']));
+    expect(sync.body.skippedDuplicates).toEqual([{ clientId: 'row_new', existingId: 'row1' }]);
+    expect(res.body).toHaveLength(2);
+    expect(res.body.map((r: any) => r.id)).toEqual(expect.arrayContaining(['row1', 'row2']));
   });
 
   it('preserves row data integrity through sync roundtrip', async () => {
@@ -2058,7 +2246,7 @@ describe('Recycle bin permanent deletion', () => {
     const user = await registerSharedTestUser('clear_deleted_user');
     const rows = [
       makeSharedTripRow(`clear-deleted-row-1-${Date.now()}`, `CLR${Date.now()}`),
-      makeSharedTripRow(`clear-deleted-row-2-${Date.now()}`, `CLR${Date.now()}`),
+      { ...makeSharedTripRow(`clear-deleted-row-2-${Date.now()}`, `CLR${Date.now()}`), flight: 'different-flight' },
     ];
 
     await request(app)

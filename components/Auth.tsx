@@ -49,9 +49,11 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">اسم المستخدم</label>
               <input
                 type="text"
+                dir="ltr"
+                autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
+                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm text-left focus:ring-2 focus:ring-gold-500 focus:bg-white transition-all outline-none"
                 placeholder="أدخل اسم المستخدم"
                 required
               />

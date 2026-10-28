@@ -172,9 +172,27 @@ export const parseItineraryTextEN = (text: string, groupInfo: GroupInfo): Logist
       const hotelSectionStart = blockText.indexOf("Hotels");
       const hotelSection = (hotelSectionStart === -1 ? "" : blockText.slice(hotelSectionStart + "Hotels".length))
         .split(/Enrichment Services|Additional Services|Add trip station|Destination\s*\(|Departure Journey/)[0];
-      const HOTEL_COL_HEADERS = /^(?:(?:Hotel\s*\/\s*Host\s+Name|Entrance\s+Date|Exit\s+Date|Duration\s+Of\s+Stay|Room\s+Capacity|Price)(?:\s+|$))+$/;
+      // English portal versions expose either one hotel-name column or the
+      // license/signboard pair. Match labels as escaped literal text so the
+      // parentheses in "Signboard Name (Trade Name)" stay literal.
+      const HOTEL_HEADER_LABELS_EN = [
+        "Hotel / Host Name",
+        "License Name",
+        "Signboard Name (Trade Name)",
+        "Entrance Date",
+        "Exit Date",
+        "Duration Of Stay",
+        "Room Capacity",
+        "Price",
+      ];
+      const escapeRegexEN = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const hotelHeaderLabelPatternEN = HOTEL_HEADER_LABELS_EN
+        .map(label => escapeRegexEN(label).replace(/ /g, "\\s+"))
+        .sort((a, b) => b.length - a.length)
+        .join("|");
+      const HOTEL_COL_HEADERS = new RegExp(`^(?:(?:${hotelHeaderLabelPatternEN})(?:\\s+|$))+$`, "i");
       const HOTEL_DATE_CELL = /\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2}/;
-      const LEADING_HOTEL_HEADERS = /^(?:(?:Hotel\s*\/\s*Host\s+Name|Entrance\s+Date|Exit\s+Date|Duration\s+Of\s+Stay|Room\s+Capacity|Price)\s*)+/;
+      const LEADING_HOTEL_HEADERS = new RegExp(`^(?:(?:${hotelHeaderLabelPatternEN})\\s*)+`, "i");
       const HOTEL_VALUE_CELL = /^\d+(?:\s+\d+)*(?:\s*SAR)?$/;
       let hotel = "";
       const hotelParts: string[] = [];

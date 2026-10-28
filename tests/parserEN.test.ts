@@ -104,6 +104,10 @@ describe('normalizeCityEN', () => {
 // ─────────────────────────────────────────────
 describe('parseItineraryTextEN', () => {
   const groupInfo = { groupNo: 'G001', groupName: 'First Group', count: '4' };
+  const englishHotelHeaders = [
+    'License Name', 'Signboard Name (Trade Name)', 'Entrance Date', 'Exit Date',
+    'Duration Of Stay', 'Room Capacity', 'Price', 'Hotel / Host Name',
+  ];
 
   // Structurally mirrors the real English-mode capture from the design spec
   // (docs/superpowers/specs/2026-07-25-english-parser-design.md), single
@@ -678,5 +682,165 @@ Departure Date (Land Transport)
     expect(departure?.flight).toBe('Land Transport');
     expect(departure?.to).toBe('Alwadeah Port');
     expect(departure?.time).toBe('06:00');
+  });
+
+  it('skips English license and signboard headers from hotel names', () => {
+    const payload = `Trip Information
+Note: The program must be at least one day or more
+(05/11/2026) Arrival Journey
+Travel Method
+Choose the arrival date on which you will arrive in Saudi Arabia along with the method of travel. This date will mark the start of your journey.
+Arrival Date
+2026-11-05
+Transport Method
+Air Transport Sea Transport Land Transport
+Coming From
+United Arab Emirates, Dubai
+Going to
+Saudi Arabia, Jeddah
+Flight Number
+SV-0591
+Airport
+King Abdul Aziz International Airport
+Airlines
+SAUDI ARABIAN AIRLINES
+Terminal
+TERMINAL 1
+Arrival Time
+08:10
+Type of Trip
+Scheduled Flight
+Browse Journeys
+Destination (Makkah) (2026-11-05 - 2026-11-07)
+Hotels
+License Name
+Signboard Name (Trade Name)
+Entrance Date
+Exit Date
+Duration Of Stay
+Room Capacity
+Price
+Movenpick Hajar Tower Makkah
+Movenpick Hotel Hajar Tower
+11/05/2026
+11/07/2026
+2
+2
+710 SAR
+Service
+Service Type
+Visit Date
+Time
+Guide
+Price
+Kaaba Kiswa Exhibition
+Enrichment Destinations
+2026-11-07
+07:20:00
+20 SAR
+Mount Thawr
+Historical Sites
+2026-11-06
+11:21:00
+20 SAR
+Details
+Price
+MAZARAT
+15 SAR
+Add trip station
+(08/11/2026) Departure Journey
+Travel Method
+The departure date will be automatically determined based on the last destination
+Departure Date
+2026-11-08
+Transport Method
+Air Transport Sea Transport Land Transport
+leaving from
+Saudi Arabia, Jeddah
+Going to
+Kenya, Nairobi
+Flight Number
+SV-0435
+Airport
+King Abdul Aziz International Airport
+Airlines
+SAUDI ARABIAN AIRLINES
+Terminal
+TERMINAL 1
+Departure Time
+01:30
+Type of Trip
+Scheduled Flight
+Browse Journeys
+Back Next
+Trip Information Summary
+Trip Route
+Arrival Date (Air Transport)
+5-11-2026
+Trip Stations
+Makkah
+Departure Date (Air Transport)
+8-11-2026`;
+    const rows = parseItineraryTextEN(payload, groupInfo);
+    const arrival = rows.find(r => r.Column1 === 'Arrival');
+    expect(arrival?.to).toBe('Movenpick Hajar Tower Makkah Movenpick Hotel Hajar Tower (Makkah)');
+    expect(rows).not.toHaveLength(0);
+    for (const row of rows) {
+      for (const value of Object.values(row)) {
+        if (typeof value === 'string') {
+          expect(englishHotelHeaders.some(header => value.toLowerCase().includes(header.toLowerCase()))).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('skips English hotel headers across multiple destinations', () => {
+    const payload = `Arrival Journey
+Arrival Date
+2026-11-05
+Airport
+King Abdul Aziz International Airport
+Destination (Makkah) (2026-11-05 - 2026-11-07)
+Hotels
+LICENSE   NAME Signboard Name (Trade Name) Entrance Date Exit Date Duration Of Stay Room Capacity Price
+Makkah License
+Makkah Signboard
+11/05/2026
+11/07/2026
+2
+2
+710 SAR
+Destination (Madinah) (2026-11-07 - 2026-11-09)
+Hotels
+License Name
+Signboard Name (Trade Name)
+Entrance Date
+Exit Date
+Duration Of Stay
+Room Capacity
+Price
+Madinah License
+Madinah Signboard
+11/07/2026
+11/09/2026
+2
+2
+710 SAR
+Departure Journey
+Departure Date
+2026-11-09
+Airport
+Prince Mohammad International Airport`;
+    const rows = parseItineraryTextEN(payload, groupInfo);
+    const intercity = rows.find(r => r.Column1 === 'Between Cities');
+    expect(intercity?.from).toBe('Makkah License Makkah Signboard (Makkah)');
+    expect(intercity?.to).toBe('Madinah License Madinah Signboard (Madinah)');
+    for (const row of rows) {
+      for (const value of Object.values(row)) {
+        if (typeof value === 'string') {
+          expect(englishHotelHeaders.some(header => value.toLowerCase().includes(header.toLowerCase()))).toBe(false);
+        }
+      }
+    }
   });
 });

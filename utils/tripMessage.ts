@@ -2,14 +2,29 @@ import { LogisticsRow, AlertSettings } from '../types';
 
 const ENRICHMENT_TYPES = ['الخدمات الإثرائية', 'Enrichment Service'];
 
-type MovementKind = 'arrival' | 'departure' | 'intercity' | 'enrichment';
+export type MovementKind = 'arrival' | 'departure' | 'intercity' | 'enrichment';
 
-const classifyMovement = (row: LogisticsRow): MovementKind => {
-  const col1 = String(row.Column1 || '');
+export const resolveMovementKind = (movementMarker: unknown): MovementKind => {
+  const col1 = String(movementMarker ?? '').normalize('NFC').trim();
+  const englishMarker = col1.replace(/\s+/g, ' ').toLocaleLowerCase('en');
+
   if (ENRICHMENT_TYPES.includes(col1)) return 'enrichment';
   if (col1.includes('وصول')) return 'arrival';
   if (col1.includes('مغادرة')) return 'departure';
-  return 'intercity';
+  if (col1 === 'بين المدن') return 'intercity';
+
+  if (/^arrival(?: journey)?(?:\s*[([]\s*(?:sea|land) transport\s*[)\]])?$/.test(englishMarker)) return 'arrival';
+  if (/^departure(?: journey)?(?:\s*[([]\s*(?:sea|land) transport\s*[)\]])?$/.test(englishMarker)) return 'departure';
+
+  switch (englishMarker) {
+    case 'arrival': return 'arrival';
+    case 'departure': return 'departure';
+    case 'between cities': return 'intercity';
+    case 'enrichment service':
+    case 'enrichment services': return 'enrichment';
+    default:
+      throw new Error(`Unknown movement type: ${JSON.stringify(String(movementMarker ?? ''))}`);
+  }
 };
 
 /** Subtracts minutes from an "HH:MM" time string, wrapping within the same day. Returns '' if the time doesn't parse. */
@@ -31,7 +46,7 @@ const v = (val: string | undefined) => String(val || '').trim();
  * already populates rows for each type (e.g. departure: from=hotel, to=airport).
  */
 export const buildTripMessage = (row: LogisticsRow, companyName: string, alertSettings: AlertSettings): string => {
-  const kind = classifyMovement(row);
+  const kind = resolveMovementKind(row.Column1);
   const date = v(row.date);
   const agency = v(row.agency);
   const count = v(row.count);

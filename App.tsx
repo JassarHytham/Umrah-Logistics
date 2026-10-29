@@ -706,7 +706,15 @@ export default function App() {
       showNotification("تم حذف الرحلة نهائياً", "success");
     } catch (err) {
       console.error("Permanent delete failed", err);
-      showNotification("فشل حذف الرحلة نهائياً", "error");
+      const status = (err as { status?: number })?.status;
+      showNotification(
+        status === 403
+          ? "يمكن لمالك الرحلة فقط حذفها نهائياً"
+          : status === 409
+            ? "انقل الرحلة إلى سلة المحذوفات قبل حذفها نهائياً"
+            : "فشل حذف الرحلة نهائياً",
+        "error",
+      );
     }
   };
 
@@ -1392,7 +1400,9 @@ export default function App() {
                           <td className="p-4">{row.Column1} - {row.to}</td>
                           <td className="p-4 flex gap-2">
                             <button onClick={() => restoreDeletedRow(row.id)} className="text-green-600 hover:bg-green-50 px-3 py-1 rounded-lg border border-green-100 flex items-center gap-1 text-xs"><RotateCcw size={14} /> استعادة</button>
-                            <button onClick={() => permanentlyDeleteRow(row.id)} className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg border border-red-100 flex items-center gap-1 text-xs"><Trash2 size={14} /> حذف نهائي</button>
+                            {(!row._sharing?.shared || row._sharing.ownerUsername === user?.username) && (
+                              <button onClick={() => permanentlyDeleteRow(row.id)} className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg border border-red-100 flex items-center gap-1 text-xs"><Trash2 size={14} /> حذف نهائي</button>
+                            )}
                           </td>
                         </tr>
                       ))}

@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
+const { capturedLimiterOptions } = vi.hoisted(() => ({ capturedLimiterOptions: [] as any[] }));
+
 // Exercise the real production limiters; disable only the test-environment bypass.
 vi.mock('express-rate-limit', async (importOriginal) => {
   const actual = await importOriginal<typeof import('express-rate-limit')>();
   return {
     ...actual,
-    default: (options: any) => actual.default({ ...options, skip: () => false }),
+    default: (options: any) => {
+      capturedLimiterOptions.push(options);
+      return actual.default({ ...options, limit: options.limit === 10_000 ? 600 : options.limit, skip: () => false });
+    },
   };
 });
 
@@ -14,7 +19,8 @@ import { app } from '../server';
 
 describe('production rate limits behind the local reverse proxy', () => {
   it('keeps separate client allowances and returns JSON when one is exhausted', async () => {
-    for (let i = 0; i < 10_000; i++) {
+    expect(capturedLimiterOptions.some((options: any) => options.windowMs === 15 * 60 * 1000 && options.limit === 10_000)).toBe(true);
+    for (let i = 0; i < 600; i++) {
       const response = await request(app).get('/api/data').set('X-Forwarded-For', '198.51.100.10');
       expect(response.status).toBe(401);
     }

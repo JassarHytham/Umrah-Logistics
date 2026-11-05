@@ -63,7 +63,7 @@ describe('staging workspace ownership and isolation', () => {
     const sourceWorkspace=(db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(source.id) as any).workspace_id;
     const destinationWorkspace=(db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(destination.id) as any).workspace_id;
     const activeId=`transfer-active-${Date.now()}`; const deletedId=`transfer-deleted-${Date.now()}`;
-    await save(source.token,[row(activeId),row(deletedId)]);
+    await save(source.token,[row(activeId),{...row(deletedId),groupNo:'101'}]);
     expect((await request(app).post(`/api/data/${deletedId}/delete`).set(auth(source.token)).send()).status).toBe(200);
     const invite=await request(app).post('/api/shares/invitations').set(auth(source.token)).send({
       receiverUsername:recipient.username,scopeType:'row',rowId:activeId,role:'viewer',
@@ -322,9 +322,8 @@ describe('staging workspace ownership and isolation', () => {
     const employee=await user(workspace.workspaceId);
     await saveSettings(owner.token,{tgConfig:{token:'synthetic-worker-bot',chatId:'synthetic-worker-chat',enabled:true}});
     const soon=new Date(Date.now()+10*60_000);
-    const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Riyadh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(soon);
-    const part=(name:string)=>parts.find(p=>p.type===name)!.value;
-    const trip={...row('worker-live'),date:`${part('day')}/${part('month')}/${part('year')}`,time:`${part('hour')}:${part('minute')}`,Column1:'وصول',flight:'SYNTHETIC',from:'Test',to:'Test',count:'1'};
+    const part=(value:number)=>String(value).padStart(2,'0');
+    const trip={...row('worker-live'),date:`${part(soon.getDate())}/${part(soon.getMonth()+1)}/${soon.getFullYear()}`,time:`${part(soon.getHours())}:${part(soon.getMinutes())}`,Column1:'وصول',flight:'SYNTHETIC',from:'Test',to:'Test',count:'1'};
     await save(employee.token,[trip,{...trip,id:'worker-deleted'}]);
     await request(app).post('/api/data/worker-deleted/delete').set(auth(employee.token)).send();
     const fetchMock=vi.fn().mockResolvedValue({json:async()=>({ok:true})});

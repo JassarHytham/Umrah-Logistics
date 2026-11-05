@@ -2451,6 +2451,9 @@ app.patch("/api/account", authenticateToken, async (req: any, res) => {
 
   const existing: any = db.prepare("SELECT * FROM users WHERE id = ?").get(req.user.id);
   if (!existing) return res.status(401).json({ error: "Unauthorized" });
+  if (companyName !== undefined && existing.role !== 'admin') {
+    return res.status(403).json({ error: "Only administrators can change the company name" });
+  }
 
   const wantsUsernameChange = username !== undefined;
   const wantsPasswordChange = newPassword !== undefined;

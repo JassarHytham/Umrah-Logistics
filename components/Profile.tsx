@@ -177,7 +177,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-1">
             <User size={20} className="text-gold-600" /> الملف الشخصي
           </h2>
-          <p className="text-sm text-gray-400">معلومات حسابك وصورتك واسم الشركة</p>
+          <p className="text-sm text-gray-400">{user.role === 'admin' ? 'معلومات حسابك وصورتك واسم الشركة' : 'معلومات حسابك وصورتك'}</p>
         </div>
 
         {/* ── Avatar ── */}
@@ -218,8 +218,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
           </div>
         </div>
 
-        {/* ── Company name ── */}
-        <form onSubmit={handleCompanySave} className="border-t border-gray-100 pt-6 space-y-3">
+        {/* Company label editing is limited to administrators. */}
+        {user.role === 'admin' && <form onSubmit={handleCompanySave} className="border-t border-gray-100 pt-6 space-y-3">
           <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider flex items-center gap-1.5">
             <Building2 size={13} className="text-gold-500" /> اسم الشركة
           </label>
@@ -240,7 +240,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUserUpdate }) => {
           >
             {companyBusy && <Loader2 size={14} className="animate-spin" />} حفظ
           </button>
-        </form>
+        </form>}
 
         {/* ── Username ── */}
         <form onSubmit={handleUsernameSave} className="border-t border-gray-100 pt-6 space-y-3">

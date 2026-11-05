@@ -77,7 +77,7 @@ describe('staging workspace ownership and isolation', () => {
     expect(moved.status).toBe(200);
     expect(db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(source.id)).toEqual({workspace_id:destinationWorkspace});
     expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND id IN (?,?) AND workspace_id=?').get(source.id,activeId,deletedId,destinationWorkspace)).toEqual({count:2});
-    expect(db.prepare('SELECT deleted_at FROM logistics_rows WHERE id=?').get(deletedId).deleted_at).toBeTruthy();
+    expect((db.prepare('SELECT deleted_at FROM logistics_rows WHERE id=?').get(deletedId) as any).deleted_at).toBeTruthy();
     expect(db.prepare('SELECT source_workspace_id FROM workspace_grants WHERE scope_type=\'row\' AND row_id=? AND user_id=?').get(activeId,recipient.id)).toEqual({source_workspace_id:destinationWorkspace});
     expect((await rowsFor(recipient.token)).body.some((trip:any)=>trip.id===activeId)).toBe(true);
     expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE workspace_id=? AND id IN (?,?)').get(sourceWorkspace,activeId,deletedId)).toEqual({count:0});

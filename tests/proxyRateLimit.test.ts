@@ -14,7 +14,7 @@ import { app } from '../server';
 
 describe('production rate limits behind the local reverse proxy', () => {
   it('keeps separate client allowances and returns JSON when one is exhausted', async () => {
-    for (let i = 0; i < 600; i++) {
+    for (let i = 0; i < 10_000; i++) {
       const response = await request(app).get('/api/data').set('X-Forwarded-For', '198.51.100.10');
       expect(response.status).toBe(401);
     }

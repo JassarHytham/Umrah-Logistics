@@ -58,6 +58,40 @@ describe('staging workspace ownership and isolation', () => {
     expect((await save(account.token,[row('pending-storage-trip')])).status).toBe(200);
     expect((await request(app).delete(`/api/admin/companies/${company.body.company.id}`).set(auth(adminToken))).status).toBe(200);
   });
+  it('moves a member’s active and deleted trips plus row grants when requested',async()=>{
+    const source=await user(); const destination=await user(); const recipient=await user();
+    const sourceWorkspace=(db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(source.id) as any).workspace_id;
+    const destinationWorkspace=(db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(destination.id) as any).workspace_id;
+    const activeId=`transfer-active-${Date.now()}`; const deletedId=`transfer-deleted-${Date.now()}`;
+    await save(source.token,[row(activeId),row(deletedId)]);
+    expect((await request(app).post(`/api/data/${deletedId}/delete`).set(auth(source.token)).send()).status).toBe(200);
+    const invite=await request(app).post('/api/shares/invitations').set(auth(source.token)).send({
+      receiverUsername:recipient.username,scopeType:'row',rowId:activeId,role:'viewer',
+    });
+    expect(invite.status).toBe(200);
+    expect((await request(app).post(`/api/shares/invitations/${invite.body.invitation.id}/accept`).set(auth(recipient.token)).send()).status).toBe(200);
+
+    const moved=await request(app).patch(`/api/admin/users/${source.id}`).set(auth(adminToken)).send({
+      companyId:destinationWorkspace,moveData:true,
+    });
+    expect(moved.status).toBe(200);
+    expect(db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(source.id)).toEqual({workspace_id:destinationWorkspace});
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND id IN (?,?) AND workspace_id=?').get(source.id,activeId,deletedId,destinationWorkspace)).toEqual({count:2});
+    expect(db.prepare('SELECT deleted_at FROM logistics_rows WHERE id=?').get(deletedId).deleted_at).toBeTruthy();
+    expect(db.prepare('SELECT source_workspace_id FROM workspace_grants WHERE scope_type=\'row\' AND row_id=? AND user_id=?').get(activeId,recipient.id)).toEqual({source_workspace_id:destinationWorkspace});
+    expect((await rowsFor(recipient.token)).body.some((trip:any)=>trip.id===activeId)).toBe(true);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE workspace_id=? AND id IN (?,?)').get(sourceWorkspace,activeId,deletedId)).toEqual({count:0});
+  });
+  it('keeps a member’s trips in the source workspace when data transfer is not requested',async()=>{
+    const source=await user(); const destination=await user();
+    const sourceWorkspace=(db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(source.id) as any).workspace_id;
+    const destinationWorkspace=(db.prepare('SELECT workspace_id FROM workspace_memberships WHERE user_id=?').get(destination.id) as any).workspace_id;
+    const tripId=`keep-source-${Date.now()}`;
+    await save(source.token,[row(tripId)]);
+    const moved=await request(app).patch(`/api/admin/users/${source.id}`).set(auth(adminToken)).send({companyId:destinationWorkspace});
+    expect(moved.status).toBe(200);
+    expect(db.prepare('SELECT workspace_id FROM logistics_rows WHERE id=?').get(tripId)).toEqual({workspace_id:sourceWorkspace});
+  });
   it('prevents archived creator records from being reactivated or given usable sessions',async()=>{
     const account=await user();
     db.prepare('UPDATE users SET is_archived_creator=1,is_active=0 WHERE id=?').run(account.id);
@@ -295,11 +329,12 @@ describe('staging workspace ownership and isolation', () => {
     await request(app).post('/api/data/worker-deleted/delete').set(auth(employee.token)).send();
     const fetchMock=vi.fn().mockResolvedValue({json:async()=>({ok:true})});
     vi.stubGlobal('fetch',fetchMock);
+    vi.stubEnv('STAGING_OUTBOUND_ALERTS','true');
     try{
       await checkAndSendAlerts();await checkAndSendAlerts();
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const stored:any=db.prepare('SELECT notified_ids FROM workspace_settings WHERE workspace_id=?').get(workspace.workspaceId);
       expect(JSON.parse(stored.notified_ids)).toEqual(['worker-live']);
-    }finally{vi.unstubAllGlobals();}
+    }finally{vi.unstubAllGlobals();vi.unstubAllEnvs();}
   });
 });

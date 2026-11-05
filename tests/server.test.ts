@@ -319,22 +319,24 @@ describe('POST /api/auth/login', () => {
     });
   });
 
-  it('preserves companyName and avatar set via /api/account after a fresh login', async () => {
+  it('blocks regular users from changing companyName and preserves avatar after a fresh login', async () => {
     const user = { username: `login_persist_${Date.now()}`, password: 'Password123!' };
     const reg = await registerTestUser(user);
     const token = reg.body.token as string;
 
     const avatar = `data:image/png;base64,${'A'.repeat(100)}==`;
-    await request(app)
+    const forbidden = await request(app)
       .patch('/api/account')
       .set('Authorization', `Bearer ${token}`)
-      .send({ companyName: 'Acme Travel', avatar });
+      .send({ companyName: 'Acme Travel' });
+    expect(forbidden.status).toBe(403);
+    await request(app).patch('/api/account').set('Authorization', `Bearer ${token}`).send({ avatar });
 
     // Simulate logging out and back in (a fresh /api/auth/login call, not reusing the old token)
     const login = await request(app).post('/api/auth/login').send(user);
 
     expect(login.status).toBe(200);
-    expect(login.body.user.companyName).toBe('Acme Travel');
+    expect(login.body.user.companyName).toBeNull();
     expect(login.body.user.avatar).toBe(avatar);
   });
 
@@ -1301,17 +1303,15 @@ describe('PATCH /api/account', () => {
     expect(res.status).toBe(401);
   });
 
-  it('updates companyName without requiring a password', async () => {
-    const { token } = await registerFresh();
-    const res = await authPatchAs(token, '/api/account').send({ companyName: 'Acme Travel' });
+  it('allows an administrator to update companyName without requiring a password', async () => {
+    const res = await authPatchAs(adminToken, '/api/account').send({ companyName: 'Acme Travel' });
     expect(res.status).toBe(200);
     expect(res.body.user.companyName).toBe('Acme Travel');
   });
 
-  it('clears companyName when sent an empty string', async () => {
-    const { token } = await registerFresh();
-    await authPatchAs(token, '/api/account').send({ companyName: 'Acme Travel' });
-    const res = await authPatchAs(token, '/api/account').send({ companyName: '' });
+  it('allows an administrator to clear companyName', async () => {
+    await authPatchAs(adminToken, '/api/account').send({ companyName: 'Acme Travel' });
+    const res = await authPatchAs(adminToken, '/api/account').send({ companyName: '' });
     expect(res.status).toBe(200);
     expect(res.body.user.companyName).toBeNull();
   });
@@ -1350,7 +1350,7 @@ describe('PATCH /api/account', () => {
     expect(res.body.token).toBeTruthy();
 
     // Old token still verifies (JWT isn't revoked) but the account is now reachable under the new token/username too
-    const check = await authPatchAs(res.body.token, '/api/account').send({ companyName: 'Still works' });
+    const check = await request(app).get('/api/account').set('Authorization', `Bearer ${res.body.token}`);
     expect(check.status).toBe(200);
   });
 
@@ -1385,23 +1385,24 @@ describe('PATCH /api/account', () => {
     expect(res.status).toBe(400);
   });
 
-  it('a partial update does not wipe unrelated fields', async () => {
+  it('rejects regular-user companyName changes without wiping their other profile fields', async () => {
     const { token } = await registerFresh();
-    await authPatchAs(token, '/api/account').send({ companyName: 'Keep Me', avatar: SAMPLE_AVATAR });
-    const res = await authPatchAs(token, '/api/account').send({ companyName: 'Updated' });
-    expect(res.status).toBe(200);
-    expect(res.body.user.companyName).toBe('Updated');
-    expect(res.body.user.avatar).toBe(SAMPLE_AVATAR);
+    await authPatchAs(token, '/api/account').send({ avatar: SAMPLE_AVATAR });
+    const forbidden = await authPatchAs(token, '/api/account').send({ companyName: 'Updated' });
+    expect(forbidden.status).toBe(403);
+    const profile = await request(app).get('/api/account').set('Authorization', `Bearer ${token}`);
+    expect(profile.body.companyName).toBeNull();
+    expect(profile.body.avatar).toBe(SAMPLE_AVATAR);
   });
 
   it('logs account_updated with the changed field names, never a password value', async () => {
-    const { token, userId } = await registerFresh();
-    await authPatchAs(token, '/api/account').send({ companyName: 'Logged Co' });
+    const adminId = Number((db.prepare("SELECT id FROM users WHERE role='admin'").get() as any).id);
+    await authPatchAs(adminToken, '/api/account').send({ companyName: 'Logged Co' });
 
     const audit = await request(app)
       .get('/api/admin/audit?category=settings')
       .set('Authorization', `Bearer ${adminToken}`);
-    const event = audit.body.events.find((e: any) => e.actorUserId === userId && e.eventType === 'account_updated');
+    const event = audit.body.events.find((e: any) => e.actorUserId === adminId && e.eventType === 'account_updated');
     expect(event).toBeTruthy();
     expect(event.metadata.fields).toEqual(['companyName']);
   });

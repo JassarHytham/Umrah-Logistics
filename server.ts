@@ -1328,6 +1328,7 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
 
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "companyId")) {
     const companyId = req.body.companyId;
+    const moveData = req.body?.moveData === true;
     if (companyId !== null && (!Number.isSafeInteger(companyId) || companyId < 1))
       return res.status(400).json({ error: "Invalid company" });
     if (companyId !== null) {
@@ -1335,27 +1336,60 @@ app.patch("/api/admin/users/:id", authenticateToken, requireAdmin, (req: any, re
       if (!company) return res.status(400).json({ error: "Company not found" });
     }
     const membership=workspaceEnabled ? db.prepare('SELECT workspace_id,role FROM workspace_memberships WHERE user_id=?').get(userId) as {workspace_id:number;role:string}|undefined : undefined;
+    if (moveData && !membership) return res.status(400).json({ error: "Trip transfer requires an active workspace membership" });
     let moved=false;
+    let movedRows=0;
+    let affectedWorkspaceUsers = new Set<number>();
+    let destinationWorkspaceId: number|undefined;
     db.transaction(()=>{
       if(membership && companyId!==membership.workspace_id) {
         const destination=companyId ?? Number(db.prepare('INSERT INTO companies(name) VALUES (?)')
           .run(`Workspace — ${target.username} — ${crypto.randomUUID().slice(0,8)}`).lastInsertRowid);
+        destinationWorkspaceId=destination;
+        const oldWorkspaceId=membership.workspace_id;
+        if(moveData) {
+          movedRows=(db.prepare('SELECT COUNT(*) AS count FROM logistics_rows WHERE user_id=? AND workspace_id=?').get(userId,oldWorkspaceId) as {count:number}).count;
+          for(const row of db.prepare('SELECT user_id FROM workspace_memberships WHERE workspace_id IN (?,?)').all(oldWorkspaceId,destination) as {user_id:number}[]) affectedWorkspaceUsers.add(row.user_id);
+          for(const row of db.prepare(`SELECT DISTINCT user_id FROM workspace_grants WHERE source_workspace_id=? AND scope_type='row'
+            AND row_id IN (SELECT id FROM logistics_rows WHERE user_id=? AND workspace_id=?)`).all(oldWorkspaceId,userId,oldWorkspaceId) as {user_id:number}[]) affectedWorkspaceUsers.add(row.user_id);
+          for(const row of db.prepare(`SELECT sender_user_id AS user_id FROM workspace_share_invitations WHERE source_workspace_id=? AND scope_type='row'
+            AND scope_value IN (SELECT id FROM logistics_rows WHERE user_id=? AND workspace_id=?)
+            UNION SELECT receiver_user_id AS user_id FROM workspace_share_invitations WHERE source_workspace_id=? AND scope_type='row'
+            AND scope_value IN (SELECT id FROM logistics_rows WHERE user_id=? AND workspace_id=?)`).all(oldWorkspaceId,userId,oldWorkspaceId,oldWorkspaceId,userId,oldWorkspaceId) as {user_id:number}[]) affectedWorkspaceUsers.add(row.user_id);
+          if(movedRows) db.pragma('defer_foreign_keys = ON');
+        }
         const hasOwner=Boolean(db.prepare("SELECT 1 FROM workspace_memberships WHERE workspace_id=? AND role='owner'").get(destination));
         const newRole=hasOwner ? (membership.role==='owner'?'manager':membership.role) : 'owner';
         db.prepare('UPDATE workspace_memberships SET workspace_id=?,role=? WHERE user_id=?').run(destination,newRole,userId);
         db.prepare('INSERT OR IGNORE INTO workspace_settings(workspace_id) VALUES (?)').run(destination);
-        db.prepare('DELETE FROM workspace_grants WHERE source_workspace_id=? AND user_id=?').run(membership.workspace_id,userId);
+        db.prepare('DELETE FROM workspace_grants WHERE source_workspace_id=? AND user_id=?').run(oldWorkspaceId,userId);
         db.prepare(`UPDATE workspace_share_invitations SET status='declined',responded_at=CURRENT_TIMESTAMP
-          WHERE source_workspace_id=? AND receiver_user_id=? AND status='pending'`).run(membership.workspace_id,userId);
+          WHERE source_workspace_id=? AND receiver_user_id=? AND status='pending'`).run(oldWorkspaceId,userId);
+        if(moveData && movedRows) {
+          // The immutable-workspace trigger protects normal writes; an admin transfer
+          // temporarily removes it inside this transaction and restores it atomically.
+          db.exec('DROP TRIGGER IF EXISTS logistics_workspace_immutable');
+          db.prepare(`UPDATE workspace_grants SET source_workspace_id=? WHERE source_workspace_id=? AND scope_type='row'
+            AND row_id IN (SELECT id FROM logistics_rows WHERE user_id=? AND workspace_id=?)`).run(destination,oldWorkspaceId,userId,oldWorkspaceId);
+          db.prepare(`UPDATE workspace_share_invitations SET source_workspace_id=? WHERE source_workspace_id=? AND scope_type='row'
+            AND scope_value IN (SELECT id FROM logistics_rows WHERE user_id=? AND workspace_id=?)`).run(destination,oldWorkspaceId,userId,oldWorkspaceId);
+          db.prepare('UPDATE logistics_rows SET workspace_id=? WHERE user_id=? AND workspace_id=?').run(destination,userId,oldWorkspaceId);
+          db.exec(`CREATE TRIGGER logistics_workspace_immutable BEFORE UPDATE OF workspace_id,user_id ON logistics_rows
+            WHEN (OLD.workspace_id IS NOT NULL AND NEW.workspace_id IS NOT OLD.workspace_id) OR NEW.user_id!=OLD.user_id
+            BEGIN SELECT RAISE(ABORT,'Trip ownership is immutable'); END`);
+        }
         logEvent('workspace_member_moved',{category:'user_mgmt',actorUserId:req.user.id,targetUserId:userId,
-          metadata:{fromWorkspaceId:membership.workspace_id,toWorkspaceId:destination,role:newRole}});
+          metadata:{fromWorkspaceId:oldWorkspaceId,toWorkspaceId:destination,role:newRole,moveData,movedRows}});
         moved=true;
       }
       db.prepare("UPDATE users SET company_id = ? WHERE id = ?").run(companyId, userId);
     })();
     if(moved) {
-      sendLiveEvent([userId],'rows_changed',req.user.id);
-      sendLiveEvent([userId],'invitations_changed',req.user.id);
+      if(moveData) {
+        for(const row of db.prepare('SELECT user_id FROM workspace_memberships WHERE workspace_id IN (?,?)').all(membership!.workspace_id,destinationWorkspaceId!) as {user_id:number}[]) affectedWorkspaceUsers.add(row.user_id);
+      } else affectedWorkspaceUsers.add(userId);
+      sendLiveEvent([...affectedWorkspaceUsers],'rows_changed',req.user.id);
+      sendLiveEvent([...affectedWorkspaceUsers],'invitations_changed',req.user.id);
     }
   }
 

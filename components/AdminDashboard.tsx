@@ -213,6 +213,32 @@ const ResetPasswordModal: React.FC<{ userId: number; onClose: () => void; onDone
   );
 };
 
+const MoveUserCompanyModal: React.FC<{ target: AdminUser; destination: string; onClose: () => void; onConfirm: (moveData: boolean) => Promise<void> }> = ({ target, destination, onClose, onConfirm }) => {
+  const [moveData, setMoveData] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async () => {
+    setSaving(true);
+    setError('');
+    try { await onConfirm(moveData); }
+    catch (err: any) { setError(err.message || 'فشل نقل المستخدم'); setSaving(false); }
+  };
+  return <ModalShell title="نقل المستخدم إلى شركة أخرى" onClose={onClose}>
+    <div className="space-y-4 text-sm">
+      <p className="text-gray-600">نقل <strong>{target.username}</strong> إلى <strong>{destination}</strong>.</p>
+      {target.workspaceRole && <label className="flex items-start gap-3 rounded-xl border border-gray-200 p-3 cursor-pointer">
+        <input type="checkbox" checked={moveData} onChange={event => setMoveData(event.target.checked)} className="mt-1 accent-amber-600" />
+        <span><strong>انقل رحلات المستخدم أيضًا</strong><span className="block text-xs text-gray-500 mt-1">ستنتقل الرحلات التي أنشأها إلى الشركة الجديدة، بما فيها الرحلات المحذوفة.</span></span>
+      </label>}
+      {error && <p className="text-red-600">{error}</p>}
+      <div className="flex gap-2 justify-end">
+        <button onClick={onClose} disabled={saving} className="px-4 py-2 rounded-lg border">إلغاء</button>
+        <button onClick={submit} disabled={saving} className="px-4 py-2 rounded-lg bg-gold-600 text-white font-bold disabled:opacity-60">{saving ? 'جارٍ النقل…' : 'نقل المستخدم'}</button>
+      </div>
+    </div>
+  </ModalShell>;
+};
+
 const RenameCompanyModal: React.FC<{ company: AdminCompany; onClose: () => void; onDone: () => void }> = ({ company, onClose, onDone }) => {
   const [name, setName] = useState(company.name);
   const [error, setError] = useState('');
@@ -466,6 +492,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   const [resetPasswordUserId, setResetPasswordUserId] = useState<number | null>(null);
   const [renameCompanyId, setRenameCompanyId] = useState<number | null>(null);
   const [viewCompanyId, setViewCompanyId] = useState<number | null>(null);
+  const [companyChange, setCompanyChange] = useState<{ target: AdminUser; companyId: string } | null>(null);
 
   const loadAll = async () => {
     setLoading(true);
@@ -512,19 +539,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   };
 
   const handleChangeCompany = async (target: AdminUser, companyId: string) => {
-    if(target.workspaceRole && !window.confirm(`نقل "${target.username}" إلى ${companies.find(company=>company.id===Number(companyId))?.name||'مساحة خاصة جديدة'}؟ ستبقى رحلاته السابقة في الشركة الحالية، وقد تتغير صلاحيته في الشركة الجديدة.`))return;
-    try {
-      await api.admin.updateUser(target.id, { companyId: companyId ? Number(companyId) : null });
-      await loadAll();
-    } catch (err: any) {
-      setError(err.message || 'فشل تحديث شركة المستخدم');
-    }
+    if (String(target.companyId ?? '') === companyId) return;
+    setCompanyChange({ target, companyId });
   };
 
-  const handleWorkspaceRole=async(target:AdminUser,role:'owner'|'manager'|'editor'|'viewer')=>{
-    if(role==='owner'&&!window.confirm(`نقل ملكية الشركة إلى "${target.username}"؟ سيصبح المالك الحالي مديرًا.`))return;
-    try { await api.admin.updateWorkspaceRole(target.id,role); await loadAll(); }
-    catch(err:any){setError(err.message||'فشل تحديث صلاحية عضو الشركة');}
+  const confirmChangeCompany = async (moveData: boolean) => {
+    if (!companyChange) return;
+    const { target, companyId } = companyChange;
+    await api.admin.updateUser(target.id, { companyId: companyId ? Number(companyId) : null, moveData });
+    setCompanyChange(null);
+    await loadAll();
   };
 
   const handleToggleActive = async (target: AdminUser) => {
@@ -534,6 +558,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
     } catch (err: any) {
       setError(err.message || 'فشل تحديث حالة المستخدم');
     }
+  };
+
+  const handleWorkspaceRole=async(target:AdminUser,role:'owner'|'manager'|'editor'|'viewer')=>{
+    if(role==='owner'&&!window.confirm(`نقل ملكية الشركة إلى "${target.username}"؟ سيصبح المالك الحالي مديرًا.`))return;
+    try { await api.admin.updateWorkspaceRole(target.id,role); await loadAll(); }
+    catch(err:any){setError(err.message||'فشل تحديث صلاحية عضو الشركة');}
   };
 
   const handleDeleteUser = async (target: AdminUser) => {
@@ -830,6 +860,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
         <CreateCompanyModal
           onClose={() => setShowCreateCompany(false)}
           onCreated={() => { setShowCreateCompany(false); loadAll(); }}
+        />
+      )}
+      {companyChange && (
+        <MoveUserCompanyModal
+          target={companyChange.target}
+          destination={companies.find(company => company.id === Number(companyChange.companyId))?.name || 'مساحة خاصة جديدة'}
+          onClose={() => setCompanyChange(null)}
+          onConfirm={confirmChangeCompany}
         />
       )}
       {resetPasswordUserId !== null && (

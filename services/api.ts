@@ -215,7 +215,7 @@ export const api = {
         body: JSON.stringify(payload),
       });
     },
-    async updateUser(id: number, payload: { companyId?: number | null; isActive?: boolean }) {
+    async updateUser(id: number, payload: { companyId?: number | null; isActive?: boolean; moveData?: boolean }) {
       return api.request(`/admin/users/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload),
